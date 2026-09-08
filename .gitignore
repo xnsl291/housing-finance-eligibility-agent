@@ -1,0 +1,17 @@
+# 비밀값은 커밋하지 않는다. 실제 값은 비밀번호 관리자로 관리한다.
+.env
+*.token
+secrets.yaml
+
+# 공식 문서 원본. 제3자 저작물이라 공개 저장소에 올리지 않는다.
+# 출처 URL과 해시는 수집 기록에 남긴다.
+data/
+*.pdf
+
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+Thumbs.db

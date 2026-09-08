@@ -1,0 +1,33 @@
+[project]
+name = "housing-finance-eligibility-agent"
+version = "0.1.0"
+description = "주거금융 대출·보증 지원가능성 사전 판정 Agent — 공식 문서 근거를 붙여 판정한다"
+requires-python = ">=3.12"
+
+# 실제로 쓰는 것만 등록한다. FastAPI, Streamlit, MCP는 해당 계층을 만들 때 추가한다.
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
