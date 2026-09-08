@@ -9,6 +9,9 @@ data/
 *.pdf
 
 .venv/
+*.egg-info/
+build/
+dist/
 __pycache__/
 *.pyc
 .pytest_cache/
