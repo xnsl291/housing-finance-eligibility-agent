@@ -90,14 +90,21 @@ rules:
     value: 60000000
     unit: 원
     type: HARD
-    applies_when:
-      field: minor_children_count
-      operator: gte
-      value: 2
     overrides: [B-05]
-    citation: "다자녀·2자녀가구는 6천만원 이하"
+    applies_when:
+      any:
+        - field: minor_children_count
+          operator: gte
+          value: 2
+        - field: is_innovation_city_relocated_worker
+          operator: eq
+          value: true
+        - field: is_redevelopment_area_tenant
+          operator: eq
+          value: true
+    citation: "다자녀·2자녀가구는 6천만원 이하 / 혁신도시 이전 공공기관 종사자·타 지역으로 이주하는 재개발 구역 내 세입자는 6천만원 이하"
     human_reviewed: true
-    failure_message: 2자녀 이상 가구 기준 6천만원을 넘음
+    failure_message: 2자녀 이상 가구 등 특례 기준 6천만원을 넘음
 
   - rule_id: B-07
     field: combined_annual_income_krw
@@ -178,6 +185,70 @@ rules:
     failure_message: 임차보증금의 5% 이상을 지불한 상태여야 함
     note: 기금 공식 페이지에는 없고 은행 상품안내에서 확인한 조건이다.
 
+  # 신청 시기. 기준 날짜가 둘이고 **빠른 날**을 쓴다. HUG 전세보증금반환보증은
+  # 같은 두 날짜에서 늦은 날을 쓰므로 헷갈리기 쉬운 자리다.
+  - rule_id: B-18
+    field: application_date
+    operator: within_months_after
+    value: 3
+    unit: 개월
+    reference:
+      mode: earliest
+      fields: [contract_balance_date, move_in_date]
+    type: HARD
+    citation: "신규계약: 임대차계약서상 잔금지급일과 주민등록등본상 전입일중 빠른 날로부터 3개월 이내"
+    human_reviewed: true
+    failure_message: 신청 기한(잔금지급일과 전입일 중 빠른 날로부터 3개월)이 지남
+    note: |
+      증액갱신계약은 갱신계약일로부터 3개월 이내로 기준이 다르다. 계약 유형을
+      나누는 규칙은 아직 넣지 않았고 신규계약만 다룬다.
+      기존 은행재원 전세자금대출 대환이면서 부부합산 연소득 5천만원 이하면
+      6개월 이내로 늘어나는 특례도 아직 다루지 않는다.
+
+  # 병역 특례. 만 34세 종료일에 복무기간을 더하되 만 39세가 상한이다.
+  # 나이 기준을 사람마다 바꾸는 대신 복무기간만큼 되돌린 나이를 비교한다
+  # (profile.enrich가 age_after_service_credit을 만든다).
+  - rule_id: B-19
+    field: age_after_service_credit
+    operator: lte
+    value: 34
+    unit: 세
+    type: HARD
+    applies_when:
+      all:
+        - field: employment_category
+          operator: eq
+          value: SME_OR_MID_SIZED
+        - field: military_service_years
+          operator: gte
+          value: 1
+    overrides: [B-02]
+    citation: "병역법에 따라 병역의무를 이행한 경우 만 34세 종료일로부터 병역 복무기간을 추가하여 최대 만 39세까지 신청 가능"
+    human_reviewed: true
+    failure_message: 병역 복무기간을 더해도 나이 상한을 넘음
+
+  - rule_id: B-20
+    field: age
+    operator: lte
+    value: 39
+    unit: 세
+    type: HARD
+    applies_when:
+      all:
+        - field: employment_category
+          operator: eq
+          value: SME_OR_MID_SIZED
+        - field: military_service_years
+          operator: gte
+          value: 1
+    citation: "최대 만 39세까지 신청 가능"
+    human_reviewed: true
+    failure_message: 병역 특례를 적용해도 만 39세를 넘을 수 없음
+    note: |
+      B-19와 함께 걸린다. B-19는 복무기간만큼 되돌린 나이를 보고 B-20은 상한을 본다.
+      소속기업이 게임업·주점 등 사행성업종이거나 공무원·공기업이면 특례 대상이
+      아닌데, 그 구분은 아직 다루지 않는다.
+
 # 통과·불통과가 아니라 금액을 구하는 값. 판정 엔진이 아니라 계산기가 쓴다.
 limits:
   # 금액 상한과 비율 상한 중 작은 쪽을 적용하는 것으로 읽었으나 원문에 명시가 없다.
@@ -205,9 +276,17 @@ information:
     human_reviewed: true
 
 # 원문에서 확인하지 못한 것. 채워지기 전까지 판정에서 다루지 않는다.
+# 총소득은 세전으로 확정함(2026-09-09 사용자 확인). 원문에는 "근로소득(상여금 및
+# 수당포함) 및 사업소득"이라는 정의만 있고 세전·세후 표기가 없었다.
+income_basis:
+  value: BEFORE_TAX
+  citation: "부부합산 총소득이란 차주 및 배우자(결혼예정자 포함)의 근로소득(상여금 및 수당포함) 및 사업소득을 말함"
+  human_reviewed: true
+  note: 원문에 세전이라는 표기는 없다. 근로소득·사업소득 개념이라는 점과 실무 기준으로 확정했다.
+
 unresolved:
-  - "총소득이 세전인지 세후인지 원문에 명시가 없음. 근로소득·사업소득 개념이라 세전으로 봄 [추정]"
-  - "신청 시기(잔금지급일과 전입일 중 빠른 날로부터 3개월 이내)는 날짜 계산이 필요해 현재 연산자로 표현하지 못함. 별도 작업"
-  - "병역 특례(최대 만 39세)는 재직 형태와 복무기간 항목이 없어 다루지 않음"
-  - "6천만원 소득 특례 중 혁신도시 이전 공공기관 종사자·재개발 구역 세입자는 해당 항목이 없어 다루지 않음"
-  - "증액갱신계약의 1년 이상 거주 요건은 다루지 않음"
+  - "증액갱신계약은 갱신계약일로부터 3개월 이내로 기준이 다름. 계약 유형을 나누는 규칙을 아직 넣지 않아 신규계약만 다룸"
+  - "증액갱신계약의 1년 이상 거주 요건(공공임대 3개월)은 다루지 않음"
+  - "대환 시 연소득 5천만원 이하면 신청 기한이 6개월로 늘어나는 특례를 다루지 않음"
+  - "병역 특례에서 소속기업이 사행성업종이거나 공무원·공기업이면 제외되는데 그 구분을 다루지 않음"
+  - "6천만원 소득 특례 중 위험건축물 이주지원 대상자는 항목이 없어 다루지 않음"
