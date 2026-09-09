@@ -15,8 +15,13 @@ program:
   program_type: LOAN
   source_url: https://nhuf.molit.go.kr/FP/FP05/FP0502/FP05020301.jsp
   fetched_at: "2026-09-08"
-  version: 1
+  version: 2
   status: ACTIVE
+  # 값이 두 곳에서 일치하는 것을 확인함. 주택도시기금 공식 페이지와
+  # KB국민은행 상품안내(obank.kbstar.com/quics?page=C060283)임. 검수 기록은
+  # portfolio-private 저장소 finance-agent/2026-09-08-검수표-v2.md에 있음.
+  reviewed_at: "2026-09-08"
+  reviewed_note: 기금 공식 페이지와 은행 상품안내 두 곳에서 값 일치 확인
 
 # 통과·불통과를 가르는 조건.
 #
@@ -32,7 +37,7 @@ rules:
     unit: 세
     type: HARD
     citation: "만 19세 이상 ∼ 만 34세 이하의 세대주(예비 세대주 포함)"
-    human_reviewed: false
+    human_reviewed: true
     failure_message: 만 19세 미만은 신청 대상이 아님
 
   - rule_id: B-02
@@ -42,8 +47,13 @@ rules:
     unit: 세
     type: HARD
     citation: "만 19세 이상 ∼ 만 34세 이하의 세대주(예비 세대주 포함)"
-    human_reviewed: false
+    human_reviewed: true
     failure_message: 만 34세를 넘으면 신청 대상이 아님
+    note: |
+      병역 특례가 있다. 중소·중견기업 재직자 등이 병역의무를 이행한 경우
+      만 34세 종료일에 복무기간을 더해 최대 만 39세까지 신청할 수 있다.
+      신청자 정보에 재직 형태와 복무기간 항목이 없어 이번 범위에서 다루지 않는다.
+      해당자는 이 규칙에서 잘못 탈락한다.
 
   - rule_id: B-03
     field: household_head_status
@@ -51,7 +61,7 @@ rules:
     value: [HEAD, PROSPECTIVE_HEAD]
     type: HARD
     citation: "만 19세 이상 ∼ 만 34세 이하의 세대주(예비 세대주 포함)"
-    human_reviewed: false
+    human_reviewed: true
     failure_message: 세대주 또는 예비 세대주여야 함
 
   - rule_id: B-04
@@ -60,7 +70,7 @@ rules:
     value: NO_HOME_ALL_MEMBERS
     type: HARD
     citation: "세대주를 포함한 세대원 전원이 무주택인 자"
-    human_reviewed: false
+    human_reviewed: true
     failure_message: 세대원 중 주택을 보유한 사람이 있으면 신청 대상이 아님
 
   # 소득 기준 세 단. B-06·B-07이 특례이고 B-05가 일반이다.
@@ -71,7 +81,7 @@ rules:
     unit: 원
     type: HARD
     citation: "대출신청인과 배우자의 합산 총소득이 5천만원 이하인 자"
-    human_reviewed: false
+    human_reviewed: true
     failure_message: 부부합산 총소득이 5천만원을 넘음
 
   - rule_id: B-06
@@ -86,7 +96,7 @@ rules:
       value: 2
     overrides: [B-05]
     citation: "다자녀·2자녀가구는 6천만원 이하"
-    human_reviewed: false
+    human_reviewed: true
     failure_message: 2자녀 이상 가구 기준 6천만원을 넘음
 
   - rule_id: B-07
@@ -101,7 +111,7 @@ rules:
       value: NEWLYWED
     overrides: [B-05]
     citation: "신혼가구는 7.5천만원 이하"
-    human_reviewed: false
+    human_reviewed: true
     failure_message: 신혼가구 기준 7.5천만원을 넘음
 
   - rule_id: B-08
@@ -111,9 +121,10 @@ rules:
     unit: 원
     type: HARD
     citation: "합산 순자산 가액이 통계청에서 발표하는 최근년도 가계금융복지조사의 소득 3분위 전체가구 평균값 이하(십만원 단위에서 반올림)인 자 / 2026년도 기준 3.45억원"
-    human_reviewed: false
+    human_reviewed: true
+    effective_year: 2026
     failure_message: 순자산이 3.45억원을 넘음
-    note: 연도마다 바뀌는 값이다. 해가 바뀌면 원문을 다시 확인한다.
+    note: 매년 바뀌는 값이다. effective_year가 지나면 원문을 다시 확인한다.
 
   # 전용면적 두 단. B-10이 특례이고 B-09가 일반이다.
   - rule_id: B-09
@@ -123,7 +134,7 @@ rules:
     unit: ㎡
     type: HARD
     citation: "임차 전용면적 85㎡ 이하 주택"
-    human_reviewed: false
+    human_reviewed: true
     failure_message: 전용면적이 85㎡를 넘음
 
   - rule_id: B-10
@@ -142,7 +153,7 @@ rules:
           value: SINGLE
     overrides: [B-09]
     citation: "만 25세 미만 단독세대주는 60㎡ 이하"
-    human_reviewed: false
+    human_reviewed: true
     failure_message: 만 25세 미만 단독세대주는 전용면적 60㎡ 이하만 가능함
 
   - rule_id: B-11
@@ -152,8 +163,20 @@ rules:
     unit: 원
     type: HARD
     citation: "임차보증금 3억원 이하"
-    human_reviewed: false
+    human_reviewed: true
     failure_message: 임차보증금이 3억원을 넘음
+    note: 청년전용은 지역 구분이 없다. 일반 버팀목은 수도권과 그 외로 갈린다.
+
+  - rule_id: B-17
+    field: deposit_paid_ratio
+    operator: gte
+    value: 0.05
+    unit: 비율
+    type: HARD
+    citation: "만 19세~34세 이하의 세대주 및 세대주예정자로 주택임대차계약을 체결하여 임차보증금의 5% 이상 지불하고"
+    human_reviewed: true
+    failure_message: 임차보증금의 5% 이상을 지불한 상태여야 함
+    note: 기금 공식 페이지에는 없고 은행 상품안내에서 확인한 조건이다.
 
 # 통과·불통과가 아니라 금액을 구하는 값. 판정 엔진이 아니라 계산기가 쓴다.
 limits:
@@ -166,7 +189,7 @@ limits:
     ratio_of_deposit: 0.80
     apply: MIN_OF_CAP_AND_RATIO
     citation: "1.5억원(만 25세 미만 단독세대주인 경우 1.2억원) 이내 / 전세금액의 80% 이내"
-    human_reviewed: false
+    human_reviewed: true
 
 # 판정에 쓰지 않고 안내로만 보여 주는 값.
 information:
@@ -174,15 +197,17 @@ information:
     label: 대출금리
     value: "연 2.2% ~ 3.3%"
     citation: "연 2.2%~3.3%"
-    human_reviewed: false
+    human_reviewed: true
   - rule_id: B-16
     label: 대출기간
     value: "2년 이내, 최장 10년"
     citation: "2년 이내(최장 10년 이용 가능)"
-    human_reviewed: false
+    human_reviewed: true
 
 # 원문에서 확인하지 못한 것. 채워지기 전까지 판정에서 다루지 않는다.
 unresolved:
-  - "총소득이 세전인지 세후인지 페이지에 없음. 판정 결과가 갈리는 지점임"
-  - "대출한도에서 금액 상한과 비율 상한 중 어느 쪽을 적용하는지 명시가 없음"
-  - "신청 기한에 해당하는 조건이 페이지에 없음"
+  - "총소득이 세전인지 세후인지 원문에 명시가 없음. 근로소득·사업소득 개념이라 세전으로 봄 [추정]"
+  - "신청 시기(잔금지급일과 전입일 중 빠른 날로부터 3개월 이내)는 날짜 계산이 필요해 현재 연산자로 표현하지 못함. 별도 작업"
+  - "병역 특례(최대 만 39세)는 재직 형태와 복무기간 항목이 없어 다루지 않음"
+  - "6천만원 소득 특례 중 혁신도시 이전 공공기관 종사자·재개발 구역 세입자는 해당 항목이 없어 다루지 않음"
+  - "증액갱신계약의 1년 이상 거주 요건은 다루지 않음"

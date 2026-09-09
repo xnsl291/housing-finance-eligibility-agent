@@ -12,8 +12,10 @@ program:
   program_type: LOAN
   source_url: https://nhuf.molit.go.kr/FP/FP05/FP0502/FP05020101.jsp
   fetched_at: "2026-09-08"
-  version: 1
+  version: 2
   status: ACTIVE
+  reviewed_at: "2026-09-08"
+  reviewed_note: 기금 공식 페이지와 KB국민은행 상품안내 두 곳에서 값 일치 확인
 
 rules:
   # 원문은 "민법상 성년"이라고만 적혀 있고 숫자가 없다. 만 19세로 해석했으나
@@ -24,10 +26,13 @@ rules:
     value: 19
     unit: 세
     type: HARD
-    citation: "대출접수일 현재 민법상 성년인 세대주"
-    human_reviewed: false
+    citation: "대출접수일 현재 민법상 성년인 세대주 / 민법 제4조 '사람은 19세로 성년에 이르게 된다'"
+    human_reviewed: true
     failure_message: 민법상 성년이 아니면 신청 대상이 아님
-    note: 원문에 나이 숫자가 없다. 민법상 성년을 만 19세로 해석한 값이다.
+    note: |
+      상품 페이지에는 나이 숫자가 없고 "민법상 성년"이라고만 적혀 있다.
+      민법 제4조가 성년을 19세로 정하고 있으므로 법령을 근거로 확정했다.
+      상품 페이지가 아니라 법령이 출처인 유일한 규칙이다.
 
   - rule_id: N-02
     field: household_head_status
@@ -35,7 +40,7 @@ rules:
     value: HEAD
     type: HARD
     citation: "대출접수일 현재 민법상 성년인 세대주"
-    human_reviewed: false
+    human_reviewed: true
     failure_message: 세대주여야 함
     note: 청년전용과 달리 예비 세대주 문구가 원문에 없다.
 
@@ -45,7 +50,7 @@ rules:
     value: NO_HOME_ALL_MEMBERS
     type: HARD
     citation: "세대주를 포함한 세대원 전원이 무주택인 자"
-    human_reviewed: false
+    human_reviewed: true
     failure_message: 세대원 중 주택을 보유한 사람이 있으면 신청 대상이 아님
 
   # 소득 기준. N-05·N-06이 특례이고 N-04가 일반이다.
@@ -56,7 +61,7 @@ rules:
     unit: 원
     type: HARD
     citation: "대출신청인과 배우자의 합산 총소득이 연간 5천만원 이하인 자"
-    human_reviewed: false
+    human_reviewed: true
     failure_message: 부부합산 총소득이 5천만원을 넘음
 
   - rule_id: N-05
@@ -71,7 +76,7 @@ rules:
       value: 2
     overrides: [N-04]
     citation: "단, 혁신도시 이전 공공기관 종사자, 타 지역으로 이주하는 재개발 구역내 세입자, 위험건축물 이주지원 대상자, 다자녀가구, 2자녀 가구인 경우 6천만원 이하"
-    human_reviewed: false
+    human_reviewed: true
     failure_message: 2자녀 이상 가구 기준 6천만원을 넘음
     note: |
       원문의 6천만원 대상은 다섯 갈래다. 자녀 수로 판정할 수 있는 것은
@@ -91,7 +96,7 @@ rules:
       value: NEWLYWED
     overrides: [N-04]
     citation: "신혼부부인 경우는 7.5천만원 이하"
-    human_reviewed: false
+    human_reviewed: true
     failure_message: 신혼부부 기준 7.5천만원을 넘음
 
   - rule_id: N-07
@@ -101,9 +106,10 @@ rules:
     unit: 원
     type: HARD
     citation: "합산 순자산 가액이 소득 3분위 전체가구 평균값 이하 / 2026년도 기준 3.45억원"
-    human_reviewed: false
+    human_reviewed: true
+    effective_year: 2026
     failure_message: 순자산이 3.45억원을 넘음
-    note: 연도마다 바뀌는 값이다. 해가 바뀌면 원문을 다시 확인한다.
+    note: 매년 바뀌는 값이다. effective_year가 지나면 원문을 다시 확인한다.
 
   - rule_id: N-08
     field: housing_area_m2
@@ -112,7 +118,7 @@ rules:
     unit: ㎡
     type: HARD
     citation: "전용면적 85㎡ 이하"
-    human_reviewed: false
+    human_reviewed: true
     failure_message: 전용면적이 85㎡를 넘음
 
   # 보증금 상한은 지역으로 갈린다. 일반 규칙 없이 조건부 규칙 둘만 둔다.
@@ -129,7 +135,7 @@ rules:
       operator: eq
       value: CAPITAL_AREA
     citation: "일반가구: 수도권 3억원, 수도권외 2억원"
-    human_reviewed: false
+    human_reviewed: true
     failure_message: 수도권 기준 임차보증금 3억원을 넘음
 
   - rule_id: N-10
@@ -143,34 +149,49 @@ rules:
       operator: eq
       value: NON_CAPITAL_AREA
     citation: "일반가구: 수도권 3억원, 수도권외 2억원"
-    human_reviewed: false
+    human_reviewed: true
     failure_message: 수도권 외 기준 임차보증금 2억원을 넘음
 
 limits:
+  # 비율 상한과 금액 상한을 둘 다 적용하고 작은 쪽을 쓴다. 원문이
+  # "임차보증금의 70% 이내에서 최고 …원 이내"라고 적어 둘을 함께 건다.
   loan_amount:
     rule_id: N-11
-    by_region:
-      CAPITAL_AREA: 120000000
-      NON_CAPITAL_AREA: 80000000
-    citation: "일반가구: 수도권 1.2억원, 수도권 외 8천만원"
-    human_reviewed: false
-    note: 청년전용과 달리 전세금액 대비 비율 상한이 원문에 나오지 않았다.
+    apply: MIN_OF_CAP_AND_RATIO
+    general:
+      ratio_of_deposit: 0.70
+      by_region:
+        CAPITAL_AREA: 120000000
+        NON_CAPITAL_AREA: 80000000
+      citation: "일반가구는 임차보증금의 70% 이내에서 최고 수도권 1억 2천만원, 수도권 이외 지역 8천만원 이내"
+    newlywed_or_two_children:
+      ratio_of_deposit: 0.80
+      by_region:
+        CAPITAL_AREA: 222000000
+        NON_CAPITAL_AREA: 160000000
+      citation: "신혼가구(결혼예정자 포함) 또는 2자녀(미성년자) 이상 가구는 임차보증금의 80% 이내, 수도권 2억2천2백만원, 수도권 이외 지역 1억 6천만원 이내"
+    human_reviewed: true
 
 information:
   - rule_id: N-12
     label: 대출금리
     value: "연 2.5% ~ 3.5% (변동금리)"
     citation: "연 2.5%~3.5%"
-    human_reviewed: false
+    human_reviewed: true
   - rule_id: N-13
     label: 대출기간
     value: "2년 이내, 임차종료일 초과 불가, 최장 10년"
     citation: "2년 이내. 단, 임차종료일을 초과할 수 없음(최장 10년 가능)"
-    human_reviewed: false
+    human_reviewed: true
 
 unresolved:
-  - "원문이 '민법상 성년'이라고만 적고 나이 숫자가 없음. 만 19세로 해석했음"
-  - "보증금 상한과 대출한도가 '일반가구' 기준으로만 적혀 있음. 신혼·다자녀 가구 값은 페이지에서 확인 못 함"
-  - "6천만원 소득 특례 다섯 갈래 중 세 갈래(혁신도시 이전 공공기관 종사자, 재개발 구역 세입자, 위험건축물 이주지원 대상자)는 신청자 프로필에 해당 항목이 없어 다루지 못함"
-  - "총소득이 세전인지 세후인지 페이지에 없음. 청년전용과 같은 문제임"
-  - "수도권의 범위가 페이지에 정의돼 있지 않음. 서울·경기·인천으로 볼지 확인 필요"
+  - "총소득이 세전인지 세후인지 원문에 명시가 없음. 근로소득·사업소득 개념이라 세전으로 봄 [추정]"
+  - "6천만원 소득 특례 다섯 갈래 중 세 갈래(혁신도시 이전 공공기관 종사자, 재개발 구역 세입자, 위험건축물 이주지원 대상자)는 신청자 정보에 해당 항목이 없어 다루지 않음"
+  - "신혼·2자녀 가구의 임차보증금 상한은 아직 확인하지 못함. 한도는 확보했으나 보증금 상한은 일반가구 값만 있음"
+
+# 수도권 = 서울·인천·경기. 근거는 금리 안내의 "지방 소재(서울, 인천, 경기지역 이외)"
+# 문구다. 상품 페이지에 지역 정의가 따로 없어 이 문구를 근거로 삼았다.
+region_definition:
+  CAPITAL_AREA: [서울특별시, 인천광역시, 경기도]
+  citation: "대출대상 주택이 지방 소재(서울, 인천, 경기지역 이외)인 경우에는 기본금리에서 0.2%p 인하"
+  human_reviewed: true
