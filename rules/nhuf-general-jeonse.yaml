@@ -162,22 +162,32 @@ rules:
 limits:
   # 비율 상한과 금액 상한을 둘 다 적용하고 작은 쪽을 쓴다. 원문이
   # "임차보증금의 70% 이내에서 최고 …원 이내"라고 적어 둘을 함께 건다.
+  # 청년전용과 같은 모양으로 맞춰 뒀다. tiers는 위에서부터 맞는 첫 칸을 쓴다.
+  # 이 상품은 가구 유형으로 한 번, 지역으로 다시 한 번 갈린다.
   loan_amount:
     rule_id: N-11
     apply: MIN_OF_CAP_AND_RATIO
-    general:
-      ratio_of_deposit: 0.70
-      by_region:
-        CAPITAL_AREA: 120000000
-        NON_CAPITAL_AREA: 80000000
-      citation: "일반가구는 임차보증금의 70% 이내에서 최고 수도권 1억 2천만원, 수도권 이외 지역 8천만원 이내"
-    newlywed_or_two_children:
-      ratio_of_deposit: 0.80
-      by_region:
-        CAPITAL_AREA: 222000000
-        NON_CAPITAL_AREA: 160000000
-      citation: "신혼가구(결혼예정자 포함) 또는 2자녀(미성년자) 이상 가구는 임차보증금의 80% 이내, 수도권 2억2천2백만원, 수도권 이외 지역 1억 6천만원 이내"
+    citation: "일반가구는 임차보증금의 70% 이내에서 최고 수도권 1억 2천만원, 수도권 이외 지역 8천만원 이내 / 신혼가구(결혼예정자 포함) 또는 2자녀(미성년자) 이상 가구는 임차보증금의 80% 이내, 수도권 2억2천2백만원, 수도권 이외 지역 1억 6천만원 이내"
     human_reviewed: true
+    tiers:
+      - name: newlywed_or_two_children
+        applies_when:
+          any:
+            - field: marital_status
+              operator: eq
+              value: NEWLYWED
+            - field: minor_children_count
+              operator: gte
+              value: 2
+        ratio_of_deposit: 0.80
+        cap_by_region:
+          CAPITAL_AREA: 222000000
+          NON_CAPITAL_AREA: 160000000
+      - name: general
+        ratio_of_deposit: 0.70
+        cap_by_region:
+          CAPITAL_AREA: 120000000
+          NON_CAPITAL_AREA: 80000000
 
 information:
   - rule_id: N-12
