@@ -88,6 +88,15 @@ def _applies(rule: dict, profile: dict) -> tuple[bool | None, list[str]]:
     return True, []
 
 
+def applies_to(spec: dict, profile: dict) -> tuple[bool | None, list[str]]:
+    """적용 대상인지 판단한다. 판정 규칙 밖에서도 같은 조건 문법을 쓰려고 열어 둔다.
+
+    한도 계산의 구간 선택이 이것을 쓴다. 조건을 해석하는 방식이 두 벌이 되면
+    "모르면 적용하지 않는다"는 원칙이 한쪽에서만 지켜질 수 있다.
+    """
+    return _applies(spec, profile)
+
+
 def _add_months(base: date, months: int) -> date:
     """달을 더한다. 더한 달에 그 날짜가 없으면 그 달의 마지막 날로 맞춘다.
 

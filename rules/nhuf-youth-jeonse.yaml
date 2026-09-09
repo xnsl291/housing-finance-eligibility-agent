@@ -251,16 +251,33 @@ rules:
 
 # 통과·불통과가 아니라 금액을 구하는 값. 판정 엔진이 아니라 계산기가 쓴다.
 limits:
-  # 금액 상한과 비율 상한 중 작은 쪽을 적용하는 것으로 읽었으나 원문에 명시가 없다.
-  # 검수 대기 항목이다.
+  # 비율 상한과 금액 상한을 둘 다 걸고 작은 쪽을 쓴다. 원문이 "임차보증금의 80%
+  # 이내에서 최고 1억 5천만원 이내"라고 적어 둘이 함께 걸린다(은행 상품안내에서 확인).
+  #
+  # tiers는 위에서부터 applies_when이 맞는 첫 칸을 쓴다. applies_when이 없는 칸은
+  # 항상 맞으므로 맨 아래에 둔다. 적용 여부를 판단할 값이 없으면 아래 칸으로
+  # 내려가지 않고 계산을 포기한다 — 특례가 걸릴지 모르는 채로 일반 기준을 쓰면
+  # 실제보다 큰 금액을 알려 주게 된다.
   loan_amount:
     rule_id: B-12
-    cap_krw: 150000000
-    cap_krw_under_25_single: 120000000
-    ratio_of_deposit: 0.80
     apply: MIN_OF_CAP_AND_RATIO
-    citation: "1.5억원(만 25세 미만 단독세대주인 경우 1.2억원) 이내 / 전세금액의 80% 이내"
+    citation: "임차보증금의 80%이내에서 최고 1억 5천만원 이내 / 단, 만 25세 미만 단독세대주(단독세대주 예정자 포함)는 임차보증금의 80% 이내에서 최고 1억 2천만원 이내"
     human_reviewed: true
+    tiers:
+      - name: under_25_single
+        applies_when:
+          all:
+            - field: age
+              operator: lt
+              value: 25
+            - field: household_type
+              operator: eq
+              value: SINGLE
+        ratio_of_deposit: 0.80
+        cap_krw: 120000000
+      - name: default
+        ratio_of_deposit: 0.80
+        cap_krw: 150000000
 
 # 판정에 쓰지 않고 안내로만 보여 주는 값.
 information:
