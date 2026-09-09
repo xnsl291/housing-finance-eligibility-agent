@@ -71,9 +71,16 @@ rules:
     unit: 원
     type: HARD
     applies_when:
-      field: minor_children_count
-      operator: gte
-      value: 2
+      any:
+        - field: minor_children_count
+          operator: gte
+          value: 2
+        - field: is_innovation_city_relocated_worker
+          operator: eq
+          value: true
+        - field: is_redevelopment_area_tenant
+          operator: eq
+          value: true
     overrides: [N-04]
     citation: "단, 혁신도시 이전 공공기관 종사자, 타 지역으로 이주하는 재개발 구역내 세입자, 위험건축물 이주지원 대상자, 다자녀가구, 2자녀 가구인 경우 6천만원 이하"
     human_reviewed: true
@@ -184,10 +191,16 @@ information:
     citation: "2년 이내. 단, 임차종료일을 초과할 수 없음(최장 10년 가능)"
     human_reviewed: true
 
+income_basis:
+  value: BEFORE_TAX
+  citation: "부부합산 총소득이란 차주 및 배우자(결혼예정자 포함)의 근로소득(상여금 및 수당포함) 및 사업소득을 말함"
+  human_reviewed: true
+  note: 2026-09-09 사용자 확인으로 세전 확정. 원문에 세전·세후 표기는 없다.
+
 unresolved:
-  - "총소득이 세전인지 세후인지 원문에 명시가 없음. 근로소득·사업소득 개념이라 세전으로 봄 [추정]"
-  - "6천만원 소득 특례 다섯 갈래 중 세 갈래(혁신도시 이전 공공기관 종사자, 재개발 구역 세입자, 위험건축물 이주지원 대상자)는 신청자 정보에 해당 항목이 없어 다루지 않음"
+  - "6천만원 소득 특례 중 위험건축물 이주지원 대상자는 항목이 없어 다루지 않음"
   - "신혼·2자녀 가구의 임차보증금 상한은 아직 확인하지 못함. 한도는 확보했으나 보증금 상한은 일반가구 값만 있음"
+  - "신청 시기 규칙이 이 상품 안내 페이지에 없었음. 청년전용에만 확보함"
 
 # 수도권 = 서울·인천·경기. 근거는 금리 안내의 "지방 소재(서울, 인천, 경기지역 이외)"
 # 문구다. 상품 페이지에 지역 정의가 따로 없어 이 문구를 근거로 삼았다.

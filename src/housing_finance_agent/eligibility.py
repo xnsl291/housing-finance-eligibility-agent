@@ -10,7 +10,9 @@
 
 from __future__ import annotations
 
+import calendar
 from dataclasses import dataclass, field
+from datetime import date
 
 _OPERATORS = {
     "gte": lambda actual, expected: actual >= expected,
@@ -57,10 +59,22 @@ def _check(condition: dict, profile: dict) -> bool | None:
 
 
 def _applies(rule: dict, profile: dict) -> tuple[bool | None, list[str]]:
-    """이 규칙을 적용할 대상인지 본다. (판단, 판단하지 못한 항목)"""
+    """이 규칙을 적용할 대상인지 본다. (판단, 판단하지 못한 항목)
+
+    `all`은 전부 맞아야 하고 `any`는 하나만 맞아도 된다. 소득 특례처럼 대상이
+    여러 갈래인 조건에 `any`가 쓰인다.
+    """
     condition = rule.get("applies_when")
     if condition is None:
         return True, []
+
+    if "any" in condition:
+        results = [(_check(one, profile), one["field"]) for one in condition["any"]]
+        # 하나라도 확실히 참이면 나머지를 몰라도 적용 대상이다.
+        if any(result is True for result, _ in results):
+            return True, []
+        unknown = [field_name for result, field_name in results if result is None]
+        return (None, unknown) if unknown else (False, [])
 
     conditions = condition.get("all", [condition])
     results = [(_check(one, profile), one["field"]) for one in conditions]
@@ -72,6 +86,37 @@ def _applies(rule: dict, profile: dict) -> tuple[bool | None, list[str]]:
     if unknown:
         return None, unknown
     return True, []
+
+
+def _add_months(base: date, months: int) -> date:
+    """달을 더한다. 더한 달에 그 날짜가 없으면 그 달의 마지막 날로 맞춘다.
+
+    1월 31일에 한 달을 더하면 2월 31일이 없다. 신청 기한을 다루는 자리라
+    없는 날짜를 다음 달로 넘기면 기한이 하루 늘어난다.
+    """
+    month_index = base.month - 1 + months
+    year = base.year + month_index // 12
+    month = month_index % 12 + 1
+    return date(year, month, min(base.day, calendar.monthrange(year, month)[1]))
+
+
+def _required_fields(rule: dict) -> list[str]:
+    """이 규칙을 판정하려면 프로필에 있어야 하는 항목."""
+    reference = rule.get("reference")
+    return [rule["field"], *reference["fields"]] if reference else [rule["field"]]
+
+
+def _compare(rule: dict, profile: dict) -> bool:
+    """규칙 하나를 프로필에 대고 본다."""
+    if rule["operator"] != "within_months_after":
+        return _OPERATORS[rule["operator"]](profile[rule["field"]], rule["value"])
+
+    # 기준 날짜가 둘 이상이고 어느 쪽을 쓰는지가 상품마다 다르다. 버팀목은 빠른 날,
+    # HUG는 늦은 날이다. 같은 두 날짜에서 결과가 갈리므로 mode를 규칙에 적어 둔다.
+    reference = rule["reference"]
+    dates = [date.fromisoformat(profile[name]) for name in reference["fields"]]
+    base = min(dates) if reference["mode"] == "earliest" else max(dates)
+    return date.fromisoformat(profile[rule["field"]]) <= _add_months(base, rule["value"])
 
 
 def evaluate(program: dict, profile: dict) -> Decision:
@@ -114,13 +159,13 @@ def evaluate(program: dict, profile: dict) -> Decision:
         if rule_id in suppressed or applicability[rule_id] is not True:
             continue
 
-        field_name = rule["field"]
-        if not _has_value(profile, field_name):
-            remember_missing([field_name])
+        absent = [name for name in _required_fields(rule) if not _has_value(profile, name)]
+        if absent:
+            remember_missing(absent)
             continue
 
         evaluated += 1
-        if _OPERATORS[rule["operator"]](profile[field_name], rule["value"]):
+        if _compare(rule, profile):
             passed.append(rule_id)
         else:
             failed.append(rule_id)

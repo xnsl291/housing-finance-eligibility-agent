@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from housing_finance_agent.eligibility import evaluate
+from housing_finance_agent.profile import enrich
 from housing_finance_agent.rules import load_program
 
 # 청년전용 버팀목을 통과하는 조건. 여기서 한 항목씩 바꿔 경계를 확인한다.
@@ -25,6 +26,16 @@ _청년_통과 = {
     "housing_area_m2": 59,
     "lease_deposit_krw": 200000000,
     "deposit_paid_ratio": 0.10,
+    # 소득 특례 대상이 아님
+    "is_innovation_city_relocated_worker": False,
+    "is_redevelopment_area_tenant": False,
+    # 병역 특례 대상이 아님
+    "employment_category": "OTHER",
+    "military_service_years": 0,
+    # 신청 시기
+    "contract_balance_date": "2026-03-10",
+    "move_in_date": "2026-04-20",
+    "application_date": "2026-05-01",
 }
 
 
@@ -83,6 +94,8 @@ def test_일반_버팀목은_지역에_따라_보증금_상한이_갈린다() ->
         "net_asset_krw": 100000000,
         "housing_area_m2": 59,
         "lease_deposit_krw": 250000000,
+        "is_innovation_city_relocated_worker": False,
+        "is_redevelopment_area_tenant": False,
     }
 
     assert evaluate(program, {**profile, "region": "CAPITAL_AREA"}).status == "PRECHECK_MATCH"
@@ -112,6 +125,55 @@ def test_지역을_모르면_판정하지_않는다() -> None:
 
     assert decision.status == "INSUFFICIENT_INFORMATION"
     assert "region" in decision.missing_fields
+
+
+def test_신청_기한이_지나면_탈락한다() -> None:
+    """잔금지급일 3/10과 전입일 4/20 중 빠른 날은 3/10이므로 기한은 6/10이다."""
+    program = load_program("nhuf-youth-jeonse")
+
+    통과 = evaluate(program, {**_청년_통과, "application_date": "2026-06-10"})
+    assert 통과.status == "PRECHECK_MATCH"
+
+    탈락 = evaluate(program, {**_청년_통과, "application_date": "2026-06-11"})
+    assert 탈락.status == "NOT_MATCHED"
+    assert "B-18" in 탈락.failed_rules
+
+
+def test_병역을_마친_중소기업_재직자는_나이_상한이_늘어난다() -> None:
+    """만 36세는 원래 탈락이지만 2년 복무를 더하면 통과한다."""
+    program = load_program("nhuf-youth-jeonse")
+    서른여섯 = {**_청년_통과, "age": 36}
+
+    assert evaluate(program, enrich(서른여섯)).status == "NOT_MATCHED"
+
+    특례 = {**서른여섯, "employment_category": "SME_OR_MID_SIZED", "military_service_years": 2}
+    assert evaluate(program, enrich(특례)).status == "PRECHECK_MATCH"
+
+
+def test_병역_특례를_적용해도_만_39세를_넘으면_탈락한다() -> None:
+    """복무기간을 아무리 더해도 만 39세가 상한이다."""
+    program = load_program("nhuf-youth-jeonse")
+    마흔 = {
+        **_청년_통과,
+        "age": 40,
+        "employment_category": "SME_OR_MID_SIZED",
+        "military_service_years": 6,
+    }
+
+    탈락 = evaluate(program, enrich(마흔))
+    assert 탈락.status == "NOT_MATCHED"
+    assert "B-20" in 탈락.failed_rules
+
+
+def test_재개발_구역_세입자는_소득_기준이_6천만원으로_올라간다() -> None:
+    """자녀가 없어도 특례 대상이면 기준이 바뀐다. any 조건이 실제로 쓰이는 자리다."""
+    program = load_program("nhuf-youth-jeonse")
+    오천오백 = {**_청년_통과, "combined_annual_income_krw": 55000000}
+
+    assert evaluate(program, 오천오백).status == "NOT_MATCHED"
+
+    특례 = {**오천오백, "is_redevelopment_area_tenant": True}
+    assert evaluate(program, 특례).status == "PRECHECK_MATCH"
 
 
 def test_없는_규칙_파일을_찾으면_오류로_알린다() -> None:
