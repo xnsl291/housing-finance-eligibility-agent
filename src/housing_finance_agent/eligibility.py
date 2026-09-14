@@ -14,6 +14,8 @@ import calendar
 from dataclasses import dataclass, field
 from datetime import date
 
+from housing_finance_agent.amount import Range
+
 _OPERATORS = {
     "gte": lambda actual, expected: actual >= expected,
     "gt": lambda actual, expected: actual > expected,
@@ -39,11 +41,28 @@ class Decision:
     status: str
     passed_rules: list[str] = field(default_factory=list)
     failed_rules: list[str] = field(default_factory=list)
+    # 값이 아예 없는 것
     missing_fields: list[str] = field(default_factory=list)
+    # 값은 있는데 범위로만 알아서 기준을 걸치는 것. 화면이 다른 말을 해야 한다 —
+    # "소득을 알려주세요"가 아니라 "기준에 걸치니 정확한 값을 알려주세요"다.
+    imprecise_fields: list[str] = field(default_factory=list)
 
 
 def _has_value(profile: dict, field_name: str) -> bool:
     return field_name in profile and profile[field_name] is not None
+
+
+def _apply(operator: str, actual: object, expected: object) -> bool | None:
+    """값 하나를 기준과 견준다. 판단할 수 없으면 None.
+
+    값이 범위면 세 갈래가 된다. 범위 전체가 기준 안이면 참, 전체가 밖이면 거짓,
+    걸치면 모름이다. 같다·포함된다 같은 비교는 범위에 쓸 수 없으므로 모름을 준다 —
+    거짓으로 단정하면 잘못 탈락시킨다.
+    """
+    if isinstance(actual, Range):
+        comparer = getattr(actual, f"compare_{operator}", None)
+        return comparer(expected) if comparer else None
+    return _OPERATORS[operator](actual, expected)
 
 
 def _check(condition: dict, profile: dict) -> bool | None:
@@ -55,7 +74,7 @@ def _check(condition: dict, profile: dict) -> bool | None:
     field_name = condition["field"]
     if not _has_value(profile, field_name):
         return None
-    return _OPERATORS[condition["operator"]](profile[field_name], condition["value"])
+    return _apply(condition["operator"], profile[field_name], condition["value"])
 
 
 def _applies(rule: dict, profile: dict) -> tuple[bool | None, list[str]]:
@@ -115,10 +134,10 @@ def _required_fields(rule: dict) -> list[str]:
     return [rule["field"], *reference["fields"]] if reference else [rule["field"]]
 
 
-def _compare(rule: dict, profile: dict) -> bool:
-    """규칙 하나를 프로필에 대고 본다."""
+def _compare(rule: dict, profile: dict) -> bool | None:
+    """규칙 하나를 프로필에 대고 본다. 값이 범위여서 판단할 수 없으면 None."""
     if rule["operator"] != "within_months_after":
-        return _OPERATORS[rule["operator"]](profile[rule["field"]], rule["value"])
+        return _apply(rule["operator"], profile[rule["field"]], rule["value"])
 
     # 기준 날짜가 둘 이상이고 어느 쪽을 쓰는지가 상품마다 다르다. 버팀목은 빠른 날,
     # HUG는 늦은 날이다. 같은 두 날짜에서 결과가 갈리므로 mode를 규칙에 적어 둔다.
@@ -140,11 +159,18 @@ def evaluate(program: dict, profile: dict) -> Decision:
     reviewed = [rule for rule in program["rules"] if rule.get("human_reviewed")]
 
     missing: list[str] = []
+    imprecise: list[str] = []
 
-    def remember_missing(field_names: list[str]) -> None:
+    def remember_unknown(field_names: list[str]) -> None:
+        """판단하지 못한 항목을 적어 둔다.
+
+        값이 아예 없는 것과 범위로만 알아 걸치는 것을 나눈다. 화면이 물어보는 말이
+        달라야 한다 — 전자는 "알려주세요", 후자는 "더 정확히 알려주세요"다.
+        """
         for field_name in field_names:
-            if field_name not in missing:
-                missing.append(field_name)
+            target = imprecise if _has_value(profile, field_name) else missing
+            if field_name not in target:
+                target.append(field_name)
 
     # 특례가 일반 규칙을 덮는지 먼저 정한다. 적용 여부를 모르는 특례도 덮는 것으로
     # 본다 — 특례가 걸릴지 모르는 채로 일반 기준을 적용하면, 통과시켜서는 안 될 것을
@@ -155,7 +181,7 @@ def evaluate(program: dict, profile: dict) -> Decision:
         applies, unknown = _applies(rule, profile)
         applicability[rule["rule_id"]] = applies
         if unknown:
-            remember_missing(unknown)
+            remember_unknown(unknown)
         if applies is not False:
             suppressed.update(rule.get("overrides") or [])
 
@@ -170,18 +196,24 @@ def evaluate(program: dict, profile: dict) -> Decision:
 
         absent = [name for name in _required_fields(rule) if not _has_value(profile, name)]
         if absent:
-            remember_missing(absent)
+            remember_unknown(absent)
+            continue
+
+        outcome = _compare(rule, profile)
+        if outcome is None:
+            # 값은 있는데 범위로만 알아서 기준을 걸친다. 통과로도 탈락으로도 세지 않는다.
+            remember_unknown([rule["field"]])
             continue
 
         evaluated += 1
-        if _compare(rule, profile):
+        if outcome:
             passed.append(rule_id)
         else:
             failed.append(rule_id)
 
     if failed:
         status = NOT_MATCHED
-    elif missing or evaluated == 0:
+    elif missing or imprecise or evaluated == 0:
         # 비교한 규칙이 하나도 없으면 통과라고 말할 수 없다. 검수된 규칙이 없거나
         # 전부 적용 대상이 아닌 경우가 여기로 온다.
         status = INSUFFICIENT_INFORMATION
@@ -189,5 +221,9 @@ def evaluate(program: dict, profile: dict) -> Decision:
         status = PRECHECK_MATCH
 
     return Decision(
-        status=status, passed_rules=passed, failed_rules=failed, missing_fields=missing
+        status=status,
+        passed_rules=passed,
+        failed_rules=failed,
+        missing_fields=missing,
+        imprecise_fields=imprecise,
     )
