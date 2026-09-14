@@ -31,5 +31,12 @@ def load_program(program_id: str) -> dict:
     return program
 
 
+def available_programs() -> list[str]:
+    """규칙 파일이 있는 상품 목록. 파일이 곧 목록이라 따로 관리하지 않는다."""
+    return sorted(
+        path.stem for path in _RULES_DIR.glob("*.yaml") if path.stem != "field_guides"
+    )
+
+
 def _load_field_guides() -> dict:
     return yaml.safe_load((_RULES_DIR / "field_guides.yaml").read_text(encoding="utf-8"))

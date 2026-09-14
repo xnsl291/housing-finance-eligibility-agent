@@ -160,3 +160,40 @@ def test_프롬프트에_항목과_허용값이_들어간다() -> None:
     assert "age" in prompt
     assert "PROSPECTIVE_HEAD" in prompt
     assert "null" in prompt
+
+
+def test_수도권_여부는_코드가_정한다() -> None:
+    """프롬프트에 적어도 4B 모델이 경기도를 지방으로 읽었다(2026-09-14 실물 확인).
+
+    이 값은 판정을 뒤집는다. 일반 버팀목의 보증금 상한이 수도권 3억, 그 외 2억이다.
+    금액을 파서가 맡은 것과 같은 이유로 여기도 코드가 정한다.
+    """
+    llm = FakeLlm(_reply(region_name="경기도 성남시"))
+
+    result = extract_profile(llm, "경기도 성남시에 살아요")
+
+    assert result.values["region"] == "CAPITAL_AREA"
+
+
+@pytest.mark.parametrize(
+    ("지역명", "expected"),
+    [
+        ("서울", "CAPITAL_AREA"),
+        ("인천광역시", "CAPITAL_AREA"),
+        ("경기도 광주시", "CAPITAL_AREA"),
+        ("광주광역시", "NON_CAPITAL_AREA"),
+        ("부산", "NON_CAPITAL_AREA"),
+        ("대전", "NON_CAPITAL_AREA"),
+    ],
+)
+def test_지역명을_수도권_여부로_바꾼다(지역명: str, expected: str) -> None:
+    """경기도 광주시와 광주광역시가 갈리는지가 이 매핑의 시험대다."""
+    result = extract_profile(FakeLlm(_reply(region_name=지역명)), 지역명)
+
+    assert result.values["region"] == expected
+
+
+def test_지역을_말하지_않으면_수도권_여부도_비운다() -> None:
+    result = extract_profile(FakeLlm(_reply(age=29)), "만 29세")
+
+    assert "region" not in result.values

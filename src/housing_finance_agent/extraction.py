@@ -44,7 +44,8 @@ _FIELDS: dict[str, object] = {
     "home_ownership_status": ["NO_HOME_ALL_MEMBERS", "HAS_HOME"],
     "marital_status": ["SINGLE", "MARRIED", "NEWLYWED"],
     "minor_children_count": int,
-    "region": ["CAPITAL_AREA", "NON_CAPITAL_AREA"],
+    # 수도권인지는 LLM에게 묻지 않는다. 아래 _REGION 주석 참고.
+    "region_name": str,
     "employment_category": ["SME_OR_MID_SIZED", "OTHER"],
     "military_service_years": int,
     "housing_area_m2": float,
@@ -56,6 +57,48 @@ _FIELDS: dict[str, object] = {
     "lease_deposit_krw": _AMOUNT,
     "housing_value_krw": _AMOUNT,
 }
+
+# 항목 이름만 주면 모델이 뜻을 짐작한다. 2026-09-14 실물 확인에서 세 가지가 틀렸다.
+#
+# - "경기도에 살아요"를 NON_CAPITAL_AREA로 읽었다. 수도권 정의가 없었다
+# - "전세 1억짜리 원룸 알아보는 중"을 재개발 구역 세입자 True로 만들었다. 근거가 없다
+# - "서울 전세 3억"을 주택가격에 넣었다. 임차보증금과 구분이 없었다
+#
+# 셋 다 판정을 뒤집는 값이라 항목마다 뜻을 적어 준다.
+_DESCRIPTIONS = {
+    "age": "만 나이",
+    "household_head_status": "세대주면 HEAD, 아직 아니고 예정이면 PROSPECTIVE_HEAD",
+    "household_type": "혼자 사는 단독세대면 SINGLE, 아니면 MULTI",
+    "home_ownership_status": "세대원 전원 무주택이면 NO_HOME_ALL_MEMBERS",
+    "marital_status": "혼인 7년 이내면 NEWLYWED, 그 외 기혼이면 MARRIED, 미혼이면 SINGLE",
+    "minor_children_count": "미성년 자녀 수",
+    "region_name": '임차할 주택이 있는 지역 이름을 그대로 (예: "서울", "경기도 성남시", "부산")',
+    "employment_category": "중소기업 또는 중견기업 재직이면 SME_OR_MID_SIZED, 그 외 OTHER",
+    "military_service_years": "병역 복무기간(년)",
+    "housing_area_m2": "임차 전용면적(제곱미터)",
+    "deposit_paid_ratio": "임차보증금 중 이미 지급한 비율(0~1)",
+    "is_innovation_city_relocated_worker": (
+        "혁신도시 이전 공공기관 종사자라고 **직접 말한 경우만** true"
+    ),
+    "is_redevelopment_area_tenant": "재개발 구역에서 이주하는 세입자라고 **직접 말한 경우만** true",
+    "combined_annual_income_krw": "본인과 배우자의 연간 합산 소득",
+    "net_asset_krw": "본인과 배우자의 합산 순자산",
+    "lease_deposit_krw": "전세보증금 또는 임차보증금. **'전세 3억'은 여기다**",
+    "housing_value_krw": "주택의 매매가격. 전세보증금과 다르다",
+}
+
+# 수도권 여부는 LLM에게 맡기지 않는다.
+#
+# 프롬프트에 "서울·인천·경기는 CAPITAL_AREA"라고 굵게 적어도 4B 모델이 "경기도에
+# 살아요"를 NON_CAPITAL_AREA로 계속 읽었다(2026-09-14 실물 확인, 프롬프트 보강 후
+# 재측정에서도 동일). **프롬프트로 고쳐지지 않는 종류다.**
+#
+# 이 값은 판정을 뒤집는다 — 일반 버팀목의 보증금 상한이 수도권 3억, 그 외 2억이고
+# 한도도 1.2억과 8천만원으로 갈린다. 금액을 파서가 맡은 것과 같은 이유로 여기도
+# 코드가 정한다. LLM은 지역 이름만 뽑는다.
+#
+# 근거: 상품 안내의 금리 항목에 "지방 소재(서울, 인천, 경기지역 이외)"라고 적혀 있다.
+_CAPITAL_AREA_KEYWORDS = ("서울", "인천", "경기")
 
 # 받지 않기로 한 정보(계획서 §12). 문장에 있으면 저장하지 않고 알린다.
 _SENSITIVE = (
@@ -101,6 +144,14 @@ def extract_profile(llm: LlmClient, text: str) -> ExtractedProfile:
         if accepted is not None:
             values[name] = accepted
 
+    지역명 = values.get("region_name")
+    if isinstance(지역명, str) and 지역명.strip():
+        values["region"] = (
+            "CAPITAL_AREA"
+            if any(keyword in 지역명 for keyword in _CAPITAL_AREA_KEYWORDS)
+            else "NON_CAPITAL_AREA"
+        )
+
     return ExtractedProfile(
         values=values, sources=sources, unreadable=unreadable, warnings=warnings
     )
@@ -138,6 +189,8 @@ def _accept(spec: object, given: object) -> object | None:
         return given if given in spec else None
     if spec is bool:
         return given if isinstance(given, bool) else None
+    if spec is str:
+        return given.strip() if isinstance(given, str) and given.strip() else None
     if spec in (int, float) and isinstance(given, int | float) and not isinstance(given, bool):
         return spec(given)
     return None
@@ -163,12 +216,14 @@ def build_prompt(text: str) -> str:
     """
     lines = []
     for name, spec in _FIELDS.items():
+        뜻 = _DESCRIPTIONS.get(name, "")
         if spec is _AMOUNT:
-            lines.append(f"- {name}: 금액 표현을 그대로 (예: \"4천만원\", \"1억8천\")")
+            형식 = '금액 표현 그대로 (예: "4천만원", "1억8천")'
         elif isinstance(spec, list):
-            lines.append(f"- {name}: {' | '.join(spec)} 중 하나")
+            형식 = " | ".join(spec)
         else:
-            lines.append(f"- {name}: {getattr(spec, '__name__', spec)}")
+            형식 = getattr(spec, "__name__", str(spec))
+        lines.append(f"- {name} ({형식}): {뜻}")
     fields = "\n".join(lines)
 
     return f"""아래 문장에서 대출 신청 조건을 뽑아 JSON 하나로만 답하세요.
@@ -178,17 +233,27 @@ def build_prompt(text: str) -> str:
 
 규칙:
 - 문장에 없는 항목은 값을 null로 두세요. **추측하지 마세요.**
-- 금액은 숫자로 바꾸지 말고 문장에 쓰인 표현을 그대로 주세요.
+- **true/false 항목은 문장에 그렇다고 직접 쓰여 있을 때만 true로 하세요.**
+  그럴듯하다는 이유로 true를 만들면 안 됩니다.
+- 금액은 숫자로 바꾸지 마세요. 표현을 그대로 주되 **단위가 빠졌으면 채워 주세요.**
+  "연봉 4천" → "4천만원", "전세 3억" → "3억", "연 7천" → "7천만원"
+  단위를 채울 수 없으면 그 항목은 null로 두세요.
 - 월 단위 소득이면 "월 300만원"처럼 월이라고 적어 주세요.
 - 목록이 있는 항목은 그 목록의 값만 쓰세요.
 - 각 값을 문장의 어느 부분에서 읽었는지 "_sources"에 함께 담으세요.
+  **읽은 근거를 댈 수 없으면 그 항목은 null로 두세요.**
 - JSON 외에 다른 말은 쓰지 마세요.
 
-예시
+예시 1
 문장: 만 29세 무주택 세대주이고 연봉 4천만원입니다
 답: {{"age": 29, "household_head_status": "HEAD", \
 "home_ownership_status": "NO_HOME_ALL_MEMBERS", "combined_annual_income_krw": "4천만원", \
 "_sources": {{"age": "만 29세", "combined_annual_income_krw": "연봉 4천만원"}}}}
+
+예시 2 (정확한 값을 모를 때도 표현 그대로 담습니다)
+문장: 대전에서 전세 알아보는데 소득은 4천 후반대예요
+답: {{"region_name": "대전", "combined_annual_income_krw": "4천 후반대", \
+"_sources": {{"region_name": "대전에서", "combined_annual_income_krw": "소득은 4천 후반대"}}}}
 
 문장: {text}
 답:"""
