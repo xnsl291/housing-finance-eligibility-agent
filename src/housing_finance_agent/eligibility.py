@@ -216,6 +216,9 @@ def evaluate(program: dict, profile: dict) -> Decision:
         # 방향을 구분하지 않으면 드문 특례 때문에 모두에게 묻게 된다. 실물 확인에서
         # 물어보는 항목이 12개까지 늘었다(2026-09-14).
         if applies is None and rule.get("relaxes"):
+            # 이 특례가 덮는 규칙이 나중에 걸리면 그때 조건을 묻는다. 덮는 대상이
+            # 일반 규칙만이 아니라 더 좁은 특례일 수도 있다 — 신혼 특례는 2자녀
+            # 특례까지 덮으므로, 2자녀 쪽이 걸렸을 때도 혼인 상태를 물어야 한다.
             for target in rule.get("overrides") or []:
                 보류된_특례.setdefault(target, []).extend(unknown)
             continue

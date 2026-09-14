@@ -105,7 +105,8 @@ rules:
       field: marital_status
       operator: eq
       value: NEWLYWED
-    overrides: [N-04]
+    # N-05(2자녀 6천)까지 덮는다. 더 넓은 기준이 좁은 기준을 이겨야 한다.
+    overrides: [N-04, N-05]
     citation: "신혼부부인 경우는 7.5천만원 이하"
     human_reviewed: true
     failure_message: 신혼부부 기준 7.5천만원을 넘음

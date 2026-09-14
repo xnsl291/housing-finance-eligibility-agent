@@ -83,6 +83,11 @@ def render() -> None:
         st.error(message)
 
     if st.button("이 조건으로 판정", type="primary", disabled=bool(errors)):
+        if not profile:
+            # 빈 프로필로 두면 판정이 돌지 않는데 성공 문구만 떠서 막다른 길이 된다.
+            # 직접 입력으로 넘어온 사용자가 바로 만나는 자리다(2026-09-14 검수).
+            st.error("채운 항목이 없습니다. 아는 값을 하나 이상 넣어 주세요")
+            return
         st.session_state["confirmed_profile"] = profile
         # 앞선 판정 결과는 고치기 전 값으로 낸 것이라 그대로 두면 안 된다.
         st.session_state.pop("results", None)

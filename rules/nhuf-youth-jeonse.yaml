@@ -120,7 +120,10 @@ rules:
       field: marital_status
       operator: eq
       value: NEWLYWED
-    overrides: [B-05]
+    # B-06(2자녀 6천)까지 덮는다. 둘 다 해당하면 더 넓은 기준이 이겨야 한다.
+    # B-05만 덮으면 두 특례가 서로를 못 덮어 엄격한 쪽이 걸린다 — 신혼이면서
+    # 2자녀인 사람이 신혼 기준으로는 통과인데 탈락했다(2026-09-14 검수).
+    overrides: [B-05, B-06]
     citation: "신혼가구는 7.5천만원 이하"
     human_reviewed: true
     failure_message: 신혼가구 기준 7.5천만원을 넘음
