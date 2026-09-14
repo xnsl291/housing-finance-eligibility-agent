@@ -40,8 +40,10 @@ def estimate_loan_limit(program: dict, profile: dict) -> LoanLimit | None:
     if not spec or not spec.get("human_reviewed"):
         return None
 
+    # 금액은 정확한 값을 요구한다. 보증금을 범위로만 알면 한도도 범위가 되는데,
+    # 대출 금액을 범위로 알려 주면 사용자가 그 금액으로 계약을 진행한다.
     deposit = profile.get("lease_deposit_krw")
-    if deposit is None:
+    if not isinstance(deposit, int | float):
         return None
 
     tier = _pick_tier(spec["tiers"], profile)

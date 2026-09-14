@@ -39,15 +39,23 @@ def assess(program: dict, profile: dict) -> Assessment:
     limit = None if decision.status == NOT_MATCHED else estimate_loan_limit(program, enriched)
 
     return Assessment(
-        decision=decision, loan_limit=limit, next_actions=_next_actions(program, decision)
+        decision=decision, loan_limit=limit, next_actions=_next_actions(program, decision, limit)
     )
 
 
-def _next_actions(program: dict, decision: Decision) -> list[str]:
+def _next_actions(program: dict, decision: Decision, limit: LoanLimit | None) -> list[str]:
     if decision.status == NOT_MATCHED:
         return _failure_reasons(program, decision.failed_rules)
+
     if decision.status == INSUFFICIENT_INFORMATION:
-        return [_field_guide(program, name) for name in decision.missing_fields]
+        return [_field_guide(program, name) for name in decision.missing_fields] + [
+            _precision_guide(program, name) for name in decision.imprecise_fields
+        ]
+
+    # 판정은 됐는데 금액을 못 낸 경우. 보증금을 범위로만 알면 여기로 온다.
+    if limit is None:
+        return ["정확한 대출 한도를 보려면 임차보증금을 알려주세요"]
+
     # 사전 조건 부합일 때의 다음 단계는 아직 넣지 않았다. 신청 방법은 취급 은행마다
     # 다른데(비대면 제한 여부, 상환 방식), 규칙 파일은 기금 기준만 담고 있다.
     return []
@@ -63,6 +71,17 @@ def _failure_reasons(program: dict, failed_rules: list[str]) -> list[str]:
             reason = f"{reason} — {rule['next_action']}"
         reasons.append(reason)
     return reasons
+
+
+def _precision_guide(program: dict, field_name: str) -> str:
+    """값은 있는데 기준을 걸치는 경우. 없는 것과 다른 말을 해야 한다."""
+    label = _label(program, field_name)
+    return f"{label}이 기준에 걸칩니다. 정확한 값을 알려주세요"
+
+
+def _label(program: dict, field_name: str) -> str:
+    guide = (program.get("field_guides") or {}).get(field_name) or {}
+    return guide.get("label", field_name)
 
 
 def _field_guide(program: dict, field_name: str) -> str:
