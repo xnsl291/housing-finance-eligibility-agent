@@ -17,15 +17,28 @@ age_after_service_credit:
 
 household_head_status:
   label: 세대주 여부
+  choice_labels:
+    HEAD: 세대주임
+    PROSPECTIVE_HEAD: 세대주 예정
 
 household_type:
   label: 세대 구성
+  choice_labels:
+    SINGLE: 단독세대
+    MULTI: 세대원 있음
 
 home_ownership_status:
   label: 무주택 여부
+  choice_labels:
+    NO_HOME_ALL_MEMBERS: 세대원 전원 무주택
+    HAS_HOME: 주택 보유
 
 marital_status:
   label: 혼인 상태
+  choice_labels:
+    SINGLE: 미혼
+    MARRIED: 기혼
+    NEWLYWED: 신혼 (혼인 7년 이내)
 
 minor_children_count:
   label: 미성년 자녀 수
@@ -45,15 +58,26 @@ housing_area_m2:
 lease_deposit_krw:
   label: 임차보증금
 
+housing_value_krw:
+  label: 주택가격
+  note: 전세보증금과 다르다. 매매가격이다.
+
 deposit_paid_ratio:
   label: 임차보증금 지급 비율
 
-region:
+region_name:
   label: 주택 소재지
+  note: 서울·인천·경기면 수도권으로 본다. 이 판단은 코드가 한다.
+
+region:
+  label: 수도권 여부
   note: 수도권(서울·인천·경기)인지 그 외인지로 판정이 갈린다.
 
 employment_category:
   label: 재직 형태
+  choice_labels:
+    SME_OR_MID_SIZED: 중소·중견기업 재직
+    OTHER: 그 외
 
 military_service_years:
   label: 병역 복무기간

@@ -21,6 +21,9 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from housing_finance_agent.amount import parse_amount
+from housing_finance_agent.fields import AMOUNT as _AMOUNT
+from housing_finance_agent.fields import DESCRIPTIONS as _DESCRIPTIONS
+from housing_finance_agent.fields import SPEC as _FIELDS
 
 
 class LlmClient(Protocol):
@@ -31,79 +34,13 @@ class ExtractionError(Exception):
     """뽑기에 실패했다. 부분 결과를 쓰지 않는다."""
 
 
-# 뽑을 항목과 받아들일 값.
-#
-# - `AMOUNT`는 LLM이 표현 그대로 주고 파서가 숫자로 바꾼다
-# - 목록이 있는 항목은 그 안의 값만 받는다
-# - 나머지는 타입만 본다
-_AMOUNT = "AMOUNT"
-_FIELDS: dict[str, object] = {
-    "age": int,
-    "household_head_status": ["HEAD", "PROSPECTIVE_HEAD"],
-    "household_type": ["SINGLE", "MULTI"],
-    "home_ownership_status": ["NO_HOME_ALL_MEMBERS", "HAS_HOME"],
-    "marital_status": ["SINGLE", "MARRIED", "NEWLYWED"],
-    "minor_children_count": int,
-    # 수도권인지는 LLM에게 묻지 않는다. 아래 _REGION 주석 참고.
-    "region_name": str,
-    "employment_category": ["SME_OR_MID_SIZED", "OTHER"],
-    "military_service_years": int,
-    "housing_area_m2": float,
-    "deposit_paid_ratio": float,
-    "is_innovation_city_relocated_worker": bool,
-    "is_redevelopment_area_tenant": bool,
-    "combined_annual_income_krw": _AMOUNT,
-    "net_asset_krw": _AMOUNT,
-    "lease_deposit_krw": _AMOUNT,
-    "housing_value_krw": _AMOUNT,
-}
-
-# 항목 이름만 주면 모델이 뜻을 짐작한다. 2026-09-14 실물 확인에서 세 가지가 틀렸다.
-#
-# - "경기도에 살아요"를 NON_CAPITAL_AREA로 읽었다. 수도권 정의가 없었다
-# - "전세 1억짜리 원룸 알아보는 중"을 재개발 구역 세입자 True로 만들었다. 근거가 없다
-# - "서울 전세 3억"을 주택가격에 넣었다. 임차보증금과 구분이 없었다
-#
-# 셋 다 판정을 뒤집는 값이라 항목마다 뜻을 적어 준다.
-_DESCRIPTIONS = {
-    "age": "만 나이",
-    "household_head_status": "세대주면 HEAD, 아직 아니고 예정이면 PROSPECTIVE_HEAD",
-    "household_type": "혼자 사는 단독세대면 SINGLE, 아니면 MULTI",
-    "home_ownership_status": "세대원 전원 무주택이면 NO_HOME_ALL_MEMBERS",
-    "marital_status": "혼인 7년 이내면 NEWLYWED, 그 외 기혼이면 MARRIED, 미혼이면 SINGLE",
-    "minor_children_count": "미성년 자녀 수",
-    "region_name": '임차할 주택이 있는 지역 이름을 그대로 (예: "서울", "경기도 성남시", "부산")',
-    "employment_category": "중소기업 또는 중견기업 재직이면 SME_OR_MID_SIZED, 그 외 OTHER",
-    "military_service_years": "병역 복무기간(년)",
-    "housing_area_m2": "임차 전용면적(제곱미터)",
-    "deposit_paid_ratio": "임차보증금 중 이미 지급한 비율(0~1)",
-    "is_innovation_city_relocated_worker": (
-        "혁신도시 이전 공공기관 종사자라고 **직접 말한 경우만** true"
-    ),
-    "is_redevelopment_area_tenant": "재개발 구역에서 이주하는 세입자라고 **직접 말한 경우만** true",
-    "combined_annual_income_krw": "본인과 배우자의 연간 합산 소득",
-    "net_asset_krw": "본인과 배우자의 합산 순자산",
-    "lease_deposit_krw": "전세보증금 또는 임차보증금. **'전세 3억'은 여기다**",
-    "housing_value_krw": "주택의 매매가격. 전세보증금과 다르다",
-}
-
-# 수도권 여부는 LLM에게 맡기지 않는다.
-#
-# 프롬프트에 "서울·인천·경기는 CAPITAL_AREA"라고 굵게 적어도 4B 모델이 "경기도에
-# 살아요"를 NON_CAPITAL_AREA로 계속 읽었다(2026-09-14 실물 확인, 프롬프트 보강 후
-# 재측정에서도 동일). **프롬프트로 고쳐지지 않는 종류다.**
-#
-# 이 값은 판정을 뒤집는다 — 일반 버팀목의 보증금 상한이 수도권 3억, 그 외 2억이고
-# 한도도 1.2억과 8천만원으로 갈린다. 금액을 파서가 맡은 것과 같은 이유로 여기도
-# 코드가 정한다. LLM은 지역 이름만 뽑는다.
-#
-# 근거: 상품 안내의 금리 항목에 "지방 소재(서울, 인천, 경기지역 이외)"라고 적혀 있다.
-_CAPITAL_AREA_KEYWORDS = ("서울", "인천", "경기")
-
 # 받지 않기로 한 정보(계획서 §12). 문장에 있으면 저장하지 않고 알린다.
+# 앞뒤로 숫자가 더 붙은 경우를 걸러야 한다. 앞이 없으면 "2026-10-01"의
+# "026-10-01"이 계좌번호로 잡힌다. 잔금지급일과 전입일이 필수 입력이라
+# 데모에서 반드시 걸리던 자리다(2026-09-14 검수).
 _SENSITIVE = (
-    (re.compile(r"\d{6}\s*-\s*\d{7}"), "주민등록번호"),
-    (re.compile(r"\d{2,3}-\d{2,6}-\d{2,6}"), "계좌번호로 보이는 숫자"),
+    (re.compile(r"(?<!\d)\d{6}\s*-\s*\d{7}(?!\d)"), "주민등록번호"),
+    (re.compile(r"(?<!\d)\d{2,3}-\d{2,6}-\d{2,6}(?!\d)"), "계좌번호"),
 )
 
 
@@ -143,14 +80,6 @@ def extract_profile(llm: LlmClient, text: str) -> ExtractedProfile:
         accepted = _accept(_FIELDS[name], given)
         if accepted is not None:
             values[name] = accepted
-
-    지역명 = values.get("region_name")
-    if isinstance(지역명, str) and 지역명.strip():
-        values["region"] = (
-            "CAPITAL_AREA"
-            if any(keyword in 지역명 for keyword in _CAPITAL_AREA_KEYWORDS)
-            else "NON_CAPITAL_AREA"
-        )
 
     return ExtractedProfile(
         values=values, sources=sources, unreadable=unreadable, warnings=warnings

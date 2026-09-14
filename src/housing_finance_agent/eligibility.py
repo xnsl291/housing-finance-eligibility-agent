@@ -26,8 +26,28 @@ _OPERATORS = {
 }
 
 PRECHECK_MATCH = "PRECHECK_MATCH"
+# 판정을 확정하려면 추가 확인이 필요한 상태. 지금은 값이 범위로만 알려져 기준을
+# 걸치는 경우가 여기로 온다. 기관 심사가 남는 CONDITIONAL 규칙이 생기면 그것도
+# 여기로 온다(계획서 §13.5).
+CONDITIONAL = "CONDITIONAL"
 NOT_MATCHED = "NOT_MATCHED"
 INSUFFICIENT_INFORMATION = "INSUFFICIENT_INFORMATION"
+
+
+@dataclass(frozen=True, slots=True)
+class RuleOutcome:
+    """규칙 하나가 어떻게 됐는지.
+
+    통과·불충족만 보여 주면 "왜 이 조건은 안 보이나"에 답을 못 한다. 특례에 덮인
+    규칙, 적용 대상이 아닌 규칙, 값이 없어 못 본 규칙도 남긴다.
+    """
+
+    rule_id: str
+    outcome: str  # PASSED | FAILED | SUPERSEDED | NOT_APPLICABLE | MISSING_VALUE
+    #             | IMPRECISE | NOT_REVIEWED
+    field: str
+    citation: str
+    failure_message: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +66,8 @@ class Decision:
     # 값은 있는데 범위로만 알아서 기준을 걸치는 것. 화면이 다른 말을 해야 한다 —
     # "소득을 알려주세요"가 아니라 "기준에 걸치니 정확한 값을 알려주세요"다.
     imprecise_fields: list[str] = field(default_factory=list)
+    # 규칙마다 어떻게 됐는지. 화면 4가 근거를 보여 주는 데 쓴다.
+    rule_outcomes: list[RuleOutcome] = field(default_factory=list)
 
 
 def _has_value(profile: dict, field_name: str) -> bool:
@@ -177,9 +199,30 @@ def evaluate(program: dict, profile: dict) -> Decision:
     # 통과시킨다. 나이를 모르는 만 24세 단독세대주가 85㎡ 기준으로 통과하는 경우다.
     applicability: dict[str, bool | None] = {}
     suppressed: set[str] = set()
+    # 푸는 특례의 적용 여부를 모를 때, 그 특례가 덮는 일반 규칙이 실제로 걸리면
+    # 그때 가서 묻는다. {일반 규칙 id: 물어야 할 항목}
+    보류된_특례: dict[str, list[str]] = {}
+
     for rule in reviewed:
         applies, unknown = _applies(rule, profile)
-        applicability[rule["rule_id"]] = applies
+        rule_id = rule["rule_id"]
+        applicability[rule_id] = applies
+
+        # 특례에는 두 방향이 있다. 기준을 조이는 특례(전용면적 85→60)는 적용 여부를
+        # 모르면 일반 규칙까지 덮어야 한다 — 안 덮으면 잘못 통과시킨다. 반대로
+        # 기준을 푸는 특례(소득 5천→6천, 나이 34→39)는 건너뛰는 쪽이 더 엄격하므로
+        # 몰라도 그냥 넘어가면 된다.
+        #
+        # 방향을 구분하지 않으면 드문 특례 때문에 모두에게 묻게 된다. 실물 확인에서
+        # 물어보는 항목이 12개까지 늘었다(2026-09-14).
+        if applies is None and rule.get("relaxes"):
+            # 이 특례가 덮는 규칙이 나중에 걸리면 그때 조건을 묻는다. 덮는 대상이
+            # 일반 규칙만이 아니라 더 좁은 특례일 수도 있다 — 신혼 특례는 2자녀
+            # 특례까지 덮으므로, 2자녀 쪽이 걸렸을 때도 혼인 상태를 물어야 한다.
+            for target in rule.get("overrides") or []:
+                보류된_특례.setdefault(target, []).extend(unknown)
+            continue
+
         if unknown:
             remember_unknown(unknown)
         if applies is not False:
@@ -187,33 +230,86 @@ def evaluate(program: dict, profile: dict) -> Decision:
 
     passed: list[str] = []
     failed: list[str] = []
+    outcomes: list[RuleOutcome] = []
     evaluated = 0
 
-    for rule in reviewed:
+    def 남김(rule: dict, label: str) -> None:
+        outcomes.append(
+            RuleOutcome(
+                rule_id=rule["rule_id"],
+                outcome=label,
+                field=rule["field"],
+                citation=rule.get("citation", ""),
+                failure_message=rule.get("failure_message", ""),
+            )
+        )
+
+    for rule in program["rules"]:
         rule_id = rule["rule_id"]
-        if rule_id in suppressed or applicability[rule_id] is not True:
+
+        if not rule.get("human_reviewed"):
+            # 판정에 쓰지 않지만 몇 건이 빠졌는지는 보여 줘야 한다.
+            남김(rule, "NOT_REVIEWED")
+            continue
+        if rule_id in suppressed:
+            남김(rule, "SUPERSEDED")
+            continue
+        if applicability[rule_id] is False:
+            남김(rule, "NOT_APPLICABLE")
+            continue
+        if applicability[rule_id] is None:
+            # 적용 대상인지조차 판단하지 못했다.
+            남김(rule, "MISSING_VALUE")
             continue
 
         absent = [name for name in _required_fields(rule) if not _has_value(profile, name)]
         if absent:
             remember_unknown(absent)
+            남김(rule, "MISSING_VALUE")
             continue
 
         outcome = _compare(rule, profile)
         if outcome is None:
             # 값은 있는데 범위로만 알아서 기준을 걸친다. 통과로도 탈락으로도 세지 않는다.
             remember_unknown([rule["field"]])
+            남김(rule, "IMPRECISE")
             continue
 
         evaluated += 1
         if outcome:
             passed.append(rule_id)
+            남김(rule, "PASSED")
         else:
             failed.append(rule_id)
+            남김(rule, "FAILED")
+
+    # 푸는 특례를 건너뛰었는데 일반 규칙이 걸렸다면, 특례에 해당하면 통과할 수도
+    # 있다. 여기서만 특례 조건을 묻는다. 통과했으면 묻지 않는다.
+    for rule_id in list(failed):
+        if rule_id in 보류된_특례:
+            failed.remove(rule_id)
+            remember_unknown(보류된_특례[rule_id])
+            outcomes = [
+                RuleOutcome(
+                    rule_id=item.rule_id,
+                    outcome="MISSING_VALUE" if item.rule_id == rule_id else item.outcome,
+                    field=item.field,
+                    citation=item.citation,
+                    failure_message=item.failure_message,
+                )
+                for item in outcomes
+            ]
 
     if failed:
         status = NOT_MATCHED
-    elif missing or imprecise or evaluated == 0:
+    elif missing:
+        # 값이 아예 없는 것이 먼저다. 정밀도를 묻기 전에 없는 값부터 받아야 한다.
+        status = INSUFFICIENT_INFORMATION
+    elif imprecise:
+        # 값은 있는데 기준을 걸친다. 사용자는 이미 말했고 정밀도만 모자라므로
+        # 화면이 다른 말을 해야 한다.
+        status = CONDITIONAL
+    elif evaluated == 0:
         # 비교한 규칙이 하나도 없으면 통과라고 말할 수 없다. 검수된 규칙이 없거나
         # 전부 적용 대상이 아닌 경우가 여기로 온다.
         status = INSUFFICIENT_INFORMATION
@@ -226,4 +322,5 @@ def evaluate(program: dict, profile: dict) -> Decision:
         failed_rules=failed,
         missing_fields=missing,
         imprecise_fields=imprecise,
+        rule_outcomes=outcomes,
     )
