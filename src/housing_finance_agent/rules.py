@@ -23,4 +23,13 @@ def load_program(program_id: str) -> dict:
     path = _RULES_DIR / f"{program_id}.yaml"
     if not path.is_file():
         raise FileNotFoundError(f"규칙 파일이 없음: {path}")
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    program = yaml.safe_load(path.read_text(encoding="utf-8"))
+    # 항목 안내는 상품이 달라도 같다. 상품 파일마다 적으면 두 곳이 갈라지므로
+    # 공통 파일에 두고 여기서 합친다. 상품 파일에 같은 항목이 있으면 그쪽이 이긴다.
+    program["field_guides"] = {**_load_field_guides(), **(program.get("field_guides") or {})}
+    return program
+
+
+def _load_field_guides() -> dict:
+    return yaml.safe_load((_RULES_DIR / "field_guides.yaml").read_text(encoding="utf-8"))
