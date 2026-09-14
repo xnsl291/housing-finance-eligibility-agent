@@ -143,3 +143,43 @@ def test_범위로_준_값도_판정한다() -> None:
 @pytest.mark.parametrize("path", ["/v1/profiles/extract", "/v1/eligibility/check"])
 def test_모양이_다른_요청은_422다(path: str) -> None:
     assert _client().post(path, json={"엉뚱한": "값"}).status_code == 422
+
+
+def test_항목_목록을_내려준다() -> None:
+    """화면이 항목 이름과 허용값을 따로 적으면 정본이 둘로 갈라진다."""
+    response = _client().get("/v1/fields")
+
+    assert response.status_code == 200
+    fields = response.json()["fields"]
+    assert fields["net_asset_krw"]["label"] == "순자산"
+    assert fields["household_head_status"]["choices"] == ["HEAD", "PROSPECTIVE_HEAD"]
+    assert "region" not in fields  # 파생 항목은 편집 대상이 아니다
+
+
+def test_판정에_규칙별_결과가_함께_온다() -> None:
+    response = _client().post(
+        "/v1/eligibility/check", json={"profile": _통과, "program_ids": ["nhuf-youth-jeonse"]}
+    )
+
+    결과 = response.json()["results"][0]["rule_outcomes"]
+    outcomes = {item["rule_id"]: item["outcome"] for item in 결과}
+    assert outcomes["B-09"] == "PASSED"
+    assert outcomes["B-10"] == "NOT_APPLICABLE"
+
+
+def test_아직_다루지_않는_조건을_함께_알려준다() -> None:
+    response = _client().post(
+        "/v1/eligibility/check", json={"profile": _통과, "program_ids": ["nhuf-youth-jeonse"]}
+    )
+
+    assert response.json()["results"][0]["unresolved"]
+
+
+def test_한도를_못_낸_사유가_응답에_담긴다() -> None:
+    보증금_없음 = {key: value for key, value in _통과.items() if key != "lease_deposit_krw"}
+
+    response = _client().post(
+        "/v1/eligibility/check", json={"profile": 보증금_없음, "program_ids": ["nhuf-youth-jeonse"]}
+    )
+
+    assert response.json()["results"][0]["loan_limit"]["reason"] == "DEPOSIT_UNKNOWN"

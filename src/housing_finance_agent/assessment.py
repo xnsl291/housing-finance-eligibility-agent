@@ -14,6 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from housing_finance_agent.eligibility import (
+    CONDITIONAL,
     INSUFFICIENT_INFORMATION,
     NOT_MATCHED,
     Decision,
@@ -47,14 +48,14 @@ def _next_actions(program: dict, decision: Decision, limit: LoanLimit | None) ->
     if decision.status == NOT_MATCHED:
         return _failure_reasons(program, decision.failed_rules)
 
-    if decision.status == INSUFFICIENT_INFORMATION:
+    if decision.status in (INSUFFICIENT_INFORMATION, CONDITIONAL):
         return [_field_guide(program, name) for name in decision.missing_fields] + [
             _precision_guide(program, name) for name in decision.imprecise_fields
         ]
 
-    # 판정은 됐는데 금액을 못 낸 경우. 보증금을 범위로만 알면 여기로 온다.
-    if limit is None:
-        return ["정확한 대출 한도를 보려면 임차보증금을 알려주세요"]
+    # 판정은 됐는데 금액을 못 낸 경우. 사유마다 사용자가 할 일이 다르다.
+    if limit is not None and limit.amount_krw is None:
+        return [_LIMIT_REASONS.get(limit.reason, "대출 한도를 계산하지 못했습니다")]
 
     # 사전 조건 부합일 때의 다음 단계는 아직 넣지 않았다. 신청 방법은 취급 은행마다
     # 다른데(비대면 제한 여부, 상환 방식), 규칙 파일은 기금 기준만 담고 있다.
@@ -71,6 +72,15 @@ def _failure_reasons(program: dict, failed_rules: list[str]) -> list[str]:
             reason = f"{reason} — {rule['next_action']}"
         reasons.append(reason)
     return reasons
+
+
+_LIMIT_REASONS = {
+    "DEPOSIT_UNKNOWN": "대출 한도를 보려면 임차보증금을 알려주세요",
+    "DEPOSIT_IMPRECISE": "정확한 대출 한도를 보려면 임차보증금을 정확히 알려주세요",
+    "TIER_UNKNOWN": "한도 기준이 갈리는 조건을 아직 알 수 없어 금액을 내지 못했습니다",
+    "REGION_UNKNOWN": "지역에 따라 한도가 달라집니다. 주택 소재지를 알려주세요",
+    "NOT_REVIEWED": "한도 규칙이 아직 검수되지 않아 금액을 내지 않습니다",
+}
 
 
 def _precision_guide(program: dict, field_name: str) -> str:

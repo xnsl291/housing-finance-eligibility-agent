@@ -63,7 +63,7 @@ def test_범위가_기준_밖에_다_있으면_탈락한다() -> None:
 def test_범위가_기준을_걸치면_정확한_값을_묻는다() -> None:
     decision = evaluate(load_program("nhuf-youth-jeonse"), _소득(Range(45000000, 55000000)))
 
-    assert decision.status == "INSUFFICIENT_INFORMATION"
+    assert decision.status == "CONDITIONAL"
     assert decision.imprecise_fields == ["combined_annual_income_krw"]
     # 값이 아예 없는 것과 구분한다. 화면이 다른 말을 해야 한다.
     assert decision.missing_fields == []
@@ -88,7 +88,7 @@ def test_범위가_기준_안에_있으면_다른_항목도_그대로_판정된�
 def test_나이_범위가_상한을_걸치면_묻는다() -> None:
     decision = evaluate(load_program("nhuf-youth-jeonse"), {**_통과, "age": Range(33, 36)})
 
-    assert decision.status == "INSUFFICIENT_INFORMATION"
+    assert decision.status == "CONDITIONAL"
     assert decision.imprecise_fields == ["age"]
 
 
@@ -111,7 +111,7 @@ def test_같다_비교에는_범위를_쓸_수_없어_묻는다() -> None:
 
     decision = evaluate(program, {"region": Range(1, 2)})
 
-    assert decision.status == "INSUFFICIENT_INFORMATION"
+    assert decision.status == "CONDITIONAL"
     assert decision.imprecise_fields == ["region"]
     assert decision.failed_rules == []
 
@@ -123,7 +123,7 @@ def test_범위로_통과해도_한도는_계산하지_않는다() -> None:
     result = assess(load_program("nhuf-youth-jeonse"), 범위_보증금)
 
     assert result.decision.status == "PRECHECK_MATCH"
-    assert result.loan_limit is None
+    assert result.loan_limit.amount_krw is None
 
 
 def test_판정은_됐는데_한도를_못_내면_그_이유를_알려_준다() -> None:
@@ -131,7 +131,7 @@ def test_판정은_됐는데_한도를_못_내면_그_이유를_알려_준다() 
 
     result = assess(load_program("nhuf-youth-jeonse"), 범위_보증금)
 
-    assert result.next_actions == ["정확한 대출 한도를 보려면 임차보증금을 알려주세요"]
+    assert result.next_actions == ["정확한 대출 한도를 보려면 임차보증금을 정확히 알려주세요"]
 
 
 def test_애매한_값은_더_정확한_값을_달라고_안내한다() -> None:

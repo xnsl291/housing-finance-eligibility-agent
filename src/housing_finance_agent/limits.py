@@ -26,33 +26,44 @@ class LoanLimit:
     함께 담아 어느 쪽에 걸렸는지 알 수 있게 한다.
     """
 
-    amount_krw: int
-    tier: str
-    ratio_amount_krw: int
-    cap_amount_krw: int
+    # 계산하지 못했으면 amount_krw가 None이고 reason에 사유가 담긴다.
+    amount_krw: int | None
+    tier: str | None
+    ratio_amount_krw: int | None
+    cap_amount_krw: int | None
     citation: str
     rule_id: str
+    # None이면 계산에 성공한 것이다.
+    # NOT_REVIEWED | DEPOSIT_UNKNOWN | DEPOSIT_IMPRECISE | TIER_UNKNOWN | REGION_UNKNOWN
+    reason: str | None = None
 
 
-def estimate_loan_limit(program: dict, profile: dict) -> LoanLimit | None:
-    """대출 한도를 구한다. 계산할 수 없으면 None."""
+def estimate_loan_limit(program: dict, profile: dict) -> LoanLimit:
+    """대출 한도를 구한다.
+
+    계산하지 못해도 객체를 돌려주고 reason에 사유를 담는다. None만 주면 화면이
+    "임차보증금을 알려주세요" 한 문구밖에 못 쓴다. 실제 사유는 넷이고 사용자가
+    해야 할 일이 각각 다르다.
+    """
     spec = (program.get("limits") or {}).get("loan_amount")
     if not spec or not spec.get("human_reviewed"):
-        return None
+        return _못_구함(spec, "NOT_REVIEWED")
 
     # 금액은 정확한 값을 요구한다. 보증금을 범위로만 알면 한도도 범위가 되는데,
     # 대출 금액을 범위로 알려 주면 사용자가 그 금액으로 계약을 진행한다.
     deposit = profile.get("lease_deposit_krw")
+    if deposit is None:
+        return _못_구함(spec, "DEPOSIT_UNKNOWN")
     if not isinstance(deposit, int | float):
-        return None
+        return _못_구함(spec, "DEPOSIT_IMPRECISE")
 
     tier = _pick_tier(spec["tiers"], profile)
     if tier is None:
-        return None
+        return _못_구함(spec, "TIER_UNKNOWN")
 
     cap = _cap_of(tier, profile)
     if cap is None:
-        return None
+        return _못_구함(spec, "REGION_UNKNOWN")
 
     # 원문이 "임차보증금의 N% 이내에서 최고 M원 이내"라고 적어 두 상한이 함께 걸린다.
     # 소수점은 버린다. 원 단위 아래 반올림 규칙은 원문에 없어 정하지 않았다.
@@ -64,6 +75,18 @@ def estimate_loan_limit(program: dict, profile: dict) -> LoanLimit | None:
         cap_amount_krw=cap,
         citation=spec["citation"],
         rule_id=spec["rule_id"],
+    )
+
+
+def _못_구함(spec: dict | None, reason: str) -> LoanLimit:
+    return LoanLimit(
+        amount_krw=None,
+        tier=None,
+        ratio_amount_krw=None,
+        cap_amount_krw=None,
+        citation=(spec or {}).get("citation", ""),
+        rule_id=(spec or {}).get("rule_id", ""),
+        reason=reason,
     )
 
 

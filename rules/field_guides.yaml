@@ -48,8 +48,12 @@ lease_deposit_krw:
 deposit_paid_ratio:
   label: 임차보증금 지급 비율
 
-region:
+region_name:
   label: 주택 소재지
+  note: 서울·인천·경기면 수도권으로 본다. 이 판단은 코드가 한다.
+
+region:
+  label: 수도권 여부
   note: 수도권(서울·인천·경기)인지 그 외인지로 판정이 갈린다.
 
 employment_category:
