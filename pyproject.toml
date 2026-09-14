@@ -7,10 +7,17 @@ requires-python = ">=3.12"
 # 실제로 쓰는 것만 등록한다. FastAPI, Streamlit, MCP는 해당 계층을 만들 때 추가한다.
 dependencies = [
     "pyyaml>=6.0",
+    # HTTP 경계. pydantic 검증은 fastapi가 끌고 온다.
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    # 화면. API 호출은 표준 라이브러리로 해서 추가 의존성이 없다.
+    "streamlit>=1.38",
 ]
 
 [project.optional-dependencies]
 dev = [
+    # fastapi TestClient가 요구한다. 구 httpx는 starlette에서 deprecated다.
+    "httpx2>=0.1",
     "pytest>=8.0",
     "ruff>=0.6",
 ]
