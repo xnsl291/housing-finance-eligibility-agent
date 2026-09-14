@@ -1,0 +1,74 @@
+# 신청자 정보 항목의 화면 표기와 확인 방법.
+#
+# 상품이 달라도 "순자산"은 같은 순자산이다. 상품 파일마다 적으면 두 곳이 갈라지므로
+# 여기 한 곳에 두고 규칙 파일을 읽을 때 합친다.
+#
+# **how_to_check는 원문에 확인 방법이 적혀 있는 항목에만 둔다.** 없는 항목에
+# 안내를 지어내면 존재하지 않는 창구를 알려 주게 된다. 판정이 맞아도 그 안내를
+# 따라간 사용자는 헛걸음한다. 이름만 알려 주는 편이 낫다.
+#
+# 특정 규칙에만 다른 안내가 필요하면 그 규칙에 next_action을 적어 덮는다.
+
+age:
+  label: 나이
+
+age_after_service_credit:
+  label: 병역 복무기간을 반영한 나이
+
+household_head_status:
+  label: 세대주 여부
+
+household_type:
+  label: 세대 구성
+
+home_ownership_status:
+  label: 무주택 여부
+
+marital_status:
+  label: 혼인 상태
+
+minor_children_count:
+  label: 미성년 자녀 수
+
+combined_annual_income_krw:
+  label: 부부합산 총소득
+  note: 원문에 확인 방법이 없다. 소득의 범위 정의만 있다.
+
+net_asset_krw:
+  label: 순자산
+  how_to_check: 국토교통부 주택도시기금 포털(nhuf.molit.go.kr)에서 자산심사 기준을 확인할 수 있습니다
+  citation: "자산심사 기준은 국토교통부 주택도시기금포털(http://nhuf.molit.go.kr)에서 확인가능"
+
+housing_area_m2:
+  label: 전용면적
+
+lease_deposit_krw:
+  label: 임차보증금
+
+deposit_paid_ratio:
+  label: 임차보증금 지급 비율
+
+region:
+  label: 주택 소재지
+  note: 수도권(서울·인천·경기)인지 그 외인지로 판정이 갈린다.
+
+employment_category:
+  label: 재직 형태
+
+military_service_years:
+  label: 병역 복무기간
+
+is_innovation_city_relocated_worker:
+  label: 혁신도시 이전 공공기관 종사자 여부
+
+is_redevelopment_area_tenant:
+  label: 재개발 구역 이주 세입자 여부
+
+application_date:
+  label: 신청 예정일
+
+contract_balance_date:
+  label: 임대차계약 잔금지급일
+
+move_in_date:
+  label: 전입일
