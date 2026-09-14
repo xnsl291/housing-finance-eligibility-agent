@@ -199,9 +199,27 @@ def evaluate(program: dict, profile: dict) -> Decision:
     # 통과시킨다. 나이를 모르는 만 24세 단독세대주가 85㎡ 기준으로 통과하는 경우다.
     applicability: dict[str, bool | None] = {}
     suppressed: set[str] = set()
+    # 푸는 특례의 적용 여부를 모를 때, 그 특례가 덮는 일반 규칙이 실제로 걸리면
+    # 그때 가서 묻는다. {일반 규칙 id: 물어야 할 항목}
+    보류된_특례: dict[str, list[str]] = {}
+
     for rule in reviewed:
         applies, unknown = _applies(rule, profile)
-        applicability[rule["rule_id"]] = applies
+        rule_id = rule["rule_id"]
+        applicability[rule_id] = applies
+
+        # 특례에는 두 방향이 있다. 기준을 조이는 특례(전용면적 85→60)는 적용 여부를
+        # 모르면 일반 규칙까지 덮어야 한다 — 안 덮으면 잘못 통과시킨다. 반대로
+        # 기준을 푸는 특례(소득 5천→6천, 나이 34→39)는 건너뛰는 쪽이 더 엄격하므로
+        # 몰라도 그냥 넘어가면 된다.
+        #
+        # 방향을 구분하지 않으면 드문 특례 때문에 모두에게 묻게 된다. 실물 확인에서
+        # 물어보는 항목이 12개까지 늘었다(2026-09-14).
+        if applies is None and rule.get("relaxes"):
+            for target in rule.get("overrides") or []:
+                보류된_특례.setdefault(target, []).extend(unknown)
+            continue
+
         if unknown:
             remember_unknown(unknown)
         if applies is not False:
@@ -261,6 +279,23 @@ def evaluate(program: dict, profile: dict) -> Decision:
         else:
             failed.append(rule_id)
             남김(rule, "FAILED")
+
+    # 푸는 특례를 건너뛰었는데 일반 규칙이 걸렸다면, 특례에 해당하면 통과할 수도
+    # 있다. 여기서만 특례 조건을 묻는다. 통과했으면 묻지 않는다.
+    for rule_id in list(failed):
+        if rule_id in 보류된_특례:
+            failed.remove(rule_id)
+            remember_unknown(보류된_특례[rule_id])
+            outcomes = [
+                RuleOutcome(
+                    rule_id=item.rule_id,
+                    outcome="MISSING_VALUE" if item.rule_id == rule_id else item.outcome,
+                    field=item.field,
+                    citation=item.citation,
+                    failure_message=item.failure_message,
+                )
+                for item in outcomes
+            ]
 
     if failed:
         status = NOT_MATCHED

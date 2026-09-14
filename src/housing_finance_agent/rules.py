@@ -55,6 +55,9 @@ def field_catalog() -> dict:
         entry = {"label": guide.get("label", name), "kind": fields.kind_of(name)}
         if isinstance(fields.SPEC[name], list):
             entry["choices"] = list(fields.SPEC[name])
+            # 화면이 HEAD 같은 코드를 그대로 보여 주면 사용자가 못 읽는다.
+            # 표기의 정본을 화면에 두면 갈라지므로 여기서 함께 내려보낸다.
+            entry["choice_labels"] = guide.get("choice_labels") or {}
         if guide.get("how_to_check"):
             entry["how_to_check"] = guide["how_to_check"]
         catalog[name] = entry

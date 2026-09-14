@@ -65,6 +65,8 @@ rules:
     failure_message: 부부합산 총소득이 5천만원을 넘음
 
   - rule_id: N-05
+    # 기준을 푸는 특례다. 해당 여부를 몰라도 일반 규칙(더 엄격)으로 판정할 수 있다.
+    relaxes: true
     field: combined_annual_income_krw
     operator: lte
     value: 60000000
@@ -92,6 +94,8 @@ rules:
       항목을 추가할지 검수 때 정한다.
 
   - rule_id: N-06
+    # 기준을 푸는 특례다. 해당 여부를 몰라도 일반 규칙(더 엄격)으로 판정할 수 있다.
+    relaxes: true
     field: combined_annual_income_krw
     operator: lte
     value: 75000000
