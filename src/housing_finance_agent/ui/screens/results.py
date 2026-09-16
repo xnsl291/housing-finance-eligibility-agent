@@ -32,16 +32,17 @@ _판정_표시: dict[str, tuple[str, str]] = {
     "INSUFFICIENT_INFORMATION": ("🔍", "blue"),
 }
 
-# 규칙 묶음을 보여 주는 순서. 사용자가 먼저 찾는 것(통과·불충족)을 위에 두고,
-# 판정에 쓰이지 못한 이유들을 아래에 둔다. NOT_REVIEWED는 성격이 달라 따로 다룬다.
-_표시_순서 = (
-    "PASSED",
-    "FAILED",
-    "IMPRECISE",
-    "MISSING_VALUE",
-    "SUPERSEDED",
-    "NOT_APPLICABLE",
-)
+# 규칙 묶음을 펼쳐 둘 것과 접어 둘 것.
+#
+# 결과 화면에서 급한 것은 "왜 안 됐나"와 "뭘 더 알려 줘야 하나"다. 통과 목록은
+# 근거이지 지금 할 일이 아니다. 청년전용은 규칙 20개 중 열대여섯이 통과로 나와서
+# 전부 펼치면 불충족 한 건이 통과 열다섯 건 아래로 밀린다.
+#
+# **숨기는 것이 아니라 접는 것이다.** 접어도 건수는 보이고 펼치면 원문 인용까지
+# 다 나온다. 건수까지 감추면 화면에 보이는 것이 이 상품 조건의 전부라고 읽힌다.
+# 검수 대기(NOT_REVIEWED)가 이미 같은 방식을 쓴다.
+_펼침_순서 = ("FAILED", "MISSING_VALUE", "IMPRECISE")
+_접힘_순서 = ("PASSED", "SUPERSEDED", "NOT_APPLICABLE")
 
 # 한도를 못 낸 사유마다 사용자가 할 일이 다르다. 한 문구로 뭉치면 무엇을 더 알려
 # 줘야 금액이 나오는지 알 수 없다. 사유 코드는 limits.LoanLimit.reason을 따른다.
@@ -80,8 +81,10 @@ def _요약_카드(result: dict) -> None:
     """
     아이콘, 색 = _판정_표시.get(result["status"], ("•", "gray"))
     with st.container(border=True):
-        st.markdown(f"### {아이콘} {result['program_name']}")
-        st.markdown(f":{색}[**{labels.status_label(result['status'])}**]")
+        st.markdown(f"#### {result['program_name']}")
+        # 판정을 색 글자 한 줄로 내면 상품 이름에 묻힌다. 이 화면에서 제일 먼저
+        # 읽혀야 하는 값이라 배지로 낸다.
+        st.badge(f"{아이콘} {labels.status_label(result['status'])}", color=색)
 
         # 판정만 주면 "그래서 뭘 해야 하나"에 답이 없다. 사용자에게는 이쪽이 더 급하다.
         actions = result.get("next_actions") or []
@@ -164,16 +167,25 @@ def _규칙_목록(outcomes: list[dict]) -> None:
         묶음.setdefault(item["outcome"], []).append(item)
 
     # 엔진에 결과 종류가 하나 늘어도 화면에서 조용히 빠지면 안 된다. 모르는 코드는
-    # 아래에 붙여 그대로 내보낸다.
-    낯선 = sorted(code for code in 묶음 if code not in _표시_순서 and code != "NOT_REVIEWED")
+    # 펼친 쪽에 붙여 그대로 내보낸다. 접어 두면 새 종류가 생긴 것을 아무도 모른다.
+    아는_코드 = (*_펼침_순서, *_접힘_순서, "NOT_REVIEWED")
+    낯선 = sorted(code for code in 묶음 if code not in 아는_코드)
 
-    for outcome in (*_표시_순서, *낯선):
+    for outcome in (*_펼침_순서, *낯선):
         규칙들 = 묶음.get(outcome) or []
         if not 규칙들:
             continue
         st.markdown(f"**{labels.outcome_label(outcome)} {len(규칙들)}건**")
         for rule in 규칙들:
             _규칙_한_건(rule, 탈락_문구=outcome == "FAILED")
+
+    for outcome in _접힘_순서:
+        규칙들 = 묶음.get(outcome) or []
+        if not 규칙들:
+            continue
+        with st.expander(f"{labels.outcome_label(outcome)} {len(규칙들)}건"):
+            for rule in 규칙들:
+                _규칙_한_건(rule, 탈락_문구=False)
 
     _검수_대기(묶음.get("NOT_REVIEWED") or [])
 
@@ -185,9 +197,11 @@ def _규칙_한_건(rule: dict, *, 탈락_문구: bool) -> None:
     먹혀 글자가 바뀐다. 원문을 그대로 보여 주는 것이 이 화면의 존재 이유라
     보기 좋은 쪽보다 안 바뀌는 쪽을 골랐다.
     """
-    st.markdown(f"`{rule['rule_id']}` · 항목 `{rule['field']}`")
+    머리 = f"`{rule['rule_id']}` · {rule['field']}"
     if 탈락_문구 and rule.get("failure_message"):
-        st.markdown(f":red[{rule['failure_message']}]")
+        # 사유를 다음 줄로 내리면 규칙 하나가 세 줄이 된다. 스무 개면 예순 줄이다.
+        머리 += f" — :red[{rule['failure_message']}]"
+    st.markdown(머리)
     st.text(rule.get("citation") or _인용_없음)
 
 
