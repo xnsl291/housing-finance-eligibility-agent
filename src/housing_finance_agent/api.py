@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from housing_finance_agent.amount import Range
 from housing_finance_agent.assessment import assess
 from housing_finance_agent.extraction import ExtractionError, LlmClient, extract_profile
-from housing_finance_agent.rules import available_programs, load_program
+from housing_finance_agent.rules import available_programs, field_catalog, load_program
 
 _DEFAULT_MAX_MESSAGE_CHARS = 1000
 
@@ -40,6 +40,15 @@ def create_app(llm: LlmClient, max_message_chars: int = _DEFAULT_MAX_MESSAGE_CHA
     @app.get("/health")
     def health() -> dict:
         return {"status": "ok", "programs": available_programs()}
+
+    @app.get("/v1/fields")
+    def fields() -> dict:
+        """화면이 쓸 항목 목록.
+
+        화면이 항목 이름과 허용값을 따로 적으면 정본이 둘로 갈라진다. 항목이 하나
+        늘 때 두 곳을 고쳐야 하고, 한쪽만 고치면 화면에 없는 항목을 LLM이 뽑는다.
+        """
+        return {"fields": field_catalog()}
 
     @app.post("/v1/profiles/extract")
     def extract(request: ExtractRequest) -> dict:
@@ -86,6 +95,20 @@ def create_app(llm: LlmClient, max_message_chars: int = _DEFAULT_MAX_MESSAGE_CHA
                     "imprecise_fields": assessment.decision.imprecise_fields,
                     "next_actions": assessment.next_actions,
                     "loan_limit": _limit_as_json(assessment.loan_limit),
+                    # 통과·불충족만 주면 "왜 이 조건은 안 보이나"에 답을 못 한다.
+                    "rule_outcomes": [
+                        {
+                            "rule_id": item.rule_id,
+                            "outcome": item.outcome,
+                            "field": item.field,
+                            "citation": item.citation,
+                            "failure_message": item.failure_message,
+                        }
+                        for item in assessment.decision.rule_outcomes
+                    ],
+                    # 아직 다루지 않는 조건을 숨기지 않는다.
+                    "unresolved": program.get("unresolved") or [],
+                    "rule_version": program["program"].get("version"),
                     "source_url": program["program"]["source_url"],
                     "source_checked_at": program["program"]["fetched_at"],
                 }
@@ -117,4 +140,6 @@ def _limit_as_json(limit: object) -> dict | None:
         "cap_amount_krw": limit.cap_amount_krw,
         "citation": limit.citation,
         "rule_id": limit.rule_id,
+        # 못 낸 이유. 사유마다 사용자가 할 일이 다르다.
+        "reason": limit.reason,
     }

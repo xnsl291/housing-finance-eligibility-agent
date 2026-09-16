@@ -85,6 +85,8 @@ rules:
     failure_message: 부부합산 총소득이 5천만원을 넘음
 
   - rule_id: B-06
+    # 기준을 푸는 특례다. 해당 여부를 몰라도 일반 규칙(더 엄격)으로 판정할 수 있다.
+    relaxes: true
     field: combined_annual_income_krw
     operator: lte
     value: 60000000
@@ -107,6 +109,8 @@ rules:
     failure_message: 2자녀 이상 가구 등 특례 기준 6천만원을 넘음
 
   - rule_id: B-07
+    # 기준을 푸는 특례다. 해당 여부를 몰라도 일반 규칙(더 엄격)으로 판정할 수 있다.
+    relaxes: true
     field: combined_annual_income_krw
     operator: lte
     value: 75000000
@@ -116,7 +120,10 @@ rules:
       field: marital_status
       operator: eq
       value: NEWLYWED
-    overrides: [B-05]
+    # B-06(2자녀 6천)까지 덮는다. 둘 다 해당하면 더 넓은 기준이 이겨야 한다.
+    # B-05만 덮으면 두 특례가 서로를 못 덮어 엄격한 쪽이 걸린다 — 신혼이면서
+    # 2자녀인 사람이 신혼 기준으로는 통과인데 탈락했다(2026-09-14 검수).
+    overrides: [B-05, B-06]
     citation: "신혼가구는 7.5천만원 이하"
     human_reviewed: true
     failure_message: 신혼가구 기준 7.5천만원을 넘음
@@ -209,6 +216,8 @@ rules:
   # 나이 기준을 사람마다 바꾸는 대신 복무기간만큼 되돌린 나이를 비교한다
   # (profile.enrich가 age_after_service_credit을 만든다).
   - rule_id: B-19
+    # 기준을 푸는 특례다. 해당 여부를 몰라도 일반 규칙(더 엄격)으로 판정할 수 있다.
+    relaxes: true
     field: age_after_service_credit
     operator: lte
     value: 34
@@ -228,6 +237,9 @@ rules:
     failure_message: 병역 복무기간을 더해도 나이 상한을 넘음
 
   - rule_id: B-20
+    # B-19와 짝이다. B-19를 건너뛰면 만 34세 기준이 그대로 걸리고 34 < 39이므로
+    # 이 상한은 무의미해진다. 그래서 해당 여부를 몰라도 건너뛸 수 있다.
+    relaxes: true
     field: age
     operator: lte
     value: 39

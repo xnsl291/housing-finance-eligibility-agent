@@ -94,7 +94,7 @@ def test_지역을_모르면_계산하지_않는다() -> None:
         {"lease_deposit_krw": 100000000, "marital_status": "SINGLE", "minor_children_count": 0},
     )
 
-    assert limit is None
+    assert limit.amount_krw is None
 
 
 def test_특례_구간에_해당하는지_모르면_일반_구간으로_내려가지_않는다() -> None:
@@ -109,7 +109,7 @@ def test_특례_구간에_해당하는지_모르면_일반_구간으로_내려�
         {"age": 24, "lease_deposit_krw": 200000000},  # household_type 없음
     )
 
-    assert limit is None
+    assert limit.amount_krw is None
 
 
 def test_보증금을_모르면_계산하지_않는다() -> None:
@@ -117,7 +117,7 @@ def test_보증금을_모르면_계산하지_않는다() -> None:
         load_program("nhuf-youth-jeonse"), {"age": 30, "household_type": "SINGLE"}
     )
 
-    assert limit is None
+    assert limit.amount_krw is None
 
 
 def test_검수되지_않은_한도는_계산하지_않는다() -> None:
@@ -125,7 +125,7 @@ def test_검수되지_않은_한도는_계산하지_않는다() -> None:
     program = load_program("nhuf-youth-jeonse")
     program["limits"]["loan_amount"]["human_reviewed"] = False
 
-    assert estimate_loan_limit(program, _청년) is None
+    assert estimate_loan_limit(program, _청년).amount_krw is None
 
 
 def test_계산_근거를_함께_돌려준다() -> None:
