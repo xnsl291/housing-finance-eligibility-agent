@@ -43,7 +43,9 @@ def render() -> None:
 
     extracted = st.session_state.get("extracted")
     if extracted is None:
-        st.info("먼저 위에서 조건을 적고 `조건 읽기`를 눌러 주세요")
+        # app.current_step이 읽은 값이 있을 때만 이 화면을 부르므로 평소에는
+        # 여기까지 오지 않는다. 화면을 직접 불러 쓸 때를 위한 방어선이다.
+        st.info("먼저 조건 입력 단계에서 문장을 적고 `조건 읽기`를 눌러 주세요")
         return
 
     try:
