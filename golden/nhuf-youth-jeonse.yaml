@@ -1,0 +1,236 @@
+# 청년전용 버팀목전세자금 — 골든 시나리오
+#
+# 신청자 조건 한 벌과 "이 조건이면 이렇게 나와야 한다"는 기대 답을 짝지어 둔다.
+# 규칙과 같은 방식으로 데이터에 둔다. 사람이 표로 검수할 수 있고, 케이스를 더할 때
+# 코드를 고치지 않는다.
+#
+# **통과 개수는 증거가 아니다.** 12/12 통과했다고 판정이 맞다는 뜻은 아니다. 규칙을
+# 잘못 읽었으면 기대 답도 똑같이 잘못 적힌다. 그래서 두 가지를 함께 한다.
+#   - 규칙 값은 공식 페이지와 은행 상품안내 두 곳에서 대조했다(검수표 v2)
+#   - 규칙을 일부러 틀리게 바꿨을 때 이 시나리오가 죽는지 확인한다
+#
+# `왜`에는 이 케이스가 무엇을 지키는지 적는다. 나중에 깨졌을 때 무엇이 무너졌는지
+# 알 수 있어야 한다.
+
+# 통과하는 기본 조건. 각 시나리오는 여기서 몇 개만 바꾼다. 무엇을 바꿨는지가
+# 곧 그 케이스가 시험하는 것이다.
+base:
+  age: 30
+  household_head_status: HEAD
+  home_ownership_status: NO_HOME_ALL_MEMBERS
+  combined_annual_income_krw: 40000000
+  net_asset_krw: 100000000
+  household_type: MULTI
+  housing_area_m2: 59
+  lease_deposit_krw: 200000000
+  deposit_paid_ratio: 0.10
+  contract_balance_date: "2026-03-10"
+  move_in_date: "2026-04-20"
+  application_date: "2026-05-01"
+
+scenarios:
+  # --- 통과 2건 ---
+  - name: 기본 통과
+    왜: 모든 조건을 넉넉히 만족하는 경우. 이것이 깨지면 다른 케이스를 볼 필요가 없다
+    profile: {}
+    expect:
+      status: PRECHECK_MATCH
+      loan_amount_krw: 150000000 # 2억의 80%는 1.6억, 상한 1.5억이 더 작다
+
+  - name: 신혼 2자녀 고소득 통과
+    왜: |
+      특례 둘이 겹칠 때 더 넓은 기준이 이겨야 한다. 2자녀는 6천만원, 신혼은 7.5천만원이다.
+      2026-09-14 검수 전에는 둘이 서로를 못 덮어 엄격한 쪽이 걸려 탈락했다
+    profile:
+      marital_status: NEWLYWED
+      minor_children_count: 2
+      combined_annual_income_krw: 70000000
+    expect:
+      status: PRECHECK_MATCH
+
+  # --- 불충족 2건 ---
+  - name: 소득 초과
+    왜: 일반 기준 5천만원을 넘고 특례에도 해당하지 않는다
+    profile:
+      marital_status: SINGLE
+      minor_children_count: 0
+      is_innovation_city_relocated_worker: false
+      is_redevelopment_area_tenant: false
+      combined_annual_income_krw: 55000000
+    expect:
+      status: NOT_MATCHED
+      failed_rules: [B-05]
+
+  - name: 주택 보유
+    왜: 무주택이 아니면 다른 조건과 무관하게 탈락한다
+    profile:
+      home_ownership_status: HAS_HOME
+    expect:
+      status: NOT_MATCHED
+      failed_rules: [B-04]
+
+  # --- 정보 부족 1건 ---
+  - name: 순자산을 모름
+    왜: |
+      값이 없으면 통과로도 탈락으로도 세지 않는다. 그리고 어디서 확인하는지까지
+      알려 줘야 한다. 순자산은 원문에 확인처가 적혀 있는 유일한 항목이다
+    profile:
+      net_asset_krw: null
+    expect:
+      status: INSUFFICIENT_INFORMATION
+      missing_fields: [net_asset_krw]
+      next_action_contains: 주택도시기금
+
+  # --- 경계 1쌍 ---
+  - name: 나이 경계 — 만 34세는 된다
+    왜: 상한이 "이하"이므로 34세는 통과한다. 이하와 미만을 헷갈리면 여기서 깨진다
+    profile:
+      age: 34
+    expect:
+      status: PRECHECK_MATCH
+
+  - name: 나이 경계 — 만 35세는 안 된다
+    왜: |
+      한 살 차이로 결과가 갈리는 것을 눈으로 보여 주는 자리.
+      재직 형태를 OTHER로 못 박아 병역 특례를 배제했다 — 그래야 나이만 시험하는
+      케이스가 된다. 이것을 비우면 아래 케이스처럼 "묻는" 결과가 나온다
+    profile:
+      age: 35
+      employment_category: OTHER
+    expect:
+      status: NOT_MATCHED
+      failed_rules: [B-02]
+
+  - name: 만 35세인데 병역 특례 해당 여부를 모름
+    왜: |
+      위 케이스의 짝. 병역을 마친 중소기업 재직자면 만 39세까지 되므로 말없이
+      탈락시키면 안 된다. 푸는 특례를 건너뛰었다가 일반 규칙이 걸리면 그때 묻는
+      구조가 실제로 도는지 지킨다
+    profile:
+      age: 35
+    expect:
+      status: INSUFFICIENT_INFORMATION
+      missing_fields: [employment_category, military_service_years]
+
+  # --- 추가 확인 필요(범위) ---
+  - name: 소득을 범위로만 아는데 기준 안에 든다
+    왜: |
+      "4천 후반대"는 5천만원을 넘지 않으므로 정확한 값을 묻지 않는다.
+      모른다고 무조건 묻지 않는다는 것이 이 시스템의 판단이다
+    profile:
+      combined_annual_income_krw: {low: 45000000, high: 50000000}
+    expect:
+      status: PRECHECK_MATCH
+
+  - name: 소득 범위가 기준을 걸친다
+    왜: 걸칠 때만 묻는다. 값이 아예 없는 것과 다른 상태로 낸다
+    profile:
+      combined_annual_income_krw: {low: 45000000, high: 55000000}
+    expect:
+      status: CONDITIONAL
+      imprecise_fields: [combined_annual_income_krw]
+
+  # --- 신청 기한 경계 3건 ---
+  - name: 신청 기한 — 당일은 된다
+    왜: |
+      잔금지급일 3/10과 전입일 4/20 중 **빠른 날**이 기준이다. 3/10 + 3개월 = 6/10.
+      HUG는 같은 두 날짜에서 늦은 날을 쓴다. 헷갈리기 쉬운 자리다
+    profile:
+      application_date: "2026-06-10"
+    expect:
+      status: PRECHECK_MATCH
+
+  - name: 신청 기한 — 하루 넘기면 안 된다
+    왜: 계획서 §16이 요구한 "전날·당일·다음날" 경계
+    profile:
+      application_date: "2026-06-11"
+    expect:
+      status: NOT_MATCHED
+      failed_rules: [B-18]
+
+  - name: 신청 기한 — 늦은 날 기준이었다면 통과했을 날짜
+    왜: |
+      7/1은 늦은 날(4/20) + 3개월 = 7/20 안이지만, 빠른 날 기준으로는 6/10을 넘는다.
+      기준 날짜를 잘못 고르면 통과시켜서는 안 될 사람을 통과시킨다
+    profile:
+      application_date: "2026-07-01"
+    expect:
+      status: NOT_MATCHED
+      failed_rules: [B-18]
+
+  # --- 면적 특례 ---
+  - name: 만 25세 미만 단독세대주는 60제곱미터 기준
+    왜: 같은 70㎡ 주택인데 나이와 세대 구성에 따라 결과가 갈린다. 특례가 일반 규칙을 덮는 자리
+    profile:
+      age: 24
+      household_type: SINGLE
+      housing_area_m2: 70
+    expect:
+      status: NOT_MATCHED
+      failed_rules: [B-10]
+
+  - name: 같은 70제곱미터라도 만 30세면 통과
+    왜: 위 케이스의 짝. 특례가 적용되지 않으면 일반 기준 85㎡가 걸린다
+    profile:
+      age: 30
+      household_type: SINGLE
+      housing_area_m2: 70
+    expect:
+      status: PRECHECK_MATCH
+
+  # --- 보증금 지급 비율 ---
+  - name: 보증금을 5퍼센트 미만 지불
+    왜: 기금 공식 페이지에는 없고 은행 상품안내에서만 찾은 조건이다. 자료를 한 곳만 봤으면 빠졌다
+    profile:
+      deposit_paid_ratio: 0.03
+    expect:
+      status: NOT_MATCHED
+      failed_rules: [B-17]
+
+  # --- 병역 특례 ---
+  - name: 병역을 마친 중소기업 재직자는 나이 상한이 늘어난다
+    왜: 만 36세는 원래 탈락이지만 2년 복무를 더하면 통과한다
+    profile:
+      age: 36
+      employment_category: SME_OR_MID_SIZED
+      military_service_years: 2
+    expect:
+      status: PRECHECK_MATCH
+
+  - name: 병역 특례를 적용해도 만 39세를 넘으면 안 된다
+    왜: 복무기간을 아무리 더해도 상한이 있다. 특례가 무한정 풀리지 않는 것을 지킨다
+    profile:
+      age: 40
+      employment_category: SME_OR_MID_SIZED
+      military_service_years: 6
+    expect:
+      status: NOT_MATCHED
+      failed_rules: [B-20]
+
+  # --- 푸는 특례를 몰라도 판정되는가 ---
+  - name: 드문 특례 해당 여부를 몰라도 판정한다
+    왜: |
+      혁신도시 종사자·재개발 세입자·자녀 수·병역을 몰라도 소득이 일반 기준 안이면
+      판정이 난다. 이 구분이 없던 2026-09-14에는 물어보는 항목이 12개까지 늘었다
+    profile:
+      marital_status: null
+      minor_children_count: null
+      is_innovation_city_relocated_worker: null
+      is_redevelopment_area_tenant: null
+      employment_category: null
+      military_service_years: null
+    expect:
+      status: PRECHECK_MATCH
+      missing_fields: []
+
+  - name: 소득이 일반 기준을 넘으면 그때 특례를 묻는다
+    왜: |
+      위 케이스의 짝. 5천만원을 넘었으니 신혼이면 통과할 수도 있다.
+      말없이 탈락시키지 않고 혼인 상태를 묻는다
+    profile:
+      combined_annual_income_krw: 70000000
+      marital_status: null
+      minor_children_count: 2
+    expect:
+      status: INSUFFICIENT_INFORMATION
+      missing_fields: [marital_status]

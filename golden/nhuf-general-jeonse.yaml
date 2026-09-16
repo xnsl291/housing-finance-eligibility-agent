@@ -1,0 +1,127 @@
+# 버팀목전세자금(일반) — 골든 시나리오
+#
+# 청년전용과 다른 상품이다. 나이 상한이 없는 대신 **보증금 상한과 대출한도가 지역으로
+# 갈린다.** 그래서 이 파일의 경계 케이스는 나이가 아니라 지역이다.
+
+base:
+  age: 40
+  household_head_status: HEAD
+  home_ownership_status: NO_HOME_ALL_MEMBERS
+  combined_annual_income_krw: 40000000
+  net_asset_krw: 100000000
+  housing_area_m2: 59
+  lease_deposit_krw: 150000000
+  region_name: 서울
+
+scenarios:
+  # --- 통과 2건 ---
+  - name: 기본 통과
+    왜: 모든 조건을 넉넉히 만족하는 경우
+    profile: {}
+    expect:
+      status: PRECHECK_MATCH
+      loan_amount_krw: 105000000 # 1.5억의 70%. 수도권 상한 1.2억보다 작다
+
+  - name: 신혼 가구는 비율과 상한이 모두 올라간다
+    왜: |
+      일반가구는 70%에 수도권 1.2억, 신혼은 80%에 2.22억이다.
+      비율과 상한이 함께 바뀌는 것을 지킨다
+    profile:
+      marital_status: NEWLYWED
+      lease_deposit_krw: 250000000
+    expect:
+      status: PRECHECK_MATCH
+      loan_amount_krw: 200000000 # 2.5억의 80%. 신혼 상한 2.22억보다 작다
+
+  # --- 불충족 2건 ---
+  - name: 세대주가 아님
+    왜: |
+      일반 버팀목은 세대주만 된다. 청년전용은 예비 세대주도 되므로 두 상품이 갈리는 자리다.
+      원문에 예비 세대주 문구가 없다는 것이 근거다
+    profile:
+      household_head_status: PROSPECTIVE_HEAD
+    expect:
+      status: NOT_MATCHED
+      failed_rules: [N-02]
+
+  - name: 순자산 초과
+    왜: 2026년도 기준 3.45억원. 해가 바뀌면 값이 바뀌므로 effective_year를 달아 두었다
+    profile:
+      net_asset_krw: 400000000
+    expect:
+      status: NOT_MATCHED
+      failed_rules: [N-07]
+
+  # --- 정보 부족 1건 ---
+  - name: 지역을 모름
+    왜: |
+      수도권이면 3억, 그 외면 2억이다. 모르는 채로 한쪽을 적용하면 틀린 판정이 나간다.
+      그래서 일반 규칙 없이 조건부 규칙 둘만 두었다
+    profile:
+      region_name: null
+    expect:
+      status: INSUFFICIENT_INFORMATION
+      missing_fields: [region]
+
+  # --- 경계 1쌍: 지역 ---
+  - name: 지역 경계 — 수도권 2억5천은 된다
+    왜: 수도권 상한이 3억이다
+    profile:
+      region_name: 경기도 성남시
+      lease_deposit_krw: 250000000
+    expect:
+      status: PRECHECK_MATCH
+
+  - name: 지역 경계 — 같은 2억5천도 지방이면 안 된다
+    왜: |
+      같은 보증금인데 지역으로 갈린다. 그리고 "경기도"를 지방으로 읽으면 여기서 뒤집힌다.
+      로컬 LLM이 실제로 그렇게 읽어서 수도권 판단을 코드로 옮겼다
+    profile:
+      region_name: 부산
+      lease_deposit_krw: 250000000
+    expect:
+      status: NOT_MATCHED
+      failed_rules: [N-10]
+
+  # --- 지역이 한도에도 걸린다 ---
+  - name: 지방은 한도 상한도 낮다
+    왜: 지역이 통과 여부만이 아니라 금액에도 걸린다. 수도권 1.2억, 그 외 8천만원
+    profile:
+      region_name: 부산
+      lease_deposit_krw: 190000000
+    expect:
+      status: PRECHECK_MATCH
+      loan_amount_krw: 80000000 # 1.9억의 70%는 1.33억, 지방 상한 8천만이 더 작다
+
+  # --- 소득 특례 ---
+  - name: 2자녀면 소득 기준이 6천만원으로 올라간다
+    왜: 일반 5천만원으로는 탈락인데 특례로 통과한다
+    profile:
+      minor_children_count: 2
+      marital_status: MARRIED
+      combined_annual_income_krw: 55000000
+    expect:
+      status: PRECHECK_MATCH
+
+  - name: 소득이 일반 기준을 넘는데 특례 해당 여부를 모름
+    왜: |
+      말없이 탈락시키지 않는다. 특례에 해당하면 통과할 수도 있으므로 그때 묻는다.
+      푸는 특례를 건너뛰는 구조가 잘못 탈락시키지 않는지 지키는 자리다
+    profile:
+      combined_annual_income_krw: 55000000
+      marital_status: null
+      minor_children_count: null
+      is_innovation_city_relocated_worker: null
+      is_redevelopment_area_tenant: null
+    expect:
+      status: INSUFFICIENT_INFORMATION
+
+  # --- 나이 ---
+  - name: 나이 상한이 없다
+    왜: |
+      청년전용은 만 34세가 상한이지만 일반은 없다. 만 55세도 통과한다.
+      두 상품의 규칙이 섞이지 않았는지 지킨다
+    profile:
+      age: 55
+    expect:
+      status: PRECHECK_MATCH

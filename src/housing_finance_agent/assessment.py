@@ -57,6 +57,12 @@ def _next_actions(program: dict, decision: Decision, limit: LoanLimit | None) ->
     if limit is not None and limit.amount_krw is None:
         return [_LIMIT_REASONS.get(limit.reason, "대출 한도를 계산하지 못했습니다")]
 
+    # 금액은 냈지만 더 유리한 구간을 몰라서 건너뛴 경우. 받을 수 있는 것보다 적게
+    # 알려 준 상태이므로 그대로 두면 안 된다.
+    if limit is not None and limit.skipped_tiers:
+        이름 = ", ".join(_TIER_NAMES.get(tier, tier) for tier in limit.skipped_tiers)
+        return [f"{이름}에 해당하면 한도가 더 늘어날 수 있습니다"]
+
     # 사전 조건 부합일 때의 다음 단계는 아직 넣지 않았다. 신청 방법은 취급 은행마다
     # 다른데(비대면 제한 여부, 상환 방식), 규칙 파일은 기금 기준만 담고 있다.
     return []
@@ -73,6 +79,11 @@ def _failure_reasons(program: dict, failed_rules: list[str]) -> list[str]:
         reasons.append(reason)
     return reasons
 
+
+_TIER_NAMES = {
+    "newlywed_or_two_children": "신혼 가구 또는 2자녀 이상 가구",
+    "under_25_single": "만 25세 미만 단독세대주",
+}
 
 _LIMIT_REASONS = {
     "DEPOSIT_UNKNOWN": "대출 한도를 보려면 임차보증금을 알려주세요",
