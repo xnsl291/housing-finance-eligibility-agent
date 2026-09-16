@@ -100,27 +100,36 @@ ui/              화면
 
 ## 실행
 
-```bash
-pip install -e ".[dev]"
+**가상환경을 먼저 만드세요.** 시스템 파이썬으로 바로 실행하면 다른 환경을 잡아 `ModuleNotFoundError`가 납니다.
 
+```powershell
+cd C:/dev/housing-finance-eligibility-agent
+python -m venv .venv
+./.venv/Scripts/Activate.ps1
+pip install -e ".[dev]"
+```
+
+창 세 개를 띄웁니다. 창마다 가상환경을 켜거나 `./.venv/Scripts/python.exe`를 직접 부르면 됩니다.
+
+```powershell
 # 1. Ollama (로컬 LLM)
 ollama serve
 ollama pull qwen3.5:4b-q4_K_M
 
 # 2. API — 인증이 없으므로 127.0.0.1에만 바인딩합니다
-python -m housing_finance_agent.serve
+./.venv/Scripts/python.exe -m housing_finance_agent.serve
 
 # 3. 화면
-streamlit run src/housing_finance_agent/ui/app.py \
-  --server.address 127.0.0.1 \
-  --browser.gatherUsageStats false
+./.venv/Scripts/python.exe -m streamlit run src/housing_finance_agent/ui/app.py
 ```
 
-`--server.address`와 `gatherUsageStats`를 반드시 넣으세요. Streamlit 기본값은 전 인터페이스 바인딩에 사용 통계 전송입니다. **신청자의 나이·소득·자산을 다루는 화면에서 기본값을 쓰면 로컬 LLM을 쓰는 이유가 무너집니다.**
+화면 설정은 `.streamlit/config.toml`에 넣어 두었습니다 — `127.0.0.1` 바인딩, 사용 통계 끄기, 오류 상세 숨기기입니다.
 
-```bash
-pytest                              # 테스트
-python scripts/probe_extraction.py  # 실물 LLM 확인
+**명령줄 플래그로만 두면 한 번 빼먹었을 때 그대로 노출됩니다.** Streamlit 기본값은 전 인터페이스 바인딩에 통계 전송이고, 예외가 나면 로컬 경로가 든 스택트레이스를 브라우저에 그립니다. 신청자의 나이·소득·자산을 다루는 화면에서 기본값을 쓰면 로컬 LLM을 쓰는 이유가 무너집니다.
+
+```powershell
+./.venv/Scripts/python.exe -m pytest                      # 테스트
+./.venv/Scripts/python.exe scripts/probe_extraction.py    # 실물 LLM 확인
 ```
 
 ## 측정한 값
@@ -135,7 +144,9 @@ python scripts/probe_extraction.py  # 실물 LLM 확인
 
 ## 테스트
 
-`pytest` 141건, CI에서 `ruff check`와 함께 돕니다.
+`pytest` 212건, CI에서 `ruff check`와 함께 돕니다.
+
+그중 **31건은 골든 시나리오**입니다(청년전용 20, 일반 11). 신청자 조건 한 벌과 "이 조건이면 이렇게 나와야 한다"는 기대 답을 `golden/*.yaml`에 짝지어 두고, 테스트 코드는 그걸 읽어 돌리기만 합니다. 규칙과 같은 방식이라 사람이 표로 검수할 수 있고 케이스를 더할 때 코드를 고치지 않습니다. 시나리오마다 `왜`를 적게 강제해서, 깨졌을 때 무엇이 무너졌는지 알 수 있습니다.
 
 **통과 개수는 검증의 증거가 아닙니다.** 그래서 주요 로직마다 **일부러 망가뜨려 테스트가 죽는지** 확인했습니다.
 
@@ -146,11 +157,16 @@ python scripts/probe_extraction.py  # 실물 LLM 확인
 | 값이 없는 규칙을 통과로 침 | 2건 |
 | 범위가 기준에 걸칠 때 "모름" 대신 "거짓" | 1건 |
 | 신청 기한에서 빠른 날 대신 늦은 날 사용 | 3건 |
-| 규칙 데이터의 나이 상한만 34→35로 변경 | 1건 |
+| 규칙 데이터의 나이 상한만 34→35로 변경 | 6건 |
+| 골든 러너가 범위 값을 범위로 안 바꾸고 넘김 | 2건 |
+| 한도에서 "적용 여부를 모르면 아래 칸으로 안 내려감"을 삭제 | 3건 |
 
-마지막 줄이 중요합니다. **코드를 안 건드리고 YAML만 고쳤는데 테스트가 죽습니다** — 판정이 데이터로 움직인다는 확인입니다.
+`규칙 데이터의 나이 상한` 줄이 중요합니다. **코드를 안 건드리고 YAML만 고쳤는데 테스트가 죽습니다** — 판정이 데이터로 움직인다는 확인입니다.
 
-실제로 이 방식이 구멍을 하나 잡았습니다. 한도 계산에서 "적용 여부를 모르면 아래 구간으로 내려가지 않는다"를 구현하고 주석까지 달았는데, **그 줄을 지워도 테스트가 전부 통과했습니다.** 검증하는 테스트가 없었던 겁니다.
+실제로 이 방식이 구멍을 두 번 잡았습니다.
+
+- 한도 계산에서 "적용 여부를 모르면 아래 칸으로 내려가지 않는다"를 구현하고 주석까지 달았는데, **그 줄을 지워도 테스트가 전부 통과했습니다.** 검증하는 테스트가 없었습니다. 지금은 3건이 죽습니다.
+- 골든 러너에 "YAML의 `null`은 키를 지워야 판정이 모른다고 본다"는 주석과 코드를 넣었는데, **그 층을 통째로 지워도 212건이 전부 통과했습니다.** 판정 엔진이 이미 `None`을 같은 뜻으로 읽고 있어서 아무 일도 안 하던 층이었습니다. 주석의 주장이 사실이 아니었으므로 층과 주석을 함께 없앴습니다.
 
 ## 이번 범위 밖
 

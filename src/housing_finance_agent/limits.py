@@ -36,6 +36,9 @@ class LoanLimit:
     # None이면 계산에 성공한 것이다.
     # NOT_REVIEWED | DEPOSIT_UNKNOWN | DEPOSIT_IMPRECISE | TIER_UNKNOWN | REGION_UNKNOWN
     reason: str | None = None
+    # 해당 여부를 몰라 건너뛴 유리한 구간. 금액만 낮게 주고 말면 사용자가 받을 수
+    # 있는 것보다 적게 알고 계약한다.
+    skipped_tiers: tuple[str, ...] = ()
 
 
 def estimate_loan_limit(program: dict, profile: dict) -> LoanLimit:
@@ -57,7 +60,7 @@ def estimate_loan_limit(program: dict, profile: dict) -> LoanLimit:
     if not isinstance(deposit, int | float):
         return _못_구함(spec, "DEPOSIT_IMPRECISE")
 
-    tier = _pick_tier(spec["tiers"], profile)
+    tier, skipped = _pick_tier(spec["tiers"], profile)
     if tier is None:
         return _못_구함(spec, "TIER_UNKNOWN")
 
@@ -75,6 +78,7 @@ def estimate_loan_limit(program: dict, profile: dict) -> LoanLimit:
         cap_amount_krw=cap,
         citation=spec["citation"],
         rule_id=spec["rule_id"],
+        skipped_tiers=tuple(skipped),
     )
 
 
@@ -90,21 +94,29 @@ def _못_구함(spec: dict | None, reason: str) -> LoanLimit:
     )
 
 
-def _pick_tier(tiers: list[dict], profile: dict) -> dict | None:
-    """위에서부터 조건이 맞는 첫 칸을 고른다.
+def _pick_tier(tiers: list[dict], profile: dict) -> tuple[dict | None, list[str]]:
+    """위에서부터 조건이 맞는 첫 칸을 고른다. (고른 칸, 몰라서 건너뛴 칸 이름)
 
-    **적용 여부를 판단할 값이 없으면 아래 칸으로 내려가지 않는다.** 특례가 걸릴지
-    모르는 채로 일반 기준을 쓰면 실제보다 큰 금액을 알려 주게 된다. 신혼 여부를
-    모르는 사람에게 일반가구 기준을 적용해 놓고 나중에 신혼으로 밝혀지면, 알려 준
-    금액이 틀린 것이 된다.
+    **적용 여부를 판단할 값이 없으면 원칙적으로 아래 칸으로 내려가지 않는다.**
+    구간이 걸릴지 모르는 채로 아래 칸을 쓰면 실제보다 큰 금액을 알려 줄 수 있다.
+
+    예외는 `relaxes: true`가 붙은 칸이다. 그 칸은 한도가 더 높아서, 몰라서 건너뛰면
+    **더 적은 금액**이 나온다. 위험한 방향이 아니므로 아래 칸으로 내려간다. 규칙에서
+    푸는 특례와 조이는 특례를 나눈 것과 같은 판단이다.
+
+    건너뛴 칸 이름을 함께 돌려준다. 금액만 낮게 주고 말면 사용자가 받을 수 있는
+    것보다 적게 알고 계약한다.
     """
+    skipped: list[str] = []
     for tier in tiers:
         applies, _unknown = applies_to(tier, profile)
         if applies is True:
-            return tier
+            return tier, skipped
         if applies is None:
-            return None
-    return None
+            if not tier.get("relaxes"):
+                return None, skipped
+            skipped.append(tier["name"])
+    return None, skipped
 
 
 def _cap_of(tier: dict, profile: dict) -> int | None:

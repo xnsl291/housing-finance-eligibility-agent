@@ -176,6 +176,10 @@ limits:
     human_reviewed: true
     tiers:
       - name: newlywed_or_two_children
+        # 이 구간은 한도가 더 높다(80%·2.22억 vs 70%·1.2억). 해당 여부를 몰라도
+        # 일반 구간으로 내려가면 더 적은 금액이 나오므로 위험한 방향이 아니다.
+        # 대신 건너뛴 사실을 결과에 담아 "더 늘어날 수 있다"고 알린다.
+        relaxes: true
         applies_when:
           any:
             - field: marital_status
