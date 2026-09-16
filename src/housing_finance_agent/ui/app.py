@@ -58,6 +58,7 @@ def main() -> None:
     sidebar.render()
 
     단계 = current_step(st.session_state)
+    _전환_효과(단계)
     _단계_표시(단계)
 
     if 단계 == 0:
@@ -77,6 +78,48 @@ def main() -> None:
 
     results.render(st.session_state["results"])
     _되돌리기("← 읽은 내용 다시 확인", 처음부터=False)
+
+
+# 화면이 통째로 바뀌는데 그냥 바뀌면 방금 무엇이 일어났는지 안 읽힌다. 발표 자료가
+# 장을 넘기듯 본문이 위에서 아래로 내려오며 나타나게 한다.
+#
+# **기댈 곳이 Streamlit 내부 DOM 속성뿐이다.** `data-testid`는 Streamlit이 자기
+# 테스트용으로 붙이는 것이라 버전이 오르면 이름이 바뀔 수 있다. 바뀌면 효과만
+# 사라지고 화면은 그대로 돈다 — 그래도 조용히 사라지면 모르니까
+# `tests/test_ui_step.py`가 설치된 Streamlit에 이 이름이 아직 있는지 확인한다.
+_전환_CSS = """
+<style>
+@keyframes hfaStep{단계} {{
+  from {{ opacity: 0; transform: translateY(-2.5rem); }}
+  to   {{ opacity: 1; transform: translateY(0); }}
+}}
+[data-testid="stMainBlockContainer"] {{
+  animation: hfaStep{단계} 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}}
+/* 움직임을 줄이도록 설정한 사용자에게는 넣지 않는다. */
+@media (prefers-reduced-motion: reduce) {{
+  [data-testid="stMainBlockContainer"] {{ animation: none; }}
+}}
+</style>
+"""
+
+_마지막_단계_키 = "_전환_효과를_준_단계"
+
+
+def _전환_효과(단계: int) -> None:
+    """단계가 바뀐 순간에만 효과를 넣는다.
+
+    **매번 넣으면 안 된다.** Streamlit은 값을 하나 입력할 때마다 화면 전체를 다시
+    그린다. 조건 없이 넣으면 확인 화면에서 숫자 한 자를 칠 때마다 화면이 미끄러진다.
+    그래서 마지막으로 효과를 준 단계를 기억해 두고 달라졌을 때만 넣는다.
+
+    애니메이션 이름에 단계 번호를 붙이는 것은 되돌아갈 때(결과 → 확인)도 브라우저가
+    효과를 새로 시작하게 하려는 것이다. 이름이 같으면 이어서 도는 것으로 본다.
+    """
+    if st.session_state.get(_마지막_단계_키) == 단계:
+        return
+    st.session_state[_마지막_단계_키] = 단계
+    st.markdown(_전환_CSS.format(단계=단계), unsafe_allow_html=True)
 
 
 def _단계_표시(단계: int) -> None:

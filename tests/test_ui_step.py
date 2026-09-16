@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from housing_finance_agent.ui.app import STEPS, current_step
 
 _읽은_값 = {"values": {"age": 30}, "sources": {}, "unreadable": {}, "warnings": []}
@@ -59,3 +61,50 @@ def test_확인을_건너뛴_판정_결과는_만들어질_수_없다() -> None:
 def test_단계_이름이_세_개다() -> None:
     """단계를 늘리면 current_step도 같이 고쳐야 한다."""
     assert len(STEPS) == 3
+
+
+def test_애니메이션이_기대는_streamlit_속성이_아직_있다() -> None:
+    """전환 효과 CSS는 Streamlit 내부 DOM 속성에 기댄다.
+
+    `data-testid`는 Streamlit이 자기 테스트용으로 붙이는 것이라 버전이 오르면
+    이름이 바뀔 수 있다. 바뀌면 CSS가 조용히 안 먹고 효과만 사라진다. 화면은
+    그대로 돌기 때문에 아무도 모른 채 지나간다. 여기서 먼저 걸리게 한다.
+    """
+    import re
+
+    import streamlit
+
+    from housing_finance_agent.ui.app import _전환_CSS
+
+    # CSS에 적힌 이름을 꺼내서 번들에 있는지 본다. 반대로 하면(아는 이름이 CSS에
+    # 있는지 보면) 이름이 늘어났을 때 못 잡는다 — `stMainBlockContainerXX`에도
+    # `stMainBlockContainer`는 들어 있다. 2026-09-16 변형 시험에서 실제로 안 죽었다.
+    이름들 = set(re.findall(r'data-testid="([^"]+)"', _전환_CSS))
+    assert 이름들, "전환 효과 CSS가 data-testid를 쓰지 않는다"
+
+    번들 = Path(streamlit.__file__).parent / "static" / "static" / "js"
+    본문 = "\n".join(
+        path.read_text(encoding="utf-8", errors="ignore") for path in 번들.glob("*.js")
+    )
+    없는_것 = sorted(이름 for 이름 in 이름들 if 이름 not in 본문)
+
+    assert not 없는_것, f"설치된 Streamlit에 {없는_것}가 없다. 전환 효과 CSS를 고쳐야 한다"
+
+
+def test_같은_단계를_다시_그릴_때는_전환_효과를_안_넣는다() -> None:
+    """**매번 넣으면 입력할 때마다 화면이 미끄러진다.**
+
+    Streamlit은 값을 하나 칠 때마다 화면 전체를 다시 그린다. 확인 화면은 입력 칸이
+    스무 개가 넘어서, 조건 없이 넣으면 숫자 한 자마다 화면이 흔들린다.
+    """
+    from streamlit.testing.v1 import AppTest
+
+    앱 = Path(__file__).resolve().parents[1] / "src/housing_finance_agent/ui/app.py"
+
+    at = AppTest.from_file(str(앱), default_timeout=30).run()
+    처음 = [m.value for m in at.markdown if "hfaStep" in m.value]
+    assert len(처음) == 1, "첫 화면에서는 한 번 넣어야 한다"
+
+    at.run()
+    다시 = [m.value for m in at.markdown if "hfaStep" in m.value]
+    assert 다시 == [], "같은 단계인데 또 넣었다"
