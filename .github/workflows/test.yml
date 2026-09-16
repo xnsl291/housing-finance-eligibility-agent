@@ -1,10 +1,13 @@
 # PR과 main 푸시마다 테스트·린트를 돌린다.
+#
+# `pull_request`에 대상 브랜치를 걸지 않는다. main으로 가는 PR만 돌리면, PR 위에
+# PR을 쌓았을 때 위쪽 PR이 검증 없이 지나간다. 2026-09-16에 실제로 그렇게 됐다 —
+# #12 위에 쌓은 #13에 체크가 하나도 안 붙었다.
 
 name: test
 
 on:
   pull_request:
-    branches: [main]
   push:
     branches: [main]
 
