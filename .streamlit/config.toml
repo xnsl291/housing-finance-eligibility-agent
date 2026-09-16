@@ -15,3 +15,31 @@ gatherUsageStats = false
 # 예외가 나면 Streamlit이 로컬 경로가 든 스택트레이스를 브라우저에 그린다.
 # 데모 녹화에서 그대로 노출된다.
 showErrorDetails = false
+
+# 색을 여기서 정하는 이유
+#
+# Streamlit 기본 강조색은 빨강(#FF4B4B)이다. 이 화면은 빨강을 이미 뜻이 있는 색으로
+# 쓰고 있다 — `조건 불충족`과 불충족 사유 문구가 빨강이다(ui/screens/results.py의
+# _판정_표시). 강조색까지 빨강이면 조건을 전부 통과한 화면에도 빨간 버튼이 크게
+# 들어와서, 색이 판정과 아무 상관 없는 신호가 된다.
+#
+# 그래서 강조색은 판정 색 어느 것과도 겹치지 않는 남색으로 둔다. 판정에 쓰는 네
+# 색(초록·주황·빨강·파랑)은 Streamlit 기본값을 그대로 쓴다. 판정 색까지 손대면
+# `:green[...]` 같은 표기가 화면마다 다른 뜻이 된다.
+[theme]
+base = "light"
+primaryColor = "#1F4E79"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F3F6FA"
+textColor = "#1B2028"
+linkColor = "#1F4E79"
+
+# 규칙 원문 인용을 st.text로 내는데, 기본 회색 코드 배경이 본문과 대비가 커서
+# 인용이 스무 개 이어지면 줄무늬처럼 보인다. 배경을 본문 쪽으로 붙인다.
+codeBackgroundColor = "#F3F6FA"
+borderColor = "#DDE3EC"
+baseRadius = "medium"
+
+# 입력 칸에 테두리를 준다. 확인 화면(화면 2)은 칸이 스무 개 넘게 세로로 이어지는데,
+# 테두리가 없으면 어디까지가 한 항목인지 구분이 안 된다.
+showWidgetBorder = true
