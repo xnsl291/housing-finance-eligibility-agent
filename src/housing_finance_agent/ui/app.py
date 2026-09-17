@@ -27,6 +27,7 @@ from collections.abc import Mapping
 
 import streamlit as st
 
+from housing_finance_agent.ui import chrome
 from housing_finance_agent.ui.api_client import ApiError, check
 from housing_finance_agent.ui.screens import confirm, input, results, sidebar
 
@@ -49,6 +50,7 @@ def current_step(state: Mapping) -> int:
 
 def main() -> None:
     st.set_page_config(page_title="주거금융 지원가능성 판정", layout="centered")
+    chrome.스타일()
     st.title("주거금융 지원가능성 판정")
     st.caption(
         "신청 전에 가능성을 가늠하는 도구입니다. 실제 심사는 기관이 합니다. "

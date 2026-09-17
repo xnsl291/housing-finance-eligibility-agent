@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from housing_finance_agent.ui import api_client
+from housing_finance_agent.ui import api_client, chrome
 from housing_finance_agent.ui.labels import amount_text
 
 # 입력 칸의 세션 키 앞자리. 문장을 다시 읽었을 때 이전 문장의 수정값이 남지 않게
@@ -39,7 +39,8 @@ def clear_edits() -> None:
 
 
 def render() -> None:
-    st.subheader("2. 이렇게 읽었습니다")
+    chrome.eyebrow("읽은 내용 확인")
+    st.subheader("이렇게 읽었습니다")
 
     extracted = st.session_state.get("extracted")
     if extracted is None:

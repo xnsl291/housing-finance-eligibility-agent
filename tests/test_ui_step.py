@@ -75,12 +75,13 @@ def test_애니메이션이_기대는_streamlit_속성이_아직_있다() -> Non
     import streamlit
 
     from housing_finance_agent.ui.app import _전환_CSS
+    from housing_finance_agent.ui.chrome import _CSS as _디자인_CSS
 
     # CSS에 적힌 이름을 꺼내서 번들에 있는지 본다. 반대로 하면(아는 이름이 CSS에
     # 있는지 보면) 이름이 늘어났을 때 못 잡는다 — `stMainBlockContainerXX`에도
     # `stMainBlockContainer`는 들어 있다. 2026-09-16 변형 시험에서 실제로 안 죽었다.
-    이름들 = set(re.findall(r'data-testid="([^"]+)"', _전환_CSS))
-    assert 이름들, "전환 효과 CSS가 data-testid를 쓰지 않는다"
+    이름들 = set(re.findall(r'data-testid="([^"]+)"', _전환_CSS + _디자인_CSS))
+    assert len(이름들) >= 2, f"기대는 이름이 너무 적다: {이름들}"
 
     번들 = Path(streamlit.__file__).parent / "static" / "static" / "js"
     본문 = "\n".join(
@@ -108,3 +109,46 @@ def test_같은_단계를_다시_그릴_때는_전환_효과를_안_넣는다() 
     at.run()
     다시 = [m.value for m in at.markdown if "hfaStep" in m.value]
     assert 다시 == [], "같은 단계인데 또 넣었다"
+
+
+def test_디자인_스타일은_매_실행마다_들어간다() -> None:
+    """**전환 효과와 반대 규칙이라 헷갈리기 쉬운 자리다.**
+
+    전환 효과는 단계가 바뀔 때만 넣는다(안 그러면 입력할 때마다 화면이 미끄러진다).
+    반대로 겉모습은 항상 있어야 한다 — 한 번만 넣으면 다음 실행에서 Streamlit이
+    그 요소를 지워 자간과 눈썹 라벨이 원래대로 돌아간다.
+    """
+    from streamlit.testing.v1 import AppTest
+
+    앱 = Path(__file__).resolve().parents[1] / "src/housing_finance_agent/ui/app.py"
+
+    at = AppTest.from_file(str(앱), default_timeout=30).run()
+    처음 = [m.value for m in at.markdown if ".hfa-eyebrow {" in m.value]
+    assert len(처음) == 1, "첫 실행에 겉모습이 안 들어갔다"
+
+    at.run()
+    다시 = [m.value for m in at.markdown if ".hfa-eyebrow {" in m.value]
+    assert len(다시) == 1, "다시 그렸는데 겉모습이 빠졌다"
+
+
+def test_디자인_문서가_지키라고_한_두_값이_실제로_들어_있다() -> None:
+    """원본 서체(MarkForMC)는 독점이라 대체 서체를 쓴다.
+
+    디자인 문서 §3은 대체를 전제하면서 **"무엇을 바꾸든 이 둘은 지키라"**고 두 값을
+    남겼다 — 제목 자간 -2%와 본문 450 굵기. 둘 다 지우기 쉬운 자리다. 자간은 CSS
+    한 줄이고 굵기는 설정 한 줄이라, 지워도 화면은 멀쩡히 돌고 아무도 모른다.
+
+    2026-09-17 변형 시험에서 자간을 지워도 죽는 테스트가 없었다. 그래서 만들었다.
+    """
+    import tomllib
+
+    from housing_finance_agent.ui.chrome import _CSS
+
+    assert "letter-spacing: -0.02em" in _CSS, "제목 자간 -2%가 빠졌다"
+
+    설정 = tomllib.loads(
+        (Path(__file__).resolve().parents[1] / ".streamlit/config.toml").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert 설정["theme"]["baseFontWeight"] == 450, "본문 굵기 450이 아니다"

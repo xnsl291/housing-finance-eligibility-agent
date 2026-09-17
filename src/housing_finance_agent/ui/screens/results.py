@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from housing_finance_agent.ui import labels
+from housing_finance_agent.ui import chrome, labels
 
 _심사_안내 = "실제 심사와 승인은 기관이 합니다. 이 화면은 신청 전 가늠만 합니다."
 
@@ -62,7 +62,8 @@ _인용_없음 = "이 규칙에는 원문 인용이 붙어 있지 않습니다"
 
 def render(results: list[dict]) -> None:
     """화면 3 — 상품별 판정을 한눈에 보여 준다."""
-    st.subheader("판정 결과")
+    chrome.eyebrow("판정 결과")
+    st.subheader("이 조건으로 본 결과")
     st.info(_심사_안내, icon="ℹ️")
 
     if not results:
@@ -164,6 +165,7 @@ def render_detail(result: dict) -> None:
     _한도_근거(result)
 
     # 아직 다루지 않는 조건을 숨기면 판정 범위를 실제보다 넓게 오해한다.
+    chrome.eyebrow("범위 밖")
     st.markdown("#### 아직 다루지 않는 조건")
     unresolved = result.get("unresolved") or []
     for item in unresolved:
@@ -184,6 +186,7 @@ def _규칙_목록(outcomes: list[dict]) -> None:
     묶는 이유는 일곱 가지를 한 줄씩 섞어 놓으면 "통과 몇 건, 못 본 게 몇 건"이
     안 읽히기 때문이다. 묶음 이름은 labels가 정본이라 여기서 다시 짓지 않는다.
     """
+    chrome.eyebrow("근거")
     st.markdown("#### 규칙별 판정")
     if not outcomes:
         st.caption("규칙 결과를 응답에서 받지 못했습니다")

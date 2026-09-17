@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from housing_finance_agent.ui import api_client
+from housing_finance_agent.ui import api_client, chrome
 from housing_finance_agent.ui.screens import confirm
 
 # API 기본값과 같은 1,000자. 서버가 상한을 내려 주지 않아 화면이 따로 들고 있다.
@@ -39,7 +39,8 @@ EXAMPLES: tuple[tuple[str, str], ...] = (
 
 
 def render() -> None:
-    st.subheader("1. 조건 입력")
+    chrome.eyebrow("조건 입력")
+    st.subheader("상황을 문장으로 적어 주세요")
     st.caption("상황을 문장으로 적어 주세요. 읽은 내용은 다음 화면에서 직접 확인하고 고칩니다.")
 
     # 입력 칸보다 먼저 보여 준다. 다 쓰고 나서 읽는 안내는 이미 늦다.

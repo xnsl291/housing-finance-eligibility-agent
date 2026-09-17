@@ -16,13 +16,14 @@ from __future__ import annotations
 
 import streamlit as st
 
+from housing_finance_agent.ui import chrome
 from housing_finance_agent.ui.api_client import ApiError, base_url, health
 
 
 def render() -> None:
     """사이드바를 그린다. 화면 전환과 상관없이 항상 같은 자리에 있다."""
     with st.sidebar:
-        st.subheader("시스템 상태")
+        chrome.eyebrow("시스템 상태")
         st.caption(f"API 주소 {base_url()}")
 
         try:
