@@ -44,9 +44,8 @@ def render() -> None:
     st.caption("상황을 문장으로 적어 주세요. 읽은 내용은 다음 화면에서 직접 확인하고 고칩니다.")
 
     # 입력 칸보다 먼저 보여 준다. 다 쓰고 나서 읽는 안내는 이미 늦다.
-    st.info(
-        "주민등록번호·계좌번호·집 주소는 적지 마세요. 판정에 쓰지 않고 저장하지도 않습니다.",
-        icon="🔒",
+    chrome.note(
+        "주민등록번호·계좌번호·집 주소는 적지 마세요. 판정에 쓰지 않고 저장하지도 않습니다."
     )
 
     _예시_버튼()
@@ -79,7 +78,7 @@ def _예시_버튼() -> None:
     입력 칸이 그려진 뒤에 그 칸의 세션 값을 바꾸면 Streamlit이 예외를 낸다. 그래서
     버튼을 입력 칸보다 먼저 그리고, 넣은 뒤 다시 그린다.
     """
-    st.caption("이렇게 적으면 됩니다")
+    st.caption("예시를 눌러 보세요")
     for column, (name, text) in zip(st.columns(len(EXAMPLES)), EXAMPLES, strict=True):
         if column.button(name, use_container_width=True):
             st.session_state[_MESSAGE_KEY] = text
@@ -101,6 +100,11 @@ def _읽기(message: str) -> None:
     st.session_state.pop("confirmed_profile", None)
     st.session_state.pop("results", None)
     confirm.clear_edits()
+
+    # **여기서 다시 그리지 않으면 화면이 안 넘어간다.** `app.main`은 단계를 먼저
+    # 계산하고 화면을 그리는데, 이 버튼은 그 뒤에 눌린다. 값만 채우고 끝내면
+    # 이번 실행에서는 단계가 여전히 0이라 입력 화면인 채로 끝난다.
+    st.rerun()
 
 
 def _실패_안내() -> None:

@@ -24,12 +24,15 @@ from housing_finance_agent.ui import chrome, labels
 
 _심사_안내 = "실제 심사와 승인은 기관이 합니다. 이 화면은 신청 전 가늠만 합니다."
 
-# 판정 상태별 아이콘과 색. 한국어 이름은 labels가 정본이고 여기에는 표시 방식만 둔다.
-_판정_표시: dict[str, tuple[str, str]] = {
-    "PRECHECK_MATCH": ("✅", "green"),
-    "CONDITIONAL": ("🟡", "orange"),
-    "NOT_MATCHED": ("❌", "red"),
-    "INSUFFICIENT_INFORMATION": ("🔍", "blue"),
+# 판정 상태별 색. 한국어 이름은 labels가 정본이고 여기에는 표시 방식만 둔다.
+#
+# **이모지를 쓰지 않는다.** 색과 글자만으로 충분하고, 이모지는 화면을 장난스럽게
+# 만든다. 색이 안 보이는 사람에게도 글자가 남는다는 점이 더 중요하다.
+_판정_색: dict[str, str] = {
+    "PRECHECK_MATCH": "green",
+    "CONDITIONAL": "orange",
+    "NOT_MATCHED": "red",
+    "INSUFFICIENT_INFORMATION": "blue",
 }
 
 # 규칙 묶음을 펼쳐 둘 것과 접어 둘 것.
@@ -64,7 +67,7 @@ def render(results: list[dict]) -> None:
     """화면 3 — 상품별 판정을 한눈에 보여 준다."""
     chrome.eyebrow("판정 결과")
     st.subheader("이 조건으로 본 결과")
-    st.info(_심사_안내, icon="ℹ️")
+    chrome.note(_심사_안내)
 
     if not results:
         st.info("판정한 상품이 없습니다.")
@@ -80,24 +83,18 @@ def _요약_카드(result: dict) -> None:
     `st.expander`를 쓰지 않는다. 상세(화면 4)를 그 안에서 펼치는데, 접는 상자는
     안에 또 접는 상자를 넣지 못해 검수 대기 규칙을 접어 둘 자리가 없어진다.
     """
-    아이콘, 색 = _판정_표시.get(result["status"], ("•", "gray"))
+    색 = _판정_색.get(result["status"], "gray")
     with st.container(border=True):
         st.markdown(f"#### {result['program_name']}")
         # 판정을 색 글자 한 줄로 내면 상품 이름에 묻힌다. 이 화면에서 제일 먼저
         # 읽혀야 하는 값이라 배지로 낸다.
-        st.badge(f"{아이콘} {labels.status_label(result['status'])}", color=색)
+        st.badge(labels.status_label(result["status"]), color=색)
 
         # 판정만 주면 "그래서 뭘 해야 하나"에 답이 없다. 사용자에게는 이쪽이 더 급하다.
-        actions = result.get("next_actions") or []
-        for action in actions:
+        for action in result.get("next_actions") or []:
             st.markdown(f"- {action}")
-        if not actions:
-            st.caption("다음에 할 일로 안내할 내용이 아직 없습니다. 아래 근거를 확인해 주세요.")
 
         _한도_요약(result)
-
-        # 상단 안내 한 번으로는 안 읽힌다. 판정마다 다시 적는다.
-        st.caption(_심사_안내)
 
         # 토글은 상태를 스스로 들고 있어 화면이 세션 상태를 따로 관리하지 않아도 된다.
         # 사이드바의 전체 초기화가 세션을 비우면 이 상태도 같이 닫힌다.

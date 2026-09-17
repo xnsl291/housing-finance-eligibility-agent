@@ -74,13 +74,12 @@ def test_애니메이션이_기대는_streamlit_속성이_아직_있다() -> Non
 
     import streamlit
 
-    from housing_finance_agent.ui.app import _전환_CSS
-    from housing_finance_agent.ui.chrome import _CSS as _디자인_CSS
+    from housing_finance_agent.ui.chrome import _CSS, _움직임_CSS
 
     # CSS에 적힌 이름을 꺼내서 번들에 있는지 본다. 반대로 하면(아는 이름이 CSS에
     # 있는지 보면) 이름이 늘어났을 때 못 잡는다 — `stMainBlockContainerXX`에도
     # `stMainBlockContainer`는 들어 있다. 2026-09-16 변형 시험에서 실제로 안 죽었다.
-    이름들 = set(re.findall(r'data-testid="([^"]+)"', _전환_CSS + _디자인_CSS))
+    이름들 = set(re.findall(r'data-testid="([^"]+)"', _CSS + _움직임_CSS))
     assert len(이름들) >= 2, f"기대는 이름이 너무 적다: {이름들}"
 
     번들 = Path(streamlit.__file__).parent / "static" / "static" / "js"
@@ -152,3 +151,19 @@ def test_디자인_문서가_지키라고_한_두_값이_실제로_들어_있다
         )
     )
     assert 설정["theme"]["baseFontWeight"] == 450, "본문 굵기 450이 아니다"
+
+
+def test_본문이_넓게_열리고_상한이_있다() -> None:
+    """"화면이 넓은데 가운데만 조금 쓴다"는 지적으로 고친 자리다(2026-09-17).
+
+    둘 다 있어야 한다. `wide`로만 열면 초광폭 모니터에서 한 줄이 너무 길어져 눈이
+    다음 줄 첫 글자를 못 찾고, 상한만 두고 `centered`로 열면 원래대로 좁다.
+    """
+    from housing_finance_agent.ui.chrome import _CSS
+
+    앱 = (Path(__file__).resolve().parents[1] / "src/housing_finance_agent/ui/app.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'layout="wide"' in 앱, "본문을 좁게 열고 있다"
+    assert "max-width:" in _CSS, "폭 상한이 없다"
