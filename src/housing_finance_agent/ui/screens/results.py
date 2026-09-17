@@ -93,7 +93,7 @@ def _요약_카드(result: dict) -> None:
         if not actions:
             st.caption("다음에 할 일로 안내할 내용이 아직 없습니다. 아래 근거를 확인해 주세요.")
 
-        _한도_요약(result.get("loan_limit"))
+        _한도_요약(result)
 
         # 상단 안내 한 번으로는 안 읽힌다. 판정마다 다시 적는다.
         st.caption(_심사_안내)
@@ -105,16 +105,43 @@ def _요약_카드(result: dict) -> None:
             render_detail(result)
 
 
-def _한도_요약(limit: dict | None) -> None:
-    """예상 한도. 금액이 없으면 왜 못 냈는지를 대신 보여 준다."""
+def _한도_요약(result: dict) -> None:
+    """예상 한도. 금액이 없으면 왜 못 냈는지를 대신 보여 준다.
+
+    **판정이 안 끝난 상태에서 금액을 확정처럼 보여 주지 않는다.** 한도는 임차보증금만
+    있으면 계산된다. 그래서 소득도 순자산도 모르는 `정보 부족` 상태에서 금액이 나온다.
+    계산은 틀리지 않았다 — "자격이 된다면 이 정도"라는 뜻이다. 문제는 화면이 그 단서
+    없이 `사전 조건 부합`일 때와 똑같이 보여 주면 사용자가 그 금액을 확정으로 읽는 것이다.
+    2026-09-16 실측에서 소득·순자산을 하나도 모르는 입력에 1억 4,400만원이 크게 떴다.
+
+    그래서 **아직 확인 안 된 조건이 남아 있으면 `st.metric`을 쓰지 않는다.** 금액은
+    그대로 보여 주되 몇 개가 남았는지를 같이 낸다. 개수는 판정이 내려 준 목록을 그대로
+    세므로 문구와 근거가 어긋날 수 없다.
+    """
+    limit = result.get("loan_limit")
     if limit is None:
         return
     if limit.get("amount_krw") is None:
         st.caption(_한도_미산출.get(limit.get("reason") or "", _한도_미산출_기본))
         return
 
-    st.metric("예상 대출 한도", labels.amount_text(limit["amount_krw"]))
+    금액 = labels.amount_text(limit["amount_krw"])
+    남은 = _확인_안_된_조건(result)
+
+    if not 남은:
+        st.metric("예상 대출 한도", 금액)
+    else:
+        st.markdown(f"**지금까지 확인된 조건 기준 한도** {금액}")
+        st.warning(
+            f"아직 확인되지 않은 조건이 {len(남은)}개 있어 이 금액은 달라질 수 있습니다",
+            icon="⚠️",
+        )
     st.caption(_한도_설명(limit))
+
+
+def _확인_안_된_조건(result: dict) -> list[str]:
+    """아직 값이 없거나 기준에 걸쳐 판단하지 못한 항목."""
+    return [*(result.get("missing_fields") or []), *(result.get("imprecise_fields") or [])]
 
 
 def _한도_설명(limit: dict) -> str:
@@ -134,7 +161,7 @@ def _한도_설명(limit: dict) -> str:
 def render_detail(result: dict) -> None:
     """화면 4 — 왜 그 판정이 나왔는지 규칙 단위로 보여 준다."""
     _규칙_목록(result.get("rule_outcomes") or [])
-    _한도_근거(result.get("loan_limit"))
+    _한도_근거(result)
 
     # 아직 다루지 않는 조건을 숨기면 판정 범위를 실제보다 넓게 오해한다.
     st.markdown("#### 아직 다루지 않는 조건")
@@ -221,8 +248,13 @@ def _검수_대기(규칙들: list[dict]) -> None:
             _규칙_한_건(rule, 탈락_문구=False)
 
 
-def _한도_근거(limit: dict | None) -> None:
-    """한도가 어떻게 나왔는지. 금액을 못 냈으면 못 낸 사유를 같은 자리에 적는다."""
+def _한도_근거(result: dict) -> None:
+    """한도가 어떻게 나왔는지. 금액을 못 냈으면 못 낸 사유를 같은 자리에 적는다.
+
+    요약(화면 3)에만 단서를 달면 상세를 펼친 사람에게는 금액이 다시 확정처럼 보인다.
+    같은 금액을 두 번 보여 주므로 단서도 두 곳에 있어야 한다.
+    """
+    limit = result.get("loan_limit")
     st.markdown("#### 한도 계산 근거")
     if limit is None:
         st.caption("이 판정에서는 한도를 계산하지 않았습니다")
@@ -232,6 +264,12 @@ def _한도_근거(limit: dict | None) -> None:
         st.caption(_한도_미산출.get(limit.get("reason") or "", _한도_미산출_기본))
     else:
         st.markdown(f"**{labels.amount_text(limit['amount_krw'])}**")
+        남은 = _확인_안_된_조건(result)
+        if 남은:
+            # 항목 이름은 카드 위 '할 일' 목록에 한국어로 이미 나온다. 여기서 다시
+            # 적으려면 /v1/fields의 표기를 받아 와야 하는데, 그러자고 결과 화면을
+            # 항목 목록에 묶지 않는다. 여기서는 몇 개가 남았는지만 말한다.
+            st.caption(f"아직 확인되지 않은 조건이 {len(남은)}개 있어 이 금액은 달라질 수 있습니다")
         st.caption(_한도_설명(limit))
         if limit.get("tier"):
             st.caption(f"적용 구간 `{limit['tier']}`")
