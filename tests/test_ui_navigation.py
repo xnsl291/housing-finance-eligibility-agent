@@ -81,3 +81,50 @@ def test_예시를_넣고_읽기까지_눌러도_넘어간다(앱) -> None:
     [b for b in 앱.button if b.label == "조건 읽기"][0].click().run()
 
     assert _그려진_단계(앱) == "읽은 내용 확인", "예시 경로에서 안 넘어갔다"
+
+
+def test_생각중_마크업에_점이_세_개다() -> None:
+    """`st.empty()` 안에 그린 것은 AppTest가 노출하지 않는다. 그래서 마크업만 따로 본다."""
+    from housing_finance_agent.ui.chrome import _thinking_html
+
+    마크업 = _thinking_html("문장을 읽고 있습니다")
+
+    assert 마크업.count('class="d"') == 3, f"점이 세 개가 아니다: {마크업}"
+    assert "문장을 읽고 있습니다" in 마크업
+    assert 'class="hfa-thinking"' in 마크업
+
+
+def test_생각중은_빠져나올_때_지운다() -> None:
+    """안 지우면 오류 문구 옆에서 점이 계속 돈다."""
+    import inspect
+
+    from housing_finance_agent.ui import chrome
+
+    본문 = inspect.getsource(chrome.thinking)
+
+    assert "finally:" in 본문 and "자리.empty()" in 본문, "빠져나올 때 안 지운다"
+
+
+def test_문장_읽기가_생각중으로_감싸여_있다() -> None:
+    """**4~8초 걸리는 유일한 자리다.** 여기가 안 감싸이면 화면이 멈춘 것처럼 보인다.
+
+    실제로 그려지는 순간은 추출이 끝나면 사라져서 렌더 결과로는 못 잡는다.
+    그래서 호출이 감싸여 있는지를 본문에서 확인한다.
+    """
+    본문 = (
+        Path(__file__).resolve().parents[1]
+        / "src/housing_finance_agent/ui/screens/input.py"
+    ).read_text(encoding="utf-8")
+
+    감싼_줄 = "with chrome.thinking("
+    assert 감싼_줄 in 본문, "추출이 생각 중 표시로 감싸여 있지 않다"
+    앞 = 본문.index(감싼_줄)
+    뒤 = 본문.index("api_client.extract(", 앞)
+    assert 뒤 - 앞 < 120, "생각 중 표시와 추출 호출이 떨어져 있다"
+
+
+def test_점이_도는_규칙이_스타일에_들어_있다() -> None:
+    """점은 CSS로 돈다. 파이썬이 응답을 기다리며 막혀 있어도 돌아야 한다."""
+    from housing_finance_agent.ui.chrome import _CSS
+
+    assert "@keyframes hfaDots" in _CSS, "점이 도는 규칙이 없다"

@@ -1,5 +1,10 @@
 """화면의 겉모습. 설정으로 안 되는 것만 담는다.
 
+**이 모듈의 공개 이름만 영어로 둔다.** 다른 곳은 한글 이름을 쓰는데 여기만 다른
+이유가 있다. `AppTest`가 함수 소스를 임시 파일로 옮겨 적을 때 UTF-8로 쓰지 않아서
+한글 이름이 깨진다(P-10). 화면을 실제로 그려 보는 테스트가 이 모듈을 부르므로,
+여기 이름이 한글이면 그 테스트를 쓸 때마다 같은 데 걸린다.
+
 색·모서리·굵기·서체는 `.streamlit/config.toml`이 맡는다. 여기에는 설정에 자리가
 없는 것만 둔다 — 본문 폭, 제목 자간, 눈썹 라벨, 주의문, 움직임.
 
@@ -13,6 +18,9 @@
 """
 
 from __future__ import annotations
+
+import contextlib
+from collections.abc import Iterator
 
 import streamlit as st
 
@@ -95,6 +103,37 @@ _CSS = f"""
 .hfa-step.now {{ color: {_먹색}; font-weight: 600; }}
 .hfa-step.now .n {{ color: {_먹색}; }}
 
+/* 생각 중 표시 — 점 세 개가 차례로 떠오르며 색이 바뀐다.
+   로컬 모델이 문장을 읽는 데 4~8초가 걸린다. 그동안 화면이 멈춘 것처럼 보이면
+   사용자는 버튼을 다시 누른다. CSS만으로 도는 움직임이라, 파이썬이 응답을
+   기다리며 막혀 있어도 계속 돈다. */
+.hfa-thinking {{
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  color: {_흐린_회색};
+  font-size: 0.92rem;
+  margin: 0.6rem 0 0.2rem;
+}}
+.hfa-thinking .d {{
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: {_테두리};
+  margin-left: 5px;
+  animation: hfaDots 1.05s infinite ease-in-out;
+}}
+.hfa-thinking .d:nth-of-type(1) {{ margin-left: 0.5rem; }}
+.hfa-thinking .d:nth-of-type(2) {{ animation-delay: 0.15s; }}
+.hfa-thinking .d:nth-of-type(3) {{ animation-delay: 0.3s; }}
+@keyframes hfaDots {{
+  0%, 75%, 100% {{ background: {_테두리}; transform: translateY(0); }}
+  35%           {{ background: {_신호_주황}; transform: translateY(-3px); }}
+}}
+@media (prefers-reduced-motion: reduce) {{
+  .hfa-thinking .d {{ animation: none; background: {_신호_주황}; }}
+}}
+
 /* 손이 닿는 것에만 반응을 준다. 되돌아오는 움직임이라 다시 그려도 튀지 않는다. */
 .stButton button {{ transition: transform 120ms ease, box-shadow 160ms ease; }}
 .stButton button:hover {{ transform: translateY(-1px); }}
@@ -130,7 +169,7 @@ _움직임_CSS = """
 _마지막_단계_키 = "_움직임을_준_단계"
 
 
-def 스타일() -> None:
+def style() -> None:
     """**매 실행마다 부른다.**
 
     움직임과 반대다. 겉모습은 항상 있어야 한다 — 한 번만 넣으면 다음 실행에서
@@ -139,7 +178,7 @@ def 스타일() -> None:
     st.markdown(_CSS, unsafe_allow_html=True)
 
 
-def 움직임(단계: int) -> None:
+def motion(단계: int) -> None:
     """단계가 바뀐 순간에만 넣는다.
 
     애니메이션 이름에 단계 번호를 붙이는 것은 되돌아갈 때(결과 → 확인)도 브라우저가
@@ -170,3 +209,36 @@ def steps(이름들: tuple[str, ...], 지금: int) -> None:
             f'<span class="hfa-step {상태}"><span class="n">{번호 + 1:02d}</span>{이름}</span>'
         )
     st.markdown(f'<div class="hfa-steps">{"".join(조각)}</div>', unsafe_allow_html=True)
+
+
+def _thinking_html(문구: str) -> str:
+    """점 세 개가 달린 한 줄.
+
+    마크업을 따로 뺀 이유는 **시험할 수 있게 하려고**다. `st.empty()` 안에 그린
+    내용은 `AppTest`가 노출해 주지 않아서, 화면을 돌려서는 점이 세 개인지 확인할
+    수 없다. 문자열을 만드는 일만 떼어 내면 그건 확인할 수 있다.
+    """
+    점 = '<span class="d"></span>' * 3
+    return f'<div class="hfa-thinking">{문구}{점}</div>'
+
+
+@contextlib.contextmanager
+def thinking(문구: str) -> Iterator[None]:
+    """오래 걸리는 일을 하는 동안 점 세 개를 띄운다.
+
+    로컬 모델이 문장을 읽는 데 4~8초가 걸린다(2026-09-16 실측: 첫 호출 7.6초,
+    두 번째 4.7초). 그동안 화면에 아무 표시가 없으면 사용자는 멈춘 줄 알고 버튼을
+    다시 누른다. Streamlit이 오른쪽 위에 작게 표시해 주지만 눈에 안 들어온다.
+
+    **점이 도는 것은 CSS다.** 파이썬이 응답을 기다리며 막혀 있어도 계속 돈다.
+    브라우저는 이 표시를 이미 받아 그려 둔 상태이기 때문이다.
+
+    성공하면 보통 `st.rerun()`으로 화면이 새로 그려져 저절로 사라진다. 실패했을
+    때를 위해 나갈 때 지운다 — 안 지우면 오류 문구 옆에서 점이 계속 돈다.
+    """
+    자리 = st.empty()
+    자리.markdown(_thinking_html(문구), unsafe_allow_html=True)
+    try:
+        yield
+    finally:
+        자리.empty()

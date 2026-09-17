@@ -50,7 +50,7 @@ def current_step(state: Mapping) -> int:
 
 def main() -> None:
     st.set_page_config(page_title="주거금융 지원가능성 판정", layout="wide")
-    chrome.스타일()
+    chrome.style()
     st.title("주거금융 지원가능성 판정")
     st.caption(
         "신청 전에 가능성을 가늠하는 도구입니다. 실제 심사는 기관이 합니다. "
@@ -60,7 +60,7 @@ def main() -> None:
     sidebar.render()
 
     단계 = current_step(st.session_state)
-    chrome.움직임(단계)
+    chrome.motion(단계)
     chrome.steps(STEPS, 단계)
     st.divider()
 
