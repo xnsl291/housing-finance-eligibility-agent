@@ -16,13 +16,14 @@ from __future__ import annotations
 
 import streamlit as st
 
+from housing_finance_agent.ui import chrome
 from housing_finance_agent.ui.api_client import ApiError, base_url, health
 
 
 def render() -> None:
     """사이드바를 그린다. 화면 전환과 상관없이 항상 같은 자리에 있다."""
     with st.sidebar:
-        st.subheader("시스템 상태")
+        chrome.eyebrow("시스템 상태")
         st.caption(f"API 주소 {base_url()}")
 
         try:
@@ -30,17 +31,13 @@ def render() -> None:
         except ApiError as error:
             # 서버가 죽은 것을 "조건이 안 맞는다"로 읽히게 쓰면 안 된다. 사용자
             # 조건과 무관한 문제라는 것이 문구에서 드러나야 한다.
-            st.error(f"API 서버에 연결되지 않았습니다 — {error}", icon="🚨")
-            st.caption("서버를 띄운 뒤 화면을 새로 고쳐 주세요.")
+            st.error(f"API 서버에 연결되지 않았습니다 — {error}")
         else:
-            st.success(f"API 서버 연결됨 ({상태.get('status', '상태 표시 없음')})", icon="✅")
+            st.markdown(f":green[● 연결됨] · {상태.get('status', '상태 표시 없음')}")
             _상품_목록(상태.get("programs") or [])
 
         st.divider()
         _초기화()
-
-        st.divider()
-        st.caption("입력한 내용은 판정에만 쓰고 서버에 저장하지 않습니다.")
 
 
 def _상품_목록(program_ids: list[str]) -> None:
@@ -68,4 +65,4 @@ def _초기화() -> None:
     if st.button("전체 초기화", use_container_width=True):
         st.session_state.clear()
         st.rerun()
-    st.caption("입력한 문장과 판정 결과를 모두 지웁니다. 데모를 다시 시작할 때 쓰세요.")
+    st.caption("입력한 내용은 판정에만 쓰고 저장하지 않습니다.")
