@@ -70,6 +70,21 @@ def extract_profile(llm: LlmClient, text: str) -> ExtractedProfile:
     for name, given in raw.items():
         if name not in _FIELDS or given is None:
             continue
+        if _평으로_말했나(name, sources):
+            # 산수가 안 되는 게 아니다. 1평 = 3.3058㎡는 확정된 상수다.
+            #
+            # 문제는 **어느 면적인지가 문장으로 정해지지 않는다는 것**이다. 한국에서
+            # "25평 아파트"는 보통 공급면적을 말하고, 규칙이 보는 것은 전용면적이다.
+            # 25 × 3.3058 = 82.6㎡로 환산하면 실제 전용면적(보통 59㎡ 근처)과 크게
+            # 다르고, "25평 → 전용 몇 ㎡"는 단지마다 달라 공개 자료에 고정 대응이 없다.
+            #
+            # 그대로 두면 **전용 82㎡인 집이 60㎡ 특례를 통과한다**(2026-09-22 측정
+            # E-18). 잘못 통과시키는 방향이라 가장 위험하다.
+            #
+            # 그래서 버리고 원문을 남긴다. 단위가 빠진 금액(`4천`)을 파서가 거절하는
+            # 것과 같은 자리다 — 문장이 값을 정하지 못하면 사람에게 넘긴다.
+            unreadable[name] = str(sources.get(name) or given)
+            continue
         if _FIELDS[name] is _AMOUNT:
             parsed = parse_amount(str(given))
             if parsed is None:
@@ -84,6 +99,15 @@ def extract_profile(llm: LlmClient, text: str) -> ExtractedProfile:
     return ExtractedProfile(
         values=values, sources=sources, unreadable=unreadable, warnings=warnings
     )
+
+
+# 면적을 평으로 말한 경우를 알아보는 데 쓴다. 전용면적만 이 문제가 있다 —
+# 금액은 파서가 단위를 보고, 나머지 항목에는 평 단위가 없다.
+_평_항목 = "housing_area_m2"
+
+
+def _평으로_말했나(name: str, sources: dict[str, str]) -> bool:
+    return name == _평_항목 and "평" in (sources.get(name) or "")
 
 
 def _ask(llm: LlmClient, text: str) -> dict:

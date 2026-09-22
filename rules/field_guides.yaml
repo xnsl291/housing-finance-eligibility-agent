@@ -54,6 +54,9 @@ net_asset_krw:
 
 housing_area_m2:
   label: 전용면적
+  # 평으로 말한 수는 보통 공급면적이고 판정이 보는 것은 전용면적이다. 환산 대응이
+  # 단지마다 달라 시스템이 대신 바꾸지 않는다(extraction._평으로_말했나).
+  how_to_check: 평이 아니라 제곱미터로 넣어 주세요. 등기부등본이나 매물 정보의 전용면적입니다
 
 lease_deposit_krw:
   label: 임차보증금

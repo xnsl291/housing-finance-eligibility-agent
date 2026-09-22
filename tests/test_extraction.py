@@ -205,3 +205,42 @@ def test_직접_말한_참은_받는다() -> None:
     result = extract_profile(llm, "혁신도시 이전 기관에서 일합니다")
 
     assert result.values == {"is_innovation_city_relocated_worker": True}
+
+
+def test_평으로_말한_면적은_쓰지_않고_원문을_남긴다() -> None:
+    """산수가 안 되는 게 아니다. 1평 = 3.3058㎡는 확정된 상수다.
+
+    **어느 면적인지가 문장으로 정해지지 않는다.** "25평 아파트"는 보통 공급면적을
+    말하고 판정이 보는 것은 전용면적이다. 25 × 3.3058 = 82.6㎡로 환산하면 실제
+    전용면적(보통 59㎡ 근처)과 크게 다르고, 대응이 단지마다 달라 공개 자료에
+    고정된 표가 없다.
+
+    그대로 두면 **전용 82㎡인 집이 60㎡ 특례를 통과한다**(2026-09-22 측정 E-18).
+    잘못 통과시키는 방향이라 가장 위험하다.
+    """
+    llm = FakeLlm(
+        json.dumps(
+            {"housing_area_m2": 25.0, "_sources": {"housing_area_m2": "25평 아파트"}},
+            ensure_ascii=False,
+        )
+    )
+
+    result = extract_profile(llm, "25평 아파트를 보고 있습니다")
+
+    assert "housing_area_m2" not in result.values, "평으로 말한 수를 그대로 썼다"
+    assert result.unreadable["housing_area_m2"] == "25평 아파트", "원문을 안 남겼다"
+
+
+def test_제곱미터로_말한_면적은_그대로_쓴다() -> None:
+    """위 테스트의 짝. 제곱미터까지 버리면 정상 입력이 막힌다."""
+    llm = FakeLlm(
+        json.dumps(
+            {"housing_area_m2": 59.0, "_sources": {"housing_area_m2": "전용면적 59제곱미터"}},
+            ensure_ascii=False,
+        )
+    )
+
+    result = extract_profile(llm, "전용면적 59제곱미터입니다")
+
+    assert result.values == {"housing_area_m2": 59.0}
+    assert not result.unreadable
