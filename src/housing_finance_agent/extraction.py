@@ -117,7 +117,19 @@ def _accept(spec: object, given: object) -> object | None:
     if isinstance(spec, list):
         return given if given in spec else None
     if spec is bool:
-        return given if isinstance(given, bool) else None
+        # **거짓은 버린다.** 불리언 항목은 전부 "직접 말한 경우만 true"로 정의돼 있고
+        # (fields.DESCRIPTIONS), 모델이 내는 false는 말했다는 뜻이 아니라 기본값이다.
+        #
+        # 2026-09-22 측정에서 환각 15건 중 12건이 이 두 항목에 false를 채운 것이었다
+        # (`evaluation/extraction/report-2026-09-22.md`). 그냥 두면 판정이 조용히
+        # 망가진다 — 두 항목은 소득 기준을 올려 주는 '푸는 특례'이고, 엔진은 적용
+        # 여부를 모를 때 사용자에게 묻도록 `relaxes: true`로 만들어 두었다. 추출이
+        # false로 단정하면 엔진이 물어볼 기회를 잃고 해당자를 탈락시킨다.
+        #
+        # 버리면 "모름"으로 남아 확인 화면의 예/아니오/모름에서 사용자가 직접 고른다.
+        # 진짜로 "아니다"라고 말한 사람에게 한 번 더 묻는 비용은, 해당자를 조용히
+        # 탈락시키는 것보다 싸다.
+        return True if given is True else None
     if spec is str:
         return given.strip() if isinstance(given, str) and given.strip() else None
     if spec in (int, float) and isinstance(given, int | float) and not isinstance(given, bool):

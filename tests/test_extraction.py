@@ -172,3 +172,36 @@ def test_지역은_이름만_뽑고_수도권_여부는_만들지_않는다() ->
 
     assert result.values["region_name"] == "경기도 성남시"
     assert "region" not in result.values
+
+
+def test_불리언은_참만_받고_거짓은_버린다() -> None:
+    """모델이 내는 false는 "아니다"가 아니라 기본값이다.
+
+    두 항목 모두 정의가 "**직접 말한 경우만** true"다. false를 그대로 받으면
+    판정이 조용히 망가진다 — 둘은 소득 기준을 올려 주는 '푸는 특례'이고, 엔진은
+    적용 여부를 모를 때 사용자에게 묻도록 `relaxes: true`로 만들어 두었다.
+    추출이 false로 단정하면 엔진이 물어볼 기회를 잃고 해당자를 탈락시킨다.
+
+    2026-09-22 측정에서 환각 15건 중 12건이 정확히 이것이었다
+    (`evaluation/extraction/report-2026-09-22.md`).
+    """
+    llm = FakeLlm(
+        _reply(
+            age=30,
+            is_redevelopment_area_tenant=False,
+            is_innovation_city_relocated_worker=False,
+        )
+    )
+
+    result = extract_profile(llm, "만 30세입니다")
+
+    assert result.values == {"age": 30}, "거짓을 버리지 않았다"
+
+
+def test_직접_말한_참은_받는다() -> None:
+    """위 테스트의 짝. 참까지 버리면 특례 해당자가 그 사실을 못 전한다."""
+    llm = FakeLlm(_reply(is_innovation_city_relocated_worker=True))
+
+    result = extract_profile(llm, "혁신도시 이전 기관에서 일합니다")
+
+    assert result.values == {"is_innovation_city_relocated_worker": True}
