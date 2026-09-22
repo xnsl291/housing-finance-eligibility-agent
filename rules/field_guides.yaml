@@ -33,6 +33,19 @@ home_ownership_status:
     NO_HOME_ALL_MEMBERS: 세대원 전원 무주택
     HAS_HOME: 주택 보유
 
+is_first_time_buyer:
+  label: 생애최초 주택구입
+  how_to_check: 본인과 배우자 모두 과거에 주택을 소유한 적이 없어야 합니다
+
+intended_tenure:
+  label: 전세인지 매매인지
+  choice_labels:
+    JEONSE: 전세를 구한다
+    PURCHASE: 집을 산다
+  note: |
+    이 항목 하나로 볼 상품이 갈린다. 전세 상품과 매매 상품의 조건이 전혀 달라서,
+    모르는 채로 전부 판정하면 사용자가 자기와 무관한 결과까지 읽어야 한다.
+
 marital_status:
   label: 혼인 상태
   choice_labels:
@@ -63,6 +76,7 @@ lease_deposit_krw:
 
 housing_value_krw:
   label: 주택가격
+  how_to_check: 매매계약서의 매매대금 또는 담보주택 평가액입니다
   note: 전세보증금과 다르다. 매매가격이다.
 
 deposit_paid_ratio:

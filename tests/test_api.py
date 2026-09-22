@@ -182,4 +182,4 @@ def test_한도를_못_낸_사유가_응답에_담긴다() -> None:
         "/v1/eligibility/check", json={"profile": 보증금_없음, "program_ids": ["nhuf-youth-jeonse"]}
     )
 
-    assert response.json()["results"][0]["loan_limit"]["reason"] == "DEPOSIT_UNKNOWN"
+    assert response.json()["results"][0]["loan_limit"]["reason"] == "BASE_UNKNOWN"

@@ -34,8 +34,11 @@ class LoanLimit:
     citation: str
     rule_id: str
     # None이면 계산에 성공한 것이다.
-    # NOT_REVIEWED | DEPOSIT_UNKNOWN | DEPOSIT_IMPRECISE | TIER_UNKNOWN | REGION_UNKNOWN
+    # NOT_REVIEWED | BASE_UNKNOWN | BASE_IMPRECISE | TIER_UNKNOWN | REGION_UNKNOWN
     reason: str | None = None
+    # 비율을 어느 값에 걸었는지. 전세는 임차보증금, 매매는 주택가격이다.
+    # 값이 없을 때 "무엇을 알려 달라"고 말하려면 이름이 필요하다.
+    ratio_field: str = ""
     # 해당 여부를 몰라 건너뛴 유리한 구간. 금액만 낮게 주고 말면 사용자가 받을 수
     # 있는 것보다 적게 알고 계약한다.
     skipped_tiers: tuple[str, ...] = ()
@@ -52,13 +55,18 @@ def estimate_loan_limit(program: dict, profile: dict) -> LoanLimit:
     if not spec or not spec.get("human_reviewed"):
         return _못_구함(spec, "NOT_REVIEWED")
 
-    # 금액은 정확한 값을 요구한다. 보증금을 범위로만 알면 한도도 범위가 되는데,
-    # 대출 금액을 범위로 알려 주면 사용자가 그 금액으로 계약을 진행한다.
-    deposit = profile.get("lease_deposit_krw")
-    if deposit is None:
-        return _못_구함(spec, "DEPOSIT_UNKNOWN")
-    if not isinstance(deposit, int | float):
-        return _못_구함(spec, "DEPOSIT_IMPRECISE")
+    # 비율을 어느 값에 걸지는 규칙이 정한다. 전세는 임차보증금의 80%이고 매매는
+    # 주택가격의 70%(LTV)다. 코드에 항목을 박으면 매매 상품을 넣을 때 코드를 고쳐야
+    # 하는데, 그건 "규칙이 바뀌면 YAML만 고친다"는 이 프로젝트의 전제를 깬다.
+    기준_항목 = spec["ratio_field"]
+
+    # 금액은 정확한 값을 요구한다. 범위로만 알면 한도도 범위가 되는데, 대출 금액을
+    # 범위로 알려 주면 사용자가 그 금액으로 계약을 진행한다.
+    기준_금액 = profile.get(기준_항목)
+    if 기준_금액 is None:
+        return _못_구함(spec, "BASE_UNKNOWN")
+    if not isinstance(기준_금액, int | float):
+        return _못_구함(spec, "BASE_IMPRECISE")
 
     tier, skipped = _pick_tier(spec["tiers"], profile)
     if tier is None:
@@ -69,8 +77,9 @@ def estimate_loan_limit(program: dict, profile: dict) -> LoanLimit:
         return _못_구함(spec, "REGION_UNKNOWN")
 
     # 원문이 "임차보증금의 N% 이내에서 최고 M원 이내"라고 적어 두 상한이 함께 걸린다.
+    # 매매도 같은 모양이다 — "LTV 70%" 안에서 "최고 2억원 이내".
     # 소수점은 버린다. 원 단위 아래 반올림 규칙은 원문에 없어 정하지 않았다.
-    ratio_amount = int(deposit * tier["ratio_of_deposit"])
+    ratio_amount = int(기준_금액 * tier["ratio"])
     return LoanLimit(
         amount_krw=min(ratio_amount, cap),
         tier=tier["name"],
@@ -79,6 +88,7 @@ def estimate_loan_limit(program: dict, profile: dict) -> LoanLimit:
         citation=spec["citation"],
         rule_id=spec["rule_id"],
         skipped_tiers=tuple(skipped),
+        ratio_field=기준_항목,
     )
 
 
@@ -91,6 +101,7 @@ def _못_구함(spec: dict | None, reason: str) -> LoanLimit:
         citation=(spec or {}).get("citation", ""),
         rule_id=(spec or {}).get("rule_id", ""),
         reason=reason,
+        ratio_field=(spec or {}).get("ratio_field", ""),
     )
 
 

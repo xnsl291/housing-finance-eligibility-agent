@@ -1,0 +1,211 @@
+# 내집마련디딤돌대출 — 골든 시나리오
+#
+# 이 저장소의 첫 **매매** 상품이다. 전세와 경계가 다르다 — 전세는 임차보증금과
+# 나이·지역으로 갈리고, 이것은 **주택가격과 단독세대주 여부**로 갈린다.
+#
+# 그래서 이 파일의 경계 케이스는 단독세대주다. 같은 사람이 단독세대주인지 아닌지로
+# 전용면적(85↔60㎡), 주택가격(5억↔3억), 한도(2억↔1.5억)가 **한꺼번에** 바뀐다.
+
+base:
+  age: 35
+  household_head_status: HEAD
+  home_ownership_status: NO_HOME_ALL_MEMBERS
+  household_type: MULTI
+  combined_annual_income_krw: 55000000
+  net_asset_krw: 300000000
+  housing_area_m2: 84
+  housing_value_krw: 450000000
+
+scenarios:
+  # --- 통과 2건 ---
+  - name: 기본 통과
+    왜: 모든 조건을 넉넉히 만족하는 경우. 이것이 깨지면 다른 케이스를 볼 필요가 없다
+    profile: {}
+    expect:
+      status: PRECHECK_MATCH
+      loan_amount_krw: 200000000 # 4.5억의 70%는 3.15억, 일반 상한 2억이 더 작다
+
+  - name: 신혼 6억 주택 통과
+    왜: |
+      신혼이면 주택가격 상한이 5억에서 6억으로, 한도가 2억에서 3.2억으로 함께 올라간다.
+      두 값이 같이 바뀌는 것을 지킨다
+    profile:
+      marital_status: NEWLYWED
+      housing_value_krw: 580000000
+    expect:
+      status: PRECHECK_MATCH
+      loan_amount_krw: 320000000 # 5.8억의 70%는 4.06억, 신혼 상한 3.2억이 더 작다
+
+  # --- 불충족 2건 ---
+  - name: 주택가격 초과
+    왜: 일반 기준 5억을 넘고 특례에도 해당하지 않는다
+    profile:
+      marital_status: SINGLE
+      minor_children_count: 0
+      housing_value_krw: 550000000
+    expect:
+      status: NOT_MATCHED
+      failed_rules: [DD-10]
+
+  - name: 세대주가 아님
+    왜: |
+      **전세와 갈리는 자리다.** 청년전용 전세는 예비 세대주도 되는데 이것은 세대주만이다.
+      출처 네 곳이 모두 "세대주"라고만 적고 예비 세대주 문구가 없다
+    profile:
+      household_head_status: PROSPECTIVE_HEAD
+    expect:
+      status: NOT_MATCHED
+      failed_rules: [DD-01]
+
+  # --- 정보 부족 1건 ---
+  - name: 주택가격을 모름
+    왜: |
+      값이 없으면 통과로도 탈락으로도 세지 않는다. 그리고 주택가격은 한도의 기준값이라
+      판정과 한도 둘 다 막힌다
+    profile:
+      housing_value_krw: null
+    expect:
+      status: INSUFFICIENT_INFORMATION
+      missing_fields: [housing_value_krw]
+
+  # --- 경계: 단독세대주 --- ★ 이 상품의 핵심
+  - name: 단독세대주 — 세 기준이 한꺼번에 조인다
+    왜: |
+      같은 사람이 단독세대주면 전용면적 85→60㎡, 주택가격 5억→3억, 한도 2억→1.5억으로
+      **세 값이 동시에** 바뀐다. 84㎡·4.5억은 세대원이 있으면 통과인데 단독세대주면
+      두 규칙에 걸린다
+    profile:
+      household_type: SINGLE
+    expect:
+      status: NOT_MATCHED
+      failed_rules: [DD-09, DD-12]
+
+  - name: 단독세대주가 조인 기준을 맞추면 통과
+    왜: 위 케이스의 짝. 60㎡·3억 안으로 들어오면 통과하고 한도가 1.5억이 된다
+    profile:
+      household_type: SINGLE
+      housing_area_m2: 59
+      housing_value_krw: 280000000
+    expect:
+      status: PRECHECK_MATCH
+      loan_amount_krw: 150000000 # 2.8억의 70%는 1.96억, 단독세대주 상한 1.5억이 더 작다
+
+  - name: 단독세대주 나이 경계 — 만 29세는 안 된다
+    왜: |
+      단독세대주는 만 30세 이상만 된다. 세대원이 있으면 나이 하한이 없어서,
+      이 규칙이 단독세대주에게만 걸리는 것을 지킨다
+    profile:
+      household_type: SINGLE
+      age: 29
+      housing_area_m2: 59
+      housing_value_krw: 280000000
+    expect:
+      status: NOT_MATCHED
+      failed_rules: [DD-03]
+
+  - name: 같은 만 29세라도 세대원이 있으면 나이는 안 걸린다
+    왜: 위 케이스의 짝. 나이 규칙이 조건부로만 걸리는 것을 확인한다
+    profile:
+      age: 29
+    expect:
+      status: PRECHECK_MATCH
+
+  # --- 소득 특례 ---
+  - name: 생애최초면 소득 기준이 7천만원으로 올라간다
+    왜: 일반 6천만원으로는 탈락인데 생애최초로 통과한다. 한도도 2억에서 2.4억으로 올라간다
+    profile:
+      is_first_time_buyer: true
+      combined_annual_income_krw: 65000000
+    expect:
+      status: PRECHECK_MATCH
+      loan_amount_krw: 240000000 # 4.5억의 70%는 3.15억, 생애최초 상한 2.4억이 더 작다
+
+  - name: 신혼 2자녀 고소득 통과
+    왜: |
+      특례 둘이 겹칠 때 더 넓은 기준이 이겨야 한다. 2자녀는 7천만원, 신혼은 8.5천만원이다.
+      전세 규칙에서 둘이 서로를 못 덮어 탈락시킨 적이 있다(2026-09-14)
+    profile:
+      marital_status: NEWLYWED
+      minor_children_count: 2
+      combined_annual_income_krw: 80000000
+    expect:
+      status: PRECHECK_MATCH
+
+  - name: 소득이 일반 기준을 넘으면 그때 특례를 묻는다
+    왜: |
+      6천만원을 넘었으니 생애최초나 2자녀면 통과할 수도 있다. 말없이 탈락시키지 않고
+      묻는다. 푸는 특례를 건너뛰었다가 일반 규칙이 걸리면 그때 묻는 구조가 도는지 지킨다
+    profile:
+      combined_annual_income_krw: 65000000
+      marital_status: null
+      minor_children_count: null
+      is_first_time_buyer: null
+    expect:
+      status: INSUFFICIENT_INFORMATION
+
+  # --- 한도 기준값이 매매는 다르다 ---
+  - name: 한도는 임차보증금이 아니라 주택가격에 걸린다
+    왜: |
+      **전세와 다른 자리다.** 전세는 임차보증금의 80%, 이것은 주택가격의 70%(LTV)다.
+      임차보증금을 넣어도 한도에 영향이 없어야 한다
+    profile:
+      housing_value_krw: 200000000
+      lease_deposit_krw: 400000000
+    expect:
+      status: PRECHECK_MATCH
+      loan_amount_krw: 140000000 # 2억의 70%. 임차보증금 4억은 쓰이지 않는다
+
+  # --- 순자산 ---
+  - name: 순자산 초과
+    왜: 2026년도 기준 5.11억원. 전세(3.45억)와 값이 다르다
+    profile:
+      net_asset_krw: 550000000
+    expect:
+      status: NOT_MATCHED
+      failed_rules: [DD-07]
+
+  # --- 전용면적 경계 ---
+  - name: 전용면적 경계 — 85제곱미터는 된다
+    왜: 상한이 "이하"이므로 85는 통과한다. 이하와 미만을 헷갈리면 여기서 깨진다
+    profile:
+      housing_area_m2: 85
+    expect:
+      status: PRECHECK_MATCH
+
+  - name: 전용면적 경계 — 86제곱미터는 안 된다
+    왜: 위 케이스의 짝
+    profile:
+      housing_area_m2: 86
+    expect:
+      status: NOT_MATCHED
+      failed_rules: [DD-08]
+
+  # --- 모를 때 어떻게 되는가 --- ★ 변형 시험에서 구멍이 드러난 자리
+  - name: 단독세대주 여부를 모르면 85제곱미터로 통과시키지 않는다
+    왜: |
+      **변형 시험에서 이 자리가 비어 있었다(2026-09-22).** 단독세대주 면적 특례가
+      일반 규칙을 덮지 않게 바꿔도 죽는 테스트가 없었다. 판정 상태는 둘 다
+      '정보 부족'으로 같지만, 덮지 않으면 화면이 85㎡ 규칙을 **통과**로 보여 준다.
+      사용자는 면적 조건을 통과했다고 읽는데 실제로는 단독세대주면 60㎡가 걸린다.
+    profile:
+      household_type: null
+      housing_area_m2: 84
+    expect:
+      status: INSUFFICIENT_INFORMATION
+      missing_fields: [household_type]
+      # DD-11(신혼·2자녀 6억)까지 덮인다. DD-12가 DD-10과 DD-11을 둘 다
+      # 덮게 써 뒀기 때문이다 — 단독세대주 여부를 모르는 채로 6억이
+      # 적용되는 일을 막는다.
+      superseded_rules: [DD-08, DD-10, DD-11]
+
+  - name: 단독세대주 여부를 모르면 한도를 내지 않는다
+    왜: |
+      **변형 시험에서 이 자리도 비어 있었다.** 가장 낮은 한도 칸(단독세대주 1.5억)을
+      '푸는 칸'으로 잘못 표시해도 죽는 테스트가 없었다. 잘못 표시하면 단독세대주
+      여부를 모를 때 아래 칸으로 내려가 **2억원**을 알려 준다 — 실제로는 1.5억이다.
+      받을 수 있는 것보다 많이 알려 주는 방향이라 가장 위험하다.
+    profile:
+      household_type: null
+    expect:
+      status: INSUFFICIENT_INFORMATION
+      limit_reason: TIER_UNKNOWN

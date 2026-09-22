@@ -17,6 +17,9 @@ SPEC: dict[str, object] = {
     "household_type": ["SINGLE", "MULTI"],
     "home_ownership_status": ["NO_HOME_ALL_MEMBERS", "HAS_HOME"],
     "marital_status": ["SINGLE", "MARRIED", "NEWLYWED"],
+    "is_first_time_buyer": bool,
+    # 전세를 구하는가 집을 사는가. 이 항목 하나로 볼 상품이 갈린다.
+    "intended_tenure": ["JEONSE", "PURCHASE"],
     "minor_children_count": int,
     # 수도권인지는 LLM에게 묻지 않는다. profile.enrich가 지역명에서 만든다.
     "region_name": str,
@@ -48,6 +51,8 @@ DESCRIPTIONS: dict[str, str] = {
     "household_type": "혼자 사는 단독세대면 SINGLE, 아니면 MULTI",
     "home_ownership_status": "세대원 전원 무주택이면 NO_HOME_ALL_MEMBERS",
     "marital_status": "혼인 7년 이내면 NEWLYWED, 그 외 기혼이면 MARRIED, 미혼이면 SINGLE",
+    "is_first_time_buyer": ("생애 처음으로 집을 사는 경우라고 **직접 말한 경우만** true"),
+    "intended_tenure": "전세를 구하면 JEONSE, 집을 사려면 PURCHASE",
     "minor_children_count": "미성년 자녀 수",
     "region_name": '임차할 주택이 있는 지역 이름 그대로 (예: "서울", "경기도 성남시", "부산")',
     "employment_category": "중소기업 또는 중견기업 재직이면 SME_OR_MID_SIZED, 그 외 OTHER",
