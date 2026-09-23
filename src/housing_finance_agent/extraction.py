@@ -70,6 +70,21 @@ def extract_profile(llm: LlmClient, text: str) -> ExtractedProfile:
     for name, given in raw.items():
         if name not in _FIELDS or given is None:
             continue
+        if _평으로_말했나(name, sources):
+            # 산수가 안 되는 게 아니다. 1평 = 3.3058㎡는 확정된 상수다.
+            #
+            # 문제는 **어느 면적인지가 문장으로 정해지지 않는다는 것**이다. 한국에서
+            # "25평 아파트"는 보통 공급면적을 말하고, 규칙이 보는 것은 전용면적이다.
+            # 25 × 3.3058 = 82.6㎡로 환산하면 실제 전용면적(보통 59㎡ 근처)과 크게
+            # 다르고, "25평 → 전용 몇 ㎡"는 단지마다 달라 공개 자료에 고정 대응이 없다.
+            #
+            # 그대로 두면 **전용 82㎡인 집이 60㎡ 특례를 통과한다**(2026-09-22 측정
+            # E-18). 잘못 통과시키는 방향이라 가장 위험하다.
+            #
+            # 그래서 버리고 원문을 남긴다. 단위가 빠진 금액(`4천`)을 파서가 거절하는
+            # 것과 같은 자리다 — 문장이 값을 정하지 못하면 사람에게 넘긴다.
+            unreadable[name] = str(sources.get(name) or given)
+            continue
         if _FIELDS[name] is _AMOUNT:
             parsed = parse_amount(str(given))
             if parsed is None:
@@ -84,6 +99,15 @@ def extract_profile(llm: LlmClient, text: str) -> ExtractedProfile:
     return ExtractedProfile(
         values=values, sources=sources, unreadable=unreadable, warnings=warnings
     )
+
+
+# 면적을 평으로 말한 경우를 알아보는 데 쓴다. 전용면적만 이 문제가 있다 —
+# 금액은 파서가 단위를 보고, 나머지 항목에는 평 단위가 없다.
+_평_항목 = "housing_area_m2"
+
+
+def _평으로_말했나(name: str, sources: dict[str, str]) -> bool:
+    return name == _평_항목 and "평" in (sources.get(name) or "")
 
 
 def _ask(llm: LlmClient, text: str) -> dict:
@@ -117,7 +141,19 @@ def _accept(spec: object, given: object) -> object | None:
     if isinstance(spec, list):
         return given if given in spec else None
     if spec is bool:
-        return given if isinstance(given, bool) else None
+        # **거짓은 버린다.** 불리언 항목은 전부 "직접 말한 경우만 true"로 정의돼 있고
+        # (fields.DESCRIPTIONS), 모델이 내는 false는 말했다는 뜻이 아니라 기본값이다.
+        #
+        # 2026-09-22 측정에서 환각 15건 중 12건이 이 두 항목에 false를 채운 것이었다
+        # (`evaluation/extraction/report-2026-09-22.md`). 그냥 두면 판정이 조용히
+        # 망가진다 — 두 항목은 소득 기준을 올려 주는 '푸는 특례'이고, 엔진은 적용
+        # 여부를 모를 때 사용자에게 묻도록 `relaxes: true`로 만들어 두었다. 추출이
+        # false로 단정하면 엔진이 물어볼 기회를 잃고 해당자를 탈락시킨다.
+        #
+        # 버리면 "모름"으로 남아 확인 화면의 예/아니오/모름에서 사용자가 직접 고른다.
+        # 진짜로 "아니다"라고 말한 사람에게 한 번 더 묻는 비용은, 해당자를 조용히
+        # 탈락시키는 것보다 싸다.
+        return True if given is True else None
     if spec is str:
         return given.strip() if isinstance(given, str) and given.strip() else None
     if spec in (int, float) and isinstance(given, int | float) and not isinstance(given, bool):
