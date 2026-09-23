@@ -13,6 +13,8 @@ program:
   organization: 주택도시기금
   program_name: 청년전용 버팀목전세자금
   program_type: LOAN
+  # 전세인지 매매인지. 사용자가 무엇을 하려는지에 따라 볼 상품이 갈린다.
+  tenure: JEONSE
   source_url: https://nhuf.molit.go.kr/FP/FP05/FP0502/FP05020301.jsp
   fetched_at: "2026-09-08"
   version: 2
@@ -273,6 +275,7 @@ limits:
   loan_amount:
     rule_id: B-12
     apply: MIN_OF_CAP_AND_RATIO
+    ratio_field: lease_deposit_krw
     citation: "임차보증금의 80%이내에서 최고 1억 5천만원 이내 / 단, 만 25세 미만 단독세대주(단독세대주 예정자 포함)는 임차보증금의 80% 이내에서 최고 1억 2천만원 이내"
     human_reviewed: true
     tiers:
@@ -285,10 +288,10 @@ limits:
             - field: household_type
               operator: eq
               value: SINGLE
-        ratio_of_deposit: 0.80
+        ratio: 0.80
         cap_krw: 120000000
       - name: default
-        ratio_of_deposit: 0.80
+        ratio: 0.80
         cap_krw: 150000000
 
 # 판정에 쓰지 않고 안내로만 보여 주는 값.

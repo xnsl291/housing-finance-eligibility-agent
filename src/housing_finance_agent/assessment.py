@@ -55,7 +55,7 @@ def _next_actions(program: dict, decision: Decision, limit: LoanLimit | None) ->
 
     # 판정은 됐는데 금액을 못 낸 경우. 사유마다 사용자가 할 일이 다르다.
     if limit is not None and limit.amount_krw is None:
-        return [_LIMIT_REASONS.get(limit.reason, "대출 한도를 계산하지 못했습니다")]
+        return [_한도_안내(program, limit)]
 
     # 금액은 냈지만 더 유리한 구간을 몰라서 건너뛴 경우. 받을 수 있는 것보다 적게
     # 알려 준 상태이므로 그대로 두면 안 된다.
@@ -83,15 +83,27 @@ def _failure_reasons(program: dict, failed_rules: list[str]) -> list[str]:
 _TIER_NAMES = {
     "newlywed_or_two_children": "신혼 가구 또는 2자녀 이상 가구",
     "under_25_single": "만 25세 미만 단독세대주",
+    "first_time": "생애최초 주택구입자",
+    "single_first_time": "생애최초 주택구입자",
 }
 
-_LIMIT_REASONS = {
-    "DEPOSIT_UNKNOWN": "대출 한도를 보려면 임차보증금을 알려주세요",
-    "DEPOSIT_IMPRECISE": "정확한 대출 한도를 보려면 임차보증금을 정확히 알려주세요",
+# 비율을 거는 값이 없거나 범위일 때는 **어느 값인지를 항목 이름으로 말한다.**
+# 전세는 임차보증금이고 매매는 주택가격이라, 문구에 항목을 박으면 상품을 늘릴 때
+# 틀린 안내가 나간다.
+_한도_사유 = {
     "TIER_UNKNOWN": "한도 기준이 갈리는 조건을 아직 알 수 없어 금액을 내지 못했습니다",
     "REGION_UNKNOWN": "지역에 따라 한도가 달라집니다. 주택 소재지를 알려주세요",
     "NOT_REVIEWED": "한도 규칙이 아직 검수되지 않아 금액을 내지 않습니다",
 }
+
+
+def _한도_안내(program: dict, limit: LoanLimit) -> str:
+    label = _label(program, limit.ratio_field)
+    if limit.reason == "BASE_UNKNOWN":
+        return f"대출 한도를 보려면 {label}을 알려주세요"
+    if limit.reason == "BASE_IMPRECISE":
+        return f"정확한 대출 한도를 보려면 {label}을 정확히 알려주세요"
+    return _한도_사유.get(limit.reason, "대출 한도를 계산하지 못했습니다")
 
 
 def _precision_guide(program: dict, field_name: str) -> str:

@@ -1,0 +1,316 @@
+# 내집마련디딤돌대출 — 집을 살 때 쓰는 대출
+#
+# 이 저장소의 첫 **매매** 상품이다. 전세 둘과 조건이 전혀 다르다 — 전세는 임차보증금을
+# 보고 이것은 주택가격을 본다. 그래서 `tenure`로 갈라 두었다.
+#
+# ── 검수 ────────────────────────────────────────────────────────────────
+#
+# **출처 여섯 곳을 대조했다.** 처음 두 곳으로 시작했는데 부족하다는 지적을 받아
+# 늘렸고, 그 판단이 맞았다. 검수 과정과 항목별 판정은
+# `portfolio-private/finance-agent/2026-09-22-검수표-디딤돌.md`에 있다.
+#
+#   A 주택도시기금  nhuf.molit.go.kr/FP/FP05/FP0503/FP05030101.jsp
+#   B 한국주택금융공사  hf.go.kr/ko/sub01/sub01_02_01.do
+#   C 마이홈포털  myhome.go.kr/hws/portal/cont/selectSteppingStoneLoanView.do
+#   D KB국민은행  obank.kbstar.com/quics?page=C103998&prcode=LN20000300
+#   E 서울주거포털  housing.seoul.go.kr/site/main/content/sh01_070300
+#   F 정부24  gov.kr/portal/rcvfvrSvc/dtlEx/B55140800003
+#
+# **2곳 이상에서 확인된 것만 `human_reviewed: true`로 켰다.** 늘려 보니 셋이 나왔다.
+#
+#   ① 웹 검색 요약이 말한 `60㎡`·`3억원`은 틀린 값이 아니라 **단독세대주 기준**이었다.
+#      요약은 조건을 떼고 일반 기준인 것처럼 제시했다. 값이 틀리면 대조하면 걸리지만
+#      값은 맞고 조건이 빠지면 대조해도 안 걸린다
+#   ② 생애최초 LTV를 네 곳이 전부 다르게 적었다. A가 조건 둘을 빠뜨렸고, A만 보고
+#      넣었으면 수도권 생애최초 신청자에게 한도를 실제보다 크게 알려 줬을 것이다
+#   ③ 단독세대주 축이 A·B·C에 통째로 없었다. D·E에만 있고 네 항목에 걸친다
+
+program:
+  program_id: nhuf-didimdol
+  organization: 주택도시기금
+  program_name: 내집마련디딤돌대출
+  program_type: LOAN
+  # 전세인지 매매인지. 사용자가 무엇을 하려는지에 따라 볼 상품이 갈린다.
+  tenure: PURCHASE
+  source_url: https://nhuf.molit.go.kr/FP/FP05/FP0503/FP05030101.jsp
+  fetched_at: "2026-09-22"
+  version: 1
+  status: ACTIVE
+  reviewed_at: "2026-09-22"
+  reviewed_note: 출처 6곳 대조. 2곳 이상 일치한 항목만 켰다. 검수표는 portfolio-private 참조
+
+rules:
+  # ── 세대 요건 ─────────────────────────────────────────────────────────
+  - rule_id: DD-01
+    field: household_head_status
+    operator: eq
+    value: HEAD
+    type: HARD
+    # **전세와 다르다.** 청년전용 전세는 예비 세대주도 되는데 이것은 세대주만이다.
+    # 네 곳(A·B·D·F)이 모두 "세대주"라고만 적었고 예비 세대주 문구가 없다.
+    citation: "대출접수일 현재 민법상 성년인 세대주"
+    human_reviewed: true
+    failure_message: 세대주가 아니면 신청 대상이 아님
+
+  - rule_id: DD-02
+    field: home_ownership_status
+    operator: eq
+    value: NO_HOME_ALL_MEMBERS
+    type: HARD
+    citation: "세대주를 포함한 세대원 전원이 무주택인 자"
+    human_reviewed: true
+    failure_message: 세대원 중 주택을 보유한 사람이 있으면 신청 대상이 아님
+
+  # 단독세대주는 만 30세 이상만 된다.
+  #
+  # **조이는 특례다.** 해당 여부를 모르면 일반 규칙까지 덮어야 한다 — 단독세대주인지
+  # 모르는 만 27세를 통과시키면 안 되기 때문이다. 그래서 `relaxes`를 붙이지 않는다.
+  - rule_id: DD-03
+    field: age
+    operator: gte
+    value: 30
+    unit: 세
+    type: HARD
+    applies_when:
+      field: household_type
+      operator: eq
+      value: SINGLE
+    citation: "만 30세 미만 단독세대주는 대출 제외"
+    human_reviewed: true
+    failure_message: 만 30세 미만 단독세대주는 신청 대상이 아님
+    next_action: 부양가족이 있는 세대주가 되거나 만 30세가 된 뒤 신청할 수 있음
+
+  # ── 소득 ─────────────────────────────────────────────────────────────
+  - rule_id: DD-04
+    field: combined_annual_income_krw
+    operator: lte
+    value: 60000000
+    type: HARD
+    citation: "대출신청인과 배우자의 합산 총소득이 연간 6천만원 이하"
+    human_reviewed: true
+    failure_message: 부부합산 총소득이 6천만원을 넘음
+
+  # 생애최초 또는 2자녀 이상이면 7천만원.
+  #
+  # **푸는 특례다.** 해당 여부를 몰라 건너뛰면 더 엄격한 6천만원이 걸리므로 위험한
+  # 방향이 아니다. 대신 6천만원에서 걸릴 때 그때 가서 묻는다.
+  - rule_id: DD-05
+    field: combined_annual_income_krw
+    operator: lte
+    value: 70000000
+    type: HARD
+    relaxes: true
+    overrides: [DD-04]
+    applies_when:
+      any:
+        - field: is_first_time_buyer
+          operator: eq
+          value: true
+        - field: minor_children_count
+          operator: gte
+          value: 2
+    citation: "생애최초주택구입자, 2자녀 이상 가구: 연간 7천만원 이하"
+    human_reviewed: true
+    failure_message: 부부합산 총소득이 7천만원을 넘음
+
+  # 신혼가구는 8.5천만원. DD-05도 함께 덮어야 한다 — 신혼이면서 2자녀인 사람이
+  # 7천만원에 걸려 탈락하는 일을 막는다(2026-09-14 전세 규칙에서 겪은 문제).
+  - rule_id: DD-06
+    field: combined_annual_income_krw
+    operator: lte
+    value: 85000000
+    type: HARD
+    relaxes: true
+    overrides: [DD-04, DD-05]
+    applies_when:
+      field: marital_status
+      operator: eq
+      value: NEWLYWED
+    citation: "신혼가구: 연간 8.5천만원 이하"
+    human_reviewed: true
+    failure_message: 부부합산 총소득이 8.5천만원을 넘음
+
+  # ── 자산 ─────────────────────────────────────────────────────────────
+  - rule_id: DD-07
+    field: net_asset_krw
+    operator: lte
+    value: 511000000
+    effective_year: 2026
+    type: HARD
+    citation: "합산 순자산 가액이 통계청에서 발표하는 최근년도 가계금융복지조사의 '소득 5분위별 자산 및 부채현황' 중 소득 4분위 전체가구 평균값 이하 (2026년도 기준 5.11억원)"
+    human_reviewed: true
+    failure_message: 순자산이 5.11억원을 넘음
+    note: 매년 바뀌는 값이다. effective_year가 지나면 원문을 다시 확인한다.
+
+  # ── 대상 주택 — 전용면적 ───────────────────────────────────────────────
+  - rule_id: DD-08
+    field: housing_area_m2
+    operator: lte
+    value: 85
+    unit: ㎡
+    type: HARD
+    citation: "공부상 주거 전용면적이 85㎡ 이하 주택"
+    human_reviewed: true
+    failure_message: 전용면적이 85㎡를 넘음
+
+  # 단독세대주는 60㎡.
+  #
+  # **조이는 특례라 relaxes를 붙이지 않는다.** 단독세대주인지 모르는 채로 85㎡를
+  # 적용하면 통과시켜서는 안 될 사람을 통과시킨다.
+  #
+  # 원문에 "수도권을 제외한 도시지역이 아닌 읍 또는 면지역은 70㎡"가 붙지만 그 지역
+  # 구분을 판단할 수 없어 60㎡만 쓴다(unresolved 참조). 60㎡가 더 엄격한 쪽이라
+  # 잘못 통과시키지 않는다.
+  - rule_id: DD-09
+    field: housing_area_m2
+    operator: lte
+    value: 60
+    unit: ㎡
+    type: HARD
+    overrides: [DD-08]
+    applies_when:
+      field: household_type
+      operator: eq
+      value: SINGLE
+    citation: "만 30세 이상의 미혼단독세대주 대출: 주거전용면적 60㎡(수도권을 제외한 도시지역이 아닌 읍 또는 면지역은 70㎡)이하의 주택"
+    human_reviewed: true
+    failure_message: 단독세대주는 전용면적 60㎡를 넘으면 신청 대상이 아님
+
+  # ── 대상 주택 — 주택가격 ───────────────────────────────────────────────
+  - rule_id: DD-10
+    field: housing_value_krw
+    operator: lte
+    value: 500000000
+    type: HARD
+    citation: "대출 접수일 현재 담보주택의 평가액이 5억원 이하인 주택"
+    human_reviewed: true
+    failure_message: 주택가격이 5억원을 넘음
+
+  # 신혼 또는 2자녀 이상이면 6억원. 푸는 특례다.
+  - rule_id: DD-11
+    field: housing_value_krw
+    operator: lte
+    value: 600000000
+    type: HARD
+    relaxes: true
+    overrides: [DD-10]
+    applies_when:
+      any:
+        - field: marital_status
+          operator: eq
+          value: NEWLYWED
+        - field: minor_children_count
+          operator: gte
+          value: 2
+    citation: "5억원(신혼가구 및 2자녀 이상 가구 6억원) 이하"
+    human_reviewed: true
+    failure_message: 주택가격이 6억원을 넘음
+
+  # 단독세대주는 3억원. 조이는 특례라 DD-11까지 덮는다 — 단독세대주가 신혼이거나
+  # 2자녀일 수는 없지만, 값을 모르는 상태에서 6억원이 적용되는 것을 막는다.
+  - rule_id: DD-12
+    field: housing_value_krw
+    operator: lte
+    value: 300000000
+    type: HARD
+    overrides: [DD-10, DD-11]
+    applies_when:
+      field: household_type
+      operator: eq
+      value: SINGLE
+    citation: "만 30세 이상 미혼인 단독세대주: 대출접수일 현재 담보주택의 평가액이 3억원 이하인 주택"
+    human_reviewed: true
+    failure_message: 단독세대주는 주택가격이 3억원을 넘으면 신청 대상이 아님
+
+# ── 한도 ───────────────────────────────────────────────────────────────
+#
+# 전세와 같은 모양이다 — 비율 상한과 금액 상한을 둘 다 걸고 작은 쪽을 쓴다.
+# 다른 점은 비율을 **주택가격**에 건다는 것뿐이고, 그래서 `ratio_field`가 있다.
+#
+# 비율(LTV)은 70%만 쓴다. 생애최초 80%는 켜지 않았다 — 네 출처가 전부 다르게 적었고
+# 조건 둘(생애최초 특례구입자금보증 가입 가능 여부, 규제지역)을 판단할 수 없다.
+# 켜면 한도를 실제보다 크게 알려 준다(unresolved 참조).
+#
+# tiers는 위에서부터 맞는 첫 칸이다. **단독세대주를 맨 위에 둔다** — 한도가 가장
+# 낮아서, 아래 칸이 먼저 걸리면 실제보다 큰 금액이 나온다.
+limits:
+  loan_amount:
+    rule_id: DD-13
+    apply: MIN_OF_CAP_AND_RATIO
+    ratio_field: housing_value_krw
+    citation: "호당 최고 2억원 이내 (단, 신혼가구, 2자녀(미성년자) 이상인 가구는 3억 2천만원, 생애최초 주택구입가구(미혼 단독세대주 제외)는 2억 4천만원, 만 30세 이상 미혼인 단독세대주는 최고 1억 5천만원(생애최초 주택구입자는 2억원) 이내) / LTV : 70%"
+    human_reviewed: true
+    tiers:
+      # 이 칸은 아래 `single`(1.5억)보다 한도가 높다. 생애최초인지 몰라 건너뛰면
+      # 더 적은 금액이 나오므로 위험한 방향이 아니다. 표시하지 않으면 생애최초
+      # 여부를 모르는 단독세대주에게 금액을 아예 못 낸다(골든에서 걸렸다).
+      - name: single_first_time
+        relaxes: true
+        applies_when:
+          all:
+            - field: household_type
+              operator: eq
+              value: SINGLE
+            - field: is_first_time_buyer
+              operator: eq
+              value: true
+        ratio: 0.70
+        cap_krw: 200000000
+      - name: single
+        applies_when:
+          field: household_type
+          operator: eq
+          value: SINGLE
+        ratio: 0.70
+        cap_krw: 150000000
+      # 이 구간은 한도가 가장 높다. 해당 여부를 몰라도 아래 칸으로 내려가면 더 적은
+      # 금액이 나오므로 위험한 방향이 아니다. 대신 건너뛴 사실을 결과에 담는다.
+      - name: newlywed_or_two_children
+        relaxes: true
+        applies_when:
+          any:
+            - field: marital_status
+              operator: eq
+              value: NEWLYWED
+            - field: minor_children_count
+              operator: gte
+              value: 2
+        ratio: 0.70
+        cap_krw: 320000000
+      - name: first_time
+        relaxes: true
+        applies_when:
+          field: is_first_time_buyer
+          operator: eq
+          value: true
+        ratio: 0.70
+        cap_krw: 240000000
+      - name: default
+        ratio: 0.70
+        cap_krw: 200000000
+
+# 판정에 쓰지 않고 안내로만 보여 주는 값.
+information:
+  - rule_id: DD-14
+    label: 대출기간
+    value: "10년, 15년, 20년, 30년"
+    citation: "대출기간: 10, 15, 20, 30년"
+    human_reviewed: true
+
+income_basis:
+  value: BEFORE_TAX
+  citation: "대출신청인과 배우자의 합산 총소득"
+  human_reviewed: true
+  note: 전세 두 상품과 같은 기준으로 맞췄다(2026-09-09 사용자 확인). 이 페이지에도 세전·세후 표기는 없다.
+
+# 원문에서 확인했지만 이번에 다루지 못한 것. 해당자가 잘못 판정된다는 사실을 숨기지 않는다.
+unresolved:
+  - "DTI 60% 조건을 확인하지 않음. 기존 부채를 알아야 계산되는데 그 항목이 없고, 부채는 사용자가 정확히 답하기 어려움. 출처 3곳이 일치하는 규칙이지만 계산하지 않음"
+  - "생애최초 LTV 80%를 적용하지 않고 70%만 씀. 출처 4곳이 전부 다르게 적었고, 조건 둘(생애최초 특례구입자금보증 가입 가능 여부, 규제지역 소재 여부)을 판단할 수 없음. 해당자는 실제보다 적은 금액을 보게 됨"
+  - "전용면적 100㎡ 예외(수도권을 제외한 도시지역이 아닌 읍 또는 면)를 다루지 않음. 지역 구분이 수도권/그 외 둘뿐이고 '도시지역이 아닌 읍 또는 면'은 행정구역 데이터가 필요함. 해당자가 85㎡ 기준으로 잘못 탈락함"
+  - "단독세대주 전용면적 70㎡ 예외(같은 지역 조건)를 다루지 않고 60㎡만 씀. 위와 같은 이유"
+  - "만 30세 미만이라도 미성년 형제·자매를 6개월 이상 부양하면 되는 특례를 다루지 않음. 부양기간 항목이 필요하고 사용자가 답하기 어려움. 해당자가 잘못 탈락함"
+  - "만 30세 미만이라도 직계존속을 6개월 이상 부양하면 되는 특례를 다루지 않음. 서울주거포털 한 곳에만 있어 검수 기준(2곳)에 미달"
+  - "생애최초는 '생애 전 기간 무주택'이어야 하는데 현재 무주택 여부만 봄. KB국민은행 한 곳에만 있고, 과거 보유 이력 항목이 없음"
+  - "신청 기한(소유권이전등기 전, 등기했으면 접수일로부터 3개월 이내)을 다루지 않음. 주택도시기금 한 곳에만 있음"
+  - "CB점수 350점 이상 요건을 다루지 않음. 한국주택금융공사 한 곳에만 있고 신용점수를 받지 않음"

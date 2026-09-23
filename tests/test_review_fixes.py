@@ -128,10 +128,13 @@ def test_한도를_못_낸_이유를_구분해서_준다() -> None:
     program = load_program("nhuf-youth-jeonse")
 
     보증금_없음 = estimate_loan_limit(program, {"age": 30, "household_type": "SINGLE"})
-    assert 보증금_없음.reason == "DEPOSIT_UNKNOWN"
+    assert 보증금_없음.reason == "BASE_UNKNOWN"
+    # 비율을 어느 값에 걸었는지도 함께 담는다. 전세는 임차보증금, 매매는 주택가격이라
+    # 사유 코드만으로는 "무엇을 알려 달라"고 말할 수 없다.
+    assert 보증금_없음.ratio_field == "lease_deposit_krw"
 
     범위 = {**_기본, "lease_deposit_krw": Range(180000000, 200000000)}
-    assert estimate_loan_limit(program, 범위).reason == "DEPOSIT_IMPRECISE"
+    assert estimate_loan_limit(program, 범위).reason == "BASE_IMPRECISE"
 
     구간_모름 = {"age": 24, "lease_deposit_krw": 200000000}
     assert estimate_loan_limit(program, 구간_모름).reason == "TIER_UNKNOWN"
