@@ -13,6 +13,8 @@
 
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -20,6 +22,7 @@ from housing_finance_agent.amount import Range
 from housing_finance_agent.assessment import assess
 from housing_finance_agent.extraction import ExtractionError, LlmClient, extract_profile
 from housing_finance_agent.rules import available_programs, field_catalog, load_program
+from housing_finance_agent.session import SessionStore, profile_of
 
 _DEFAULT_MAX_MESSAGE_CHARS = 1000
 
@@ -28,14 +31,28 @@ class ExtractRequest(BaseModel):
     message: str = Field(min_length=1)
 
 
+class MessageRequest(BaseModel):
+    message: str = Field(min_length=1)
+
+
+class FieldsRequest(BaseModel):
+    # `None`은 "이 값을 지운다"는 뜻이다. 화면에서 칸을 비운 경우다.
+    values: dict
+
+
 class CheckRequest(BaseModel):
     profile: dict
     # 생략하면 모든 상품을 본다. 사용자는 보통 어느 상품이 자기에게 맞는지 모른다.
     program_ids: list[str] | None = None
 
 
-def create_app(llm: LlmClient, max_message_chars: int = _DEFAULT_MAX_MESSAGE_CHARS) -> FastAPI:
-    app = FastAPI(title="주거금융 지원가능성 판정 Agent")
+def create_app(
+    llm: LlmClient,
+    max_message_chars: int = _DEFAULT_MAX_MESSAGE_CHARS,
+    sessions: SessionStore | None = None,
+) -> FastAPI:
+    app = FastAPI(title="주거금융 지원가능성 판정")
+    store = sessions if sessions is not None else SessionStore(_db_path())
 
     @app.get("/health")
     def health() -> dict:
@@ -73,9 +90,15 @@ def create_app(llm: LlmClient, max_message_chars: int = _DEFAULT_MAX_MESSAGE_CHA
 
     @app.post("/v1/eligibility/check")
     def check(request: CheckRequest) -> dict:
-        program_ids = request.program_ids or available_programs()
         profile = {name: _as_value(value) for name, value in request.profile.items()}
+        return {"results": _판정들(profile, request.program_ids or available_programs())}
 
+    def _판정들(profile: dict, program_ids: list[str]) -> list[dict]:
+        """무상태 경로와 세션 경로가 **같은 판정을 쓰게** 한다.
+
+        둘이 각자 조립하면 응답이 조금씩 달라지고, 화면이 어느 경로로 왔는지에 따라
+        다르게 보인다.
+        """
         results = []
         for program_id in program_ids:
             try:
@@ -113,7 +136,116 @@ def create_app(llm: LlmClient, max_message_chars: int = _DEFAULT_MAX_MESSAGE_CHA
                     "source_checked_at": program["program"]["fetched_at"],
                 }
             )
-        return {"results": results}
+        return results
+
+    # ── 세션 ──────────────────────────────────────────────────────────
+    #
+    # 위의 두 경로(`/v1/profiles/extract`, `/v1/eligibility/check`)는 무상태로 남긴다.
+    # 순수한 함수 경계라 테스트하기 쉽고, 세션 없이 판정만 부르고 싶은 경우가 있다.
+    # 아래는 그 위에 "기억하는 층"을 얹은 것이고 같은 `assess()`를 부른다.
+
+    def _세션_확인(session_id: str) -> None:
+        if not store.exists(session_id):
+            raise HTTPException(404, "없는 세션입니다")
+
+    def _상태_응답(session_id: str) -> dict:
+        state = store.state(session_id)
+        return {
+            "session_id": session_id,
+            # 값마다 어디서 왔는지 함께 낸다. 화면이 "직접 넣은 값"과 "문장에서 읽은
+            # 값"을 구분해 보여 줄 수 있어야 한다.
+            "values": {
+                name: {
+                    "value": _as_json(held.value),
+                    "source": held.source,
+                    "at": held.at,
+                    "phrase": held.phrase,
+                }
+                for name, held in state.items()
+            },
+        }
+
+    @app.post("/v1/sessions")
+    def start_session() -> dict:
+        return {"session_id": store.start()}
+
+    @app.post("/v1/sessions/{session_id}/messages")
+    def add_message(session_id: str, request: MessageRequest) -> dict:
+        """문장을 읽어 값으로 바꾼다. **문장 자체는 저장하지 않는다.**"""
+        _세션_확인(session_id)
+        if len(request.message) > max_message_chars:
+            raise HTTPException(
+                422, f"문장이 너무 깁니다: {len(request.message)}자 (상한 {max_message_chars}자)"
+            )
+        try:
+            result = extract_profile(llm, request.message)
+        except ExtractionError as error:
+            raise HTTPException(503, f"조건을 읽지 못했습니다: {error}") from error
+        except Exception as error:
+            raise HTTPException(503, f"LLM 호출에 실패했습니다: {error}") from error
+
+        store.record_extraction(
+            session_id,
+            {
+                "values": {name: _as_json(value) for name, value in result.values.items()},
+                "sources": result.sources,
+                "unreadable": result.unreadable,
+            },
+        )
+        응답 = _상태_응답(session_id)
+        # 경고와 못 읽은 값은 이번 문장에 대한 것이라 상태가 아니다. 저장하지 않고
+        # 이 응답에만 실어 보낸다.
+        응답["warnings"] = result.warnings
+        응답["unreadable"] = result.unreadable
+        return 응답
+
+    @app.put("/v1/sessions/{session_id}/fields")
+    def set_fields(session_id: str, request: FieldsRequest) -> dict:
+        """사용자가 직접 넣거나 고친 값."""
+        _세션_확인(session_id)
+        낯선 = sorted(name for name in request.values if name not in field_catalog())
+        if 낯선:
+            raise HTTPException(422, f"없는 항목입니다: {', '.join(낯선)}")
+        store.record_fields(session_id, request.values)
+        return _상태_응답(session_id)
+
+    @app.get("/v1/sessions/{session_id}")
+    def get_session(session_id: str) -> dict:
+        _세션_확인(session_id)
+        return _상태_응답(session_id)
+
+    @app.post("/v1/sessions/{session_id}/assessment")
+    def assess_session(session_id: str, program_ids: list[str] | None = None) -> dict:
+        """지금까지 모인 값으로 판정한다."""
+        _세션_확인(session_id)
+        profile = {
+            name: _as_value(value) for name, value in profile_of(store.state(session_id)).items()
+        }
+        results = _판정들(profile, program_ids or available_programs())
+        store.record_assessment(
+            session_id,
+            [
+                {
+                    "program_id": r["program_id"],
+                    "status": r["status"],
+                    "rule_version": r["rule_version"],
+                }
+                for r in results
+            ],
+        )
+        return {"session_id": session_id, "results": results}
+
+    @app.get("/v1/sessions/{session_id}/trace")
+    def get_trace(session_id: str) -> dict:
+        """무슨 일이 있었는지 시간 순으로. **상태는 이것으로 다시 만들어진다.**"""
+        _세션_확인(session_id)
+        return {
+            "session_id": session_id,
+            "events": [
+                {"seq": e.seq, "at": e.at, "kind": e.kind, "payload": e.payload}
+                for e in store.events(session_id)
+            ],
+        }
 
     return app
 
@@ -143,3 +275,13 @@ def _limit_as_json(limit: object) -> dict | None:
         # 못 낸 이유. 사유마다 사용자가 할 일이 다르다.
         "reason": limit.reason,
     }
+
+
+def _db_path() -> str:
+    """세션을 어디에 담을지.
+
+    기본값을 메모리로 두지 않는다. 서버를 껐다 켜면 세션이 사라지는데, 그건
+    "새로고침해도 남는다"는 이 계층의 존재 이유와 정면으로 부딪힌다. 대신 경로를
+    환경변수로 바꿀 수 있게 해서 테스트가 임시 파일을 쓴다.
+    """
+    return os.environ.get("HFA_DB", "sessions.db")
