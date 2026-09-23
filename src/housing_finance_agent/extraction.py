@@ -161,6 +161,22 @@ def _accept(spec: object, given: object) -> object | None:
     return None
 
 
+def scrub(text: str) -> str:
+    """민감정보로 보이는 부분을 가린다. **저장하기 전에 통과시킨다.**
+
+    세션이 근거 구절(값을 문장 어디에서 읽었나)을 남기는데, 사용자가 문장에 주민번호를
+    적었고 모델이 그걸 어느 항목의 근거로 붙이면 그대로 저장된다. 경고만으로는
+    부족하다 — 경고는 화면에 뜨고 사라지지만 저장된 값은 남는다.
+
+    **같은 정규식을 쓴다.** 여기에 따로 적으면 한쪽만 고쳐져서, 경고는 뜨는데 저장은
+    안 가려지는 상태가 된다.
+    """
+    가린 = text
+    for pattern, label in _SENSITIVE:
+        가린 = pattern.sub(f"[{label} 가림]", 가린)
+    return 가린
+
+
 def _sensitive_warnings(text: str) -> list[str]:
     """받지 않기로 한 정보가 있으면 알린다. **값 자체는 경고문에 담지 않는다.**"""
     return [
