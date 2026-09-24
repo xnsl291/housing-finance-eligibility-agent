@@ -31,36 +31,46 @@ def test_문장에서_아무것도_못_읽어도_확인_단계를_거친다() ->
     assert current_step({"extracted": 빈_결과}) == 1
 
 
-def test_판정_결과가_있으면_결과_단계() -> None:
-    상태 = {"extracted": _읽은_값, "confirmed_profile": {"age": 30}, "results": [{"status": "X"}]}
+def test_확인을_마치면_질문_단계() -> None:
+    상태 = {"extracted": _읽은_값, "session_id": "s", "confirmed": True}
 
     assert current_step(상태) == 2
 
 
-def test_확인만_마치고_판정_전이면_아직_확인_단계() -> None:
-    """확인을 마쳤다고 결과 화면으로 넘기지 않는다. 판정이 실패하면 보여 줄 것이 없다."""
-    상태 = {"extracted": _읽은_값, "confirmed_profile": {"age": 30}}
+def test_확인_전에는_세션이_있어도_질문으로_안_간다() -> None:
+    """**LLM이 잘못 읽은 값 위에서 루프가 돌면 안 된다.** 세션은 문장을 읽는 순간 생기지만
+    질문은 사람이 확인을 마친 뒤에만 시작한다.
+    """
+    상태 = {"extracted": _읽은_값, "session_id": "s"}
 
     assert current_step(상태) == 1
 
 
-def test_확인을_건너뛴_판정_결과는_만들어질_수_없다() -> None:
-    """`results`는 확인 화면이 `confirmed_profile`을 채운 뒤에만 생긴다.
+def test_판정_결과가_있으면_결과_단계() -> None:
+    상태 = {"extracted": _읽은_값, "session_id": "s", "confirmed": True, "results": []}
 
-    단계 계산만으로는 이것을 막지 못한다. 막는 것은 `app.main`이 판정을 부르는
-    조건이다. 그 조건을 지우면 이 테스트가 아니라 아래 grep이 걸린다.
+    assert current_step(상태) == 3, "판정한 상품이 없어도(빈 목록) 결과 단계다"
+
+
+def test_결과는_질문_단계에서만_만들어진다() -> None:
+    """`results`를 채우는 곳은 질문 화면의 `finish` 하나뿐이어야 한다.
+
+    확인 화면이나 입력 화면이 판정을 부르기 시작하면 확인을 건너뛴 판정이 생길 수 있다.
+    단계 계산만으로는 이것을 못 막으므로 소스에서 확인한다.
     """
-    from pathlib import Path
+    화면 = Path(__file__).resolve().parents[1] / "src/housing_finance_agent/ui"
+    채우는_곳 = [
+        path.name
+        for path in 화면.rglob("*.py")
+        if 'st.session_state["results"] =' in path.read_text(encoding="utf-8")
+    ]
 
-    소스 = Path(__file__).resolve().parents[1] / "src/housing_finance_agent/ui/app.py"
-    본문 = 소스.read_text(encoding="utf-8")
-
-    assert 'if st.session_state.get("confirmed_profile") and not st.session_state' in 본문
+    assert 채우는_곳 == ["questions.py"]
 
 
-def test_단계_이름이_세_개다() -> None:
+def test_단계_이름이_네_개다() -> None:
     """단계를 늘리면 current_step도 같이 고쳐야 한다."""
-    assert len(STEPS) == 3
+    assert len(STEPS) == 4
 
 
 def test_애니메이션이_기대는_streamlit_속성이_아직_있다() -> None:

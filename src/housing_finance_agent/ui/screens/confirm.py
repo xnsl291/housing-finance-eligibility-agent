@@ -20,6 +20,7 @@ from __future__ import annotations
 import streamlit as st
 
 from housing_finance_agent.ui import api_client
+from housing_finance_agent.ui.flow import confirm_updates
 from housing_finance_agent.ui.labels import amount_text
 
 # 입력 칸의 세션 키 앞자리. 문장을 다시 읽었을 때 이전 문장의 수정값이 남지 않게
@@ -55,8 +56,8 @@ def render() -> None:
         return
 
     st.caption(
-        "틀린 곳이 있으면 고쳐 주세요. 고치지 않고 넘어가면 읽은 값 그대로 판정합니다. "
-        "확인 버튼을 누르기 전에는 판정하지 않습니다."
+        "틀린 곳이 있으면 고쳐 주세요. 고치지 않고 넘어가면 읽은 값 그대로 씁니다. "
+        "판정에 더 필요한 것은 다음 단계에서 하나씩 여쭙니다."
     )
 
     for warning in extracted.get("warnings", []):
@@ -75,8 +76,10 @@ def render() -> None:
     for name in 읽은_항목:
         _받기(name, catalog[name], extracted, profile, errors)
 
-    with st.expander(f"비어 있는 항목 {len(빈_항목)}개 — 아는 값이 있으면 직접 채워 주세요"):
-        st.caption("비워 두면 그 항목은 '모름'으로 판정합니다. 화면이 대신 채우지 않습니다.")
+    with st.expander(f"비어 있는 항목 {len(빈_항목)}개 — 아는 값이 있으면 미리 채워도 됩니다"):
+        st.caption(
+            "비워 두면 판정에 필요한 것만 다음 단계에서 여쭙니다. 화면이 대신 채우지 않습니다."
+        )
         for name in 빈_항목:
             _받기(name, catalog[name], extracted, profile, errors)
 
@@ -84,16 +87,19 @@ def render() -> None:
     for message in errors:
         st.error(message)
 
-    if st.button("이 조건으로 판정", type="primary", disabled=bool(errors)):
-        if not profile:
-            # 빈 프로필로 두면 판정이 돌지 않는데 성공 문구만 떠서 막다른 길이 된다.
-            # 직접 입력으로 넘어온 사용자가 바로 만나는 자리다(2026-09-14 검수).
-            st.error("채운 항목이 없습니다. 아는 값을 하나 이상 넣어 주세요")
-            return
-        st.session_state["confirmed_profile"] = profile
-        # 앞선 판정 결과는 고치기 전 값으로 낸 것이라 그대로 두면 안 된다.
-        st.session_state.pop("results", None)
-        st.success(f"{len(profile)}개 항목으로 판정합니다")
+    if st.button("확인했습니다 — 다음", type="primary", disabled=bool(errors)):
+        # 채운 항목이 없어도 넘어간다. 예전에는 빈 채로 판정하면 막다른 길이라 막았는데,
+        # 이제는 다음 단계가 필요한 것을 하나씩 묻는다.
+        바뀐_것 = confirm_updates(extracted.get("values", {}), profile)
+        if 바뀐_것:
+            try:
+                api_client.set_fields(st.session_state["session_id"], 바뀐_것)
+            except api_client.ApiError as error:
+                # 서버가 값을 항목 정의로 검사한다(422). 확인 단계에 머문다.
+                st.error(str(error))
+                return
+        st.session_state["confirmed"] = True
+        st.rerun()
 
 
 def _받기(name: str, spec: dict, extracted: dict, profile: dict, errors: list[str]) -> None:

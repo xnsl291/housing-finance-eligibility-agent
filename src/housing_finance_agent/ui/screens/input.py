@@ -13,6 +13,7 @@ from __future__ import annotations
 import streamlit as st
 
 from housing_finance_agent.ui import api_client
+from housing_finance_agent.ui.flow import extracted_from
 from housing_finance_agent.ui.screens import confirm
 
 # API 기본값과 같은 1,000자. 서버가 상한을 내려 주지 않아 화면이 따로 들고 있다.
@@ -40,7 +41,10 @@ EXAMPLES: tuple[tuple[str, str], ...] = (
 
 def render() -> None:
     st.subheader("1. 조건 입력")
-    st.caption("상황을 문장으로 적어 주세요. 읽은 내용은 다음 화면에서 직접 확인하고 고칩니다.")
+    st.caption(
+        "상황을 문장으로 적어 주세요. 읽은 내용은 다음 화면에서 직접 확인하고 고치고, "
+        "판정에 더 필요한 것은 그다음에 하나씩 여쭙니다."
+    )
 
     # 입력 칸보다 먼저 보여 준다. 다 쓰고 나서 읽는 안내는 이미 늦다.
     st.info(
@@ -86,19 +90,33 @@ def _예시_버튼() -> None:
 
 
 def _읽기(message: str) -> None:
+    """문장을 새 세션에 넣어 읽는다.
+
+    **문장을 읽을 때마다 세션을 새로 연다.** 앞 문장으로 모인 값과 "모르겠다"가 남아
+    있으면 새 문장의 판정에 섞인다. 문장을 다시 쓴 것은 처음부터 다시 말한 것이다.
+    """
     st.session_state.pop("extract_error", None)
     try:
-        extracted = api_client.extract(message)
+        session_id = api_client.start_session()
+        응답 = api_client.send_message(session_id, message)
     except api_client.ApiError as error:
         # 다음 실행에서도 보여 줘야 한다. 오류 아래 버튼을 누르면 화면이 다시 그려지는데
         # 그때 오류가 사라지면 그 버튼도 같이 사라진다.
         st.session_state["extract_error"] = {"status": error.status, "message": str(error)}
         return
 
-    st.session_state["extracted"] = extracted
-    # 다시 읽었으면 앞서 확인한 값과 판정 결과는 더 이상 이 문장의 것이 아니다.
-    st.session_state.pop("confirmed_profile", None)
-    st.session_state.pop("results", None)
+    start_over()
+    st.session_state["session_id"] = session_id
+    st.session_state["extracted"] = extracted_from(응답)
+    # 단계는 스크립트 맨 위에서 정해진다. 다시 그리지 않으면 읽기를 마쳤는데도 입력 화면이
+    # 그대로 남아, 다음 입력이 있어야 확인 화면으로 넘어간다.
+    st.rerun()
+
+
+def start_over() -> None:
+    """문장에서 만든 것을 전부 지운다. 적어 둔 문장(`input_message`)은 남긴다."""
+    for key in ("session_id", "extracted", "confirmed", "results", "stop", "answered_count"):
+        st.session_state.pop(key, None)
     confirm.clear_edits()
 
 
@@ -119,6 +137,13 @@ def _실패_안내() -> None:
         )
         st.caption("아래로 넘어가면 문장 없이 항목을 직접 채워서 판정할 수 있습니다.")
         if st.button("직접 입력으로 넘어가기"):
+            try:
+                session_id = api_client.start_session()
+            except api_client.ApiError as error:
+                st.error(str(error))
+                return
+            start_over()
+            st.session_state["session_id"] = session_id
             st.session_state["extracted"] = {
                 "values": {},
                 "sources": {},
@@ -126,8 +151,6 @@ def _실패_안내() -> None:
                 "warnings": [],
             }
             st.session_state.pop("extract_error", None)
-            st.session_state.pop("confirmed_profile", None)
-            confirm.clear_edits()
             st.rerun()
         return
 
