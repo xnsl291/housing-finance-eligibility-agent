@@ -72,6 +72,48 @@ def check(profile: dict, program_ids: list[str] | None = None) -> dict:
     return _call("POST", "/v1/eligibility/check", payload, _LLM_TIMEOUT)
 
 
+# ── 세션 ──────────────────────────────────────────────────────────────
+#
+# 화면은 세션 경로를 쓴다. 값과 "모르겠다"가 서버 기록에 남아야 질문 루프가 다음
+# 질문을 정할 수 있고, 새로 고쳐도 이어진다. 위의 `extract`·`check`는 세션 없이
+# 판정만 보고 싶을 때를 위해 남겨 둔다.
+
+
+def start_session() -> str:
+    return _call("POST", "/v1/sessions", {}, _QUICK_TIMEOUT)["session_id"]
+
+
+def send_message(session_id: str, message: str) -> dict:
+    """문장을 읽어 세션에 남긴다. LLM을 거치므로 오래 걸릴 수 있다."""
+    return _call("POST", f"/v1/sessions/{session_id}/messages", {"message": message}, _LLM_TIMEOUT)
+
+
+def set_fields(session_id: str, values: dict) -> dict:
+    """사용자가 넣거나 고친 값. `None`은 지운다는 뜻이다."""
+    return _call("PUT", f"/v1/sessions/{session_id}/fields", {"values": values}, _QUICK_TIMEOUT)
+
+
+def session_state(session_id: str) -> dict:
+    return _call("GET", f"/v1/sessions/{session_id}", None, _QUICK_TIMEOUT)
+
+
+def next_action(session_id: str) -> dict:
+    """다음에 물을 것 하나, 또는 멈출 이유. 서버가 기록을 쓰지 않는 조회다."""
+    return _call("GET", f"/v1/sessions/{session_id}/next", None, _QUICK_TIMEOUT)
+
+
+def decline(session_id: str, field: str) -> dict:
+    return _call("POST", f"/v1/sessions/{session_id}/declined", {"field": field}, _QUICK_TIMEOUT)
+
+
+def assess_session(session_id: str, program_ids: list[str] | None = None) -> dict:
+    return _call("POST", f"/v1/sessions/{session_id}/assessment", program_ids, _LLM_TIMEOUT)
+
+
+def trace(session_id: str) -> dict:
+    return _call("GET", f"/v1/sessions/{session_id}/trace", None, _QUICK_TIMEOUT)
+
+
 def _call(method: str, path: str, payload: dict | None, timeout: int) -> dict:
     url = f"{base_url()}{path}"
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8") if payload is not None else None
