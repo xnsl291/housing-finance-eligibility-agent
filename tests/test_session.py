@@ -239,3 +239,11 @@ def test_판정_기록에_질문_정책_버전이_남는다(store) -> None:
     store.record_assessment(session_id, [], question_policy_version=1)
 
     assert store.events(session_id)[-1].payload["question_policy_version"] == 1
+
+
+def test_값을_지우는_것만으로는_모른다는_기록이_풀리지_않는다(store) -> None:
+    session_id = store.start()
+    store.record_declined(session_id, "net_asset_krw")
+    store.record_fields(session_id, {"net_asset_krw": None})
+
+    assert store.declined(session_id) == {"net_asset_krw"}

@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 AMOUNT = "AMOUNT"
 
 SPEC: dict[str, object] = {
@@ -87,3 +89,56 @@ def kind_of(name: str) -> str:
     if spec is str:
         return "TEXT"
     return "INT" if spec is int else "FLOAT"
+
+
+# 날짜로 읽는 항목. 판정 엔진이 `date.fromisoformat`으로 읽으므로 형식이 틀리면 판정
+# 도중에 예외가 난다. 들어오는 자리에서 막는다.
+DATE_FIELDS = frozenset({"contract_balance_date", "move_in_date", "application_date"})
+
+
+def problem_of(name: str, value: object) -> str | None:
+    """사용자가 넣은 값이 항목 정의에 맞는지 본다. 맞으면 None, 아니면 이유.
+
+    이름만 보고 값을 안 보면 `"jeonse"` 같은 값이 들어와, 판정은 전세 상품을 보는데
+    질문 루프는 후보가 없다고 하는 식으로 두 경로가 반대로 말한다(2026-09-24 검토).
+
+    `None`은 값을 지운다는 뜻이라 늘 받는다.
+    """
+    if value is None:
+        return None
+    spec = SPEC[name]
+    if isinstance(spec, list):
+        return None if value in spec else f"허용값이 아님: {value!r} (가능: {', '.join(spec)})"
+    if spec is bool:
+        return None if isinstance(value, bool) else "참/거짓이어야 함"
+    if spec is int:
+        return None if _is_int(value) else "정수여야 함"
+    if spec is float:
+        return None if _is_number(value) else "숫자여야 함"
+    if spec is AMOUNT:
+        if _is_int(value) and value >= 0:
+            return None
+        # 범위는 화면이 {"low", "high"}로 보낸다.
+        if isinstance(value, dict) and value.keys() == {"low", "high"}:
+            low, high = value["low"], value["high"]
+            if _is_int(low) and _is_int(high) and 0 <= low <= high:
+                return None
+        return "0 이상의 원 단위 정수 또는 {low, high} 범위여야 함"
+    # 나머지는 문자열 항목이다.
+    if not isinstance(value, str) or not value.strip():
+        return "비어 있지 않은 문자열이어야 함"
+    if name in DATE_FIELDS:
+        try:
+            date.fromisoformat(value)
+        except ValueError:
+            return "YYYY-MM-DD 형식이어야 함"
+    return None
+
+
+def _is_int(value: object) -> bool:
+    # bool은 int의 하위 타입이라 True가 1로 통과한다. 따로 막는다.
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_number(value: object) -> bool:
+    return _is_int(value) or isinstance(value, float)

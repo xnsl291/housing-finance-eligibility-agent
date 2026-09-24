@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 from housing_finance_agent.amount import Range
 from housing_finance_agent.assessment import assess
 from housing_finance_agent.extraction import ExtractionError, LlmClient, extract_profile
+from housing_finance_agent.fields import problem_of
 from housing_finance_agent.next_action import POLICY_VERSION, next_action
 from housing_finance_agent.rules import available_programs, field_catalog, load_program
 from housing_finance_agent.session import SessionStore, profile_of
@@ -211,6 +212,13 @@ def create_app(
         낯선 = sorted(name for name in request.values if name not in field_catalog())
         if 낯선:
             raise HTTPException(422, f"없는 항목입니다: {', '.join(낯선)}")
+        틀린 = [
+            f"{name}: {문제}"
+            for name, value in sorted(request.values.items())
+            if (문제 := problem_of(name, value))
+        ]
+        if 틀린:
+            raise HTTPException(422, f"값이 맞지 않습니다 — {'; '.join(틀린)}")
         store.record_fields(session_id, request.values)
         return _상태_응답(session_id)
 
