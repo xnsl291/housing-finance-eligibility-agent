@@ -210,3 +210,32 @@ def test_고친_뒤에_새_문장을_넣으면_새_문장이_이긴다(store) ->
 
     assert 상태["age"].value == 29, "새 문장이 앞서 고친 값을 못 덮었다"
     assert 상태["age"].source == BY_LLM
+
+
+def test_모른다고_한_항목은_값이_아니라_따로_읽는다(store) -> None:
+    """모른다는 것은 값이 아니다. 상태에 넣으면 판정이 그것을 값으로 읽는다."""
+    session_id = store.start()
+    store.record_declined(session_id, "net_asset_krw")
+
+    assert store.state(session_id) == {}
+    assert store.declined(session_id) == {"net_asset_krw"}
+
+
+def test_모른다고_한_뒤에_값을_넣으면_더는_모르는_항목이_아니다(store) -> None:
+    """나중 것이 이긴다. 값을 넣은 행동이 모른다고 한 것보다 뒤에 있다."""
+    session_id = store.start()
+    store.record_declined(session_id, "net_asset_krw")
+    store.record_declined(session_id, "housing_area_m2")
+    store.record_extraction(session_id, _뽑음(net_asset_krw=100000000))
+
+    assert store.declined(session_id) == {"housing_area_m2"}
+
+
+def test_판정_기록에_질문_정책_버전이_남는다(store) -> None:
+    """질문은 기록하지 않고 다시 계산한다. 정책이 바뀌면 옛 세션에서 다른 질문이 나오므로
+    그 이유를 가릴 수 있어야 한다.
+    """
+    session_id = store.start()
+    store.record_assessment(session_id, [], question_policy_version=1)
+
+    assert store.events(session_id)[-1].payload["question_policy_version"] == 1

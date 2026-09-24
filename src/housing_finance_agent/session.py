@@ -47,6 +47,10 @@ SESSION_STARTED = "SESSION_STARTED"
 EXTRACTED = "EXTRACTED"
 FIELD_SET = "FIELD_SET"
 ASSESSED = "ASSESSED"
+# 사용자가 모른다고 한 항목. 값이 아니므로 상태(`replay`)에 넣지 않고 따로 읽는다.
+# 질문 자체는 기록하지 않는다 — 질문 정책이 코드라 기록을 다시 돌리면 같은 질문이
+# 나오고, GET 요청이 기록을 쓰면 새로고침만 해도 "물었다"가 쌓인다.
+FIELD_DECLINED = "FIELD_DECLINED"
 
 # 값이 어디서 왔는가. 파생값은 저장하지 않으므로 둘뿐이다.
 BY_USER = "USER"
@@ -130,9 +134,22 @@ class SessionStore:
         """사용자가 직접 넣거나 고친 값. `None`은 지우라는 뜻이다."""
         self._append(session_id, FIELD_SET, {"values": values})
 
-    def record_assessment(self, session_id: str, summary: list[dict]) -> None:
-        """무엇으로 판정했는지. 결과 전체가 아니라 되짚을 수 있는 만큼만 남긴다."""
-        self._append(session_id, ASSESSED, {"results": summary})
+    def record_assessment(
+        self, session_id: str, summary: list[dict], question_policy_version: int | None = None
+    ) -> None:
+        """무엇으로 판정했는지. 결과 전체가 아니라 되짚을 수 있는 만큼만 남긴다.
+
+        질문 정책 버전을 함께 남긴다. 질문은 기록하지 않고 다시 계산하므로, 정책이
+        바뀌면 옛 세션에서 다른 질문이 나온다. 버전이 있어야 그 이유를 가린다.
+        """
+        payload: dict = {"results": summary}
+        if question_policy_version is not None:
+            payload["question_policy_version"] = question_policy_version
+        self._append(session_id, ASSESSED, payload)
+
+    def record_declined(self, session_id: str, field_name: str) -> None:
+        """사용자가 이 항목은 모른다고 했다. 다시 묻지 않는다."""
+        self._append(session_id, FIELD_DECLINED, {"field": field_name})
 
     # ── 읽기 ──────────────────────────────────────────────────────────
     def exists(self, session_id: str) -> bool:
@@ -152,6 +169,9 @@ class SessionStore:
     def state(self, session_id: str) -> dict[str, Held]:
         """**기록에서 만든다. 따로 저장한 것을 읽지 않는다.**"""
         return replay(self.events(session_id))
+
+    def declined(self, session_id: str) -> set[str]:
+        return declined_of(self.events(session_id))
 
     # ── 내부 ──────────────────────────────────────────────────────────
     def _append(self, session_id: str, kind: str, payload: dict) -> None:
@@ -187,6 +207,22 @@ def replay(events: list[Event]) -> dict[str, Held]:
                 else:
                     state[name] = Held(value, BY_USER, event.at)
     return state
+
+
+def declined_of(events: list[Event]) -> set[str]:
+    """모른다고 한 항목. `replay`와 같이 **나중 것이 이긴다.**
+
+    모른다고 한 뒤에 값을 넣으면(직접 넣든 문장에서 읽든) 더는 모르는 항목이 아니다.
+    그 값을 다시 지우면 모른다고 했던 것도 이미 지나간 일이라 되살리지 않는다 —
+    지운 것은 새로 한 행동이고, 다시 물어도 된다는 뜻으로 읽는다.
+    """
+    declined: set[str] = set()
+    for event in events:
+        if event.kind == FIELD_DECLINED:
+            declined.add(event.payload["field"])
+        elif event.kind in (EXTRACTED, FIELD_SET):
+            declined -= set((event.payload.get("values") or {}).keys())
+    return declined
 
 
 def profile_of(state: dict[str, Held]) -> dict:
