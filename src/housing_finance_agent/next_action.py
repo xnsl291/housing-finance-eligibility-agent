@@ -23,7 +23,7 @@ from dataclasses import dataclass
 
 from housing_finance_agent import fields
 from housing_finance_agent.assessment import assess
-from housing_finance_agent.eligibility import NOT_MATCHED
+from housing_finance_agent.eligibility import NOT_MATCHED, PRECHECK_MATCH
 from housing_finance_agent.profile import DERIVED_FROM
 
 # 정책이 바뀌면 올린다. 판정 기록에 함께 남겨, 옛 세션을 다시 돌렸을 때 질문이
@@ -64,11 +64,14 @@ class NextAction:
     policy_version: int = POLICY_VERSION
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class _Need:
     field: str
     ask_kind: str
+    # 이 값을 기다리는 상품. 여러 상품의 판정을 모으면서 늘어난다.
     needed_by: list[str]
+    # 판정이 아니라 한도 금액을 내는 데 필요한 값인가. 판정이 먼저다.
+    for_limit: bool = False
 
 
 def next_action(
@@ -79,38 +82,43 @@ def next_action(
     `programs`는 {상품 id: 규칙}이다. `declined`는 사용자가 모른다고 한 항목이다.
     """
     declined = set(declined)
-    candidates = _candidates(programs, profile)
+    candidates = sorted(_candidates(programs, profile))
     # 상품 id 순으로 돌린다. dict 순서에 기대면 같은 상태에서 다른 질문이 나올 수 있다.
-    statuses = {pid: assess(programs[pid], profile).decision for pid in sorted(candidates)}
-    open_ids = [pid for pid, decision in statuses.items() if decision.status != NOT_MATCHED]
+    assessments = {pid: assess(programs[pid], profile) for pid in candidates}
+    open_ids = [pid for pid, result in assessments.items() if result.decision.status != NOT_MATCHED]
 
     if not open_ids:
-        return NextAction(action=RESULT, reason=ALL_NOT_MATCHED, candidates=sorted(candidates))
+        return NextAction(action=RESULT, reason=ALL_NOT_MATCHED, candidates=candidates)
 
     # 1순위. 전세인지 매매인지를 모르면 그것부터 묻는다. 이 값 하나로 볼 상품이
     # 갈린다. 정보 이득을 계산하지 않는다 — 상품의 `tenure` 한 줄로 집합이 갈리므로
     # 계산이 아니라 구조로 얻는다.
     tenures = {programs[pid]["program"].get("tenure") for pid in open_ids}
-    if len(tenures) > 1 and _TENURE_FIELD not in profile and _TENURE_FIELD not in declined:
+    tenure_open = len(tenures) > 1 and _TENURE_FIELD not in profile
+    if tenure_open and _TENURE_FIELD not in declined:
         return NextAction(
             action=ASK,
             field=_TENURE_FIELD,
             ask_kind=MISSING,
             why="전세를 구하는지 집을 사는지에 따라 볼 상품이 갈립니다",
             needed_by=open_ids,
-            candidates=sorted(candidates),
+            candidates=candidates,
         )
 
-    needs = _needs({pid: statuses[pid] for pid in open_ids}, profile)
+    needs = _needs({pid: assessments[pid] for pid in open_ids}, profile)
     askable = [need for need in needs if need.field not in declined]
 
     if not askable:
-        declined_needed = sorted(need.field for need in needs)
+        declined_needed = {need.field for need in needs}
+        # 전세/매매를 모른다고 하면 양쪽 상품을 다 본다. 결과가 갈래로 나뉘는 이유를
+        # 화면이 말할 수 있어야 한다.
+        if tenure_open:
+            declined_needed.add(_TENURE_FIELD)
         return NextAction(
             action=RESULT,
             reason=ONLY_DECLINED_LEFT if declined_needed else COMPLETE,
-            declined_needed=declined_needed,
-            candidates=sorted(candidates),
+            declined_needed=sorted(declined_needed),
+            candidates=candidates,
         )
 
     best = min(askable, key=_rank)
@@ -120,7 +128,7 @@ def next_action(
         ask_kind=best.ask_kind,
         why=_why(best, programs, len(open_ids)),
         needed_by=best.needed_by,
-        candidates=sorted(candidates),
+        candidates=candidates,
     )
 
 
@@ -132,26 +140,52 @@ def _candidates(programs: dict[str, dict], profile: dict) -> list[str]:
     return [pid for pid, program in programs.items() if program["program"].get("tenure") == tenure]
 
 
-def _needs(decisions: dict, profile: dict) -> list[_Need]:
+# 한도를 못 낸 사유 중 물어서 풀리는 것. 한도 구간(신혼·생애최초 등)을 몰라서
+# 건너뛴 경우는 넣지 않는다 — 금액은 이미 나왔고, 더 받을 수 있다는 안내는 판정
+# 결과가 따로 낸다. 금액 자체가 안 나오거나 범위로만 나오는 경우만 묻는다.
+_LIMIT_ASKS = {
+    "BASE_UNKNOWN": MISSING,
+    "BASE_IMPRECISE": IMPRECISE,
+    "REGION_UNKNOWN": MISSING,
+}
+
+
+def _needs(assessments: dict, profile: dict) -> list[_Need]:
     """판정이 끝나지 않은 상품들이 무엇을 모르는지 모은다.
 
     **"물어도 결과가 안 바뀌는" 항목은 여기서 자연히 빠진다.** 엔진이 이미 조건
     불충족인 상품, 특례로 덮인 규칙, 적용 대상이 아닌 규칙의 항목은 모르는 항목으로
     내지 않는다. 그래서 여기 남는 것은 판정을 진행시키는 항목뿐이다.
+
+    판정이 끝난 상품은 한도 금액을 내는 데 모자란 값을 본다. 판정만 끝내고 멈추면
+    결과 화면이 "임차보증금을 정확히 알려주세요"라고 말하는데 루프는 다 끝났다고
+    하게 된다.
     """
     by_field: dict[str, _Need] = {}
-    for pid, decision in decisions.items():
-        모르는_것 = ((MISSING, decision.missing_fields), (IMPRECISE, decision.imprecise_fields))
-        for ask_kind, names in 모르는_것:
-            for name in names:
-                source = _askable_source(name, profile)
-                if source is None:
-                    continue
-                need = by_field.get(source)
-                if need is None:
-                    by_field[source] = _Need(source, ask_kind, [pid])
-                elif pid not in need.needed_by:
-                    need.needed_by.append(pid)
+
+    def 모음(name: str, ask_kind: str, pid: str, for_limit: bool) -> None:
+        source = _askable_source(name, profile)
+        if source is None:
+            return
+        need = by_field.get(source)
+        if need is None:
+            by_field[source] = _Need(source, ask_kind, [pid], for_limit)
+            return
+        if pid not in need.needed_by:
+            need.needed_by.append(pid)
+        # 한 상품이라도 판정에 쓰면 판정용 질문이다.
+        need.for_limit = need.for_limit and for_limit
+
+    for pid, result in assessments.items():
+        decision = result.decision
+        for name in decision.missing_fields:
+            모음(name, MISSING, pid, False)
+        for name in decision.imprecise_fields:
+            모음(name, IMPRECISE, pid, False)
+        limit = result.loan_limit
+        if decision.status == PRECHECK_MATCH and limit is not None and limit.reason in _LIMIT_ASKS:
+            name = "region" if limit.reason == "REGION_UNKNOWN" else limit.ratio_field
+            모음(name, _LIMIT_ASKS[limit.reason], pid, True)
     return list(by_field.values())
 
 
@@ -183,13 +217,15 @@ _EFFORT = {"CHOICE": 0, "BOOL": 0, "INT": 1, "TEXT": 2, "FLOAT": 3, "AMOUNT": 3}
 def _rank(need: _Need) -> tuple:
     """작을수록 먼저 묻는다.
 
-    1. 더 많은 상품이 기다리는 항목. 세 상품 모두 묻는 무주택 여부가 한 상품만 묻는
+    0. 판정에 필요한 값이 한도 금액에만 필요한 값보다 앞선다
+    1. 더 많은 상품이 기다리는 항목. 두 전세 상품이 모두 묻는 무주택 여부가 한 상품만 묻는
        잔금일보다 앞선다
     2. 없는 값이 걸치는 값보다 앞선다. 판정 엔진과 같은 순서다
     3. 답하기 쉬운 항목. 고르면 되는 것이 서류를 찾아야 하는 것보다 앞선다
     4. 항목 정의 순서. 앞의 셋이 같아도 늘 같은 질문이 나오게 한다
     """
     return (
+        need.for_limit,
         -len(need.needed_by),
         0 if need.ask_kind == MISSING else 1,
         _EFFORT[fields.kind_of(need.field)],
@@ -199,6 +235,8 @@ def _rank(need: _Need) -> tuple:
 
 def _why(need: _Need, programs: dict[str, dict], open_count: int) -> str:
     이름 = ", ".join(programs[pid]["program"]["program_name"] for pid in need.needed_by)
+    if need.for_limit:
+        return f"대출 한도를 계산하려면 이 값이 필요합니다 ({이름})"
     if need.ask_kind == IMPRECISE:
         return f"알려주신 값이 기준에 걸쳐 판정이 갈립니다 ({이름})"
     if len(need.needed_by) == open_count and open_count > 1:

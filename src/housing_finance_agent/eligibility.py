@@ -300,6 +300,13 @@ def evaluate(program: dict, profile: dict) -> Decision:
                 for item in outcomes
             ]
 
+    # 일반 규칙이 걸쳐도 마찬가지다. 범위로만 아는 소득이 5천만원 기준에 걸칠 때,
+    # 신혼이면 기준이 올라가 걸치지 않을 수 있다. 여기서 특례 조건을 묻지 않으면
+    # 사용자가 소득을 모른다고 하는 순간 물을 것이 남았는데도 멈춘다(2026-09-24 검토).
+    for item in outcomes:
+        if item.outcome == "IMPRECISE" and item.rule_id in 보류된_특례:
+            remember_unknown(보류된_특례[item.rule_id])
+
     if failed:
         status = NOT_MATCHED
     elif missing:

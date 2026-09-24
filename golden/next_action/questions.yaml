@@ -16,6 +16,12 @@ base:
   household_head_status: HEAD
   household_type: SINGLE
   home_ownership_status: NO_HOME_ALL_MEMBERS
+  # 소득 기준을 올려 주는 특례에 해당하지 않는다. 모르면 소득이 기준에 걸칠 때
+  # 특례 조건부터 묻는다(아래 "소득을 모른다고 해도" 시나리오)
+  marital_status: SINGLE
+  minor_children_count: 0
+  is_innovation_city_relocated_worker: false
+  is_redevelopment_area_tenant: false
   region_name: 서울
   housing_area_m2: 40
   deposit_paid_ratio: 0.1
@@ -140,6 +146,60 @@ scenarios:
       action: ASK
       field: net_asset_krw
       ask_kind: MISSING
+
+  - name: 소득을 모른다고 해도 특례 해당 여부는 묻는다
+    왜: |
+      소득이 기준에 걸치는데 사용자가 정확한 소득은 모른다고 했다. 그래도 신혼이면
+      기준이 올라가 판정이 끝날 수 있다. 여기서 멈추면 물을 것이 남았는데 결과를 낸다
+    profile:
+      combined_annual_income_krw: { low: 45000000, high: 55000000 }
+      marital_status: null
+    declined: [combined_annual_income_krw]
+    expect:
+      action: ASK
+      field: marital_status
+
+  - name: 판정이 끝나도 한도 금액을 낼 수 없으면 기준 값을 묻는다
+    왜: |
+      임차보증금을 범위로만 알면 기준(3억 이하)은 통과해도 한도가 범위로 나온다. 결과
+      화면이 "임차보증금을 정확히 알려주세요"라고 하는데 루프가 다 끝났다고 하면 안 된다
+    profile:
+      lease_deposit_krw: { low: 150000000, high: 200000000 }
+    expect:
+      action: ASK
+      field: lease_deposit_krw
+      ask_kind: IMPRECISE
+
+  - name: 판정에 필요한 값이 한도에만 필요한 값보다 앞선다
+    왜: |
+      전세/매매를 모른다고 해서 세 상품을 다 본다. 두 전세 상품은 판정이 끝나 한도용
+      보증금만 남았고, 디딤돌은 주택가격이 기준에 걸쳐 판정이 안 끝났다. 보증금이 더
+      많은 상품에 걸려 있지만 판정용 주택가격을 먼저 묻는다 — 금액보다 판정이 먼저다.
+      전세/매매를 알면 이 두 질문이 한꺼번에 남는 일이 거의 없어, 이 기준은 여기서만 갈린다
+    profile:
+      intended_tenure: null
+      household_type: MULTI
+      lease_deposit_krw: { low: 150000000, high: 200000000 }
+      housing_value_krw: { low: 450000000, high: 550000000 }
+    declined: [intended_tenure]
+    expect:
+      action: ASK
+      field: housing_value_krw
+      needed_by: [nhuf-didimdol]
+
+  - name: 전세/매매를 모른다고 한 채 멈추면 그것도 밝힌다
+    왜: |
+      전세와 매매 모두 통과할 사람이다. 양쪽 결과를 다 보게 된 이유를 화면이 말할 수
+      있어야 한다 — 다른 항목을 다 알아도 "다 끝났다"가 아니라 "모른다고 한 것이 있다"다
+    profile:
+      intended_tenure: null
+      household_type: MULTI
+      housing_value_krw: 300000000
+    declined: [intended_tenure]
+    expect:
+      action: RESULT
+      reason: ONLY_DECLINED_LEFT
+      declined_needed: [intended_tenure]
 
   # --- 종료 조건 ---
   - name: 모든 상품이 조건 불충족이면 더 묻지 않는다

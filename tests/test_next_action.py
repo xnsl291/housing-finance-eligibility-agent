@@ -13,6 +13,8 @@ import pytest
 import yaml
 
 from housing_finance_agent.amount import Range
+from housing_finance_agent.assessment import assess
+from housing_finance_agent.eligibility import PRECHECK_MATCH
 from housing_finance_agent.next_action import (
     ALL_NOT_MATCHED,
     ASK,
@@ -119,6 +121,13 @@ def test_묻는_대로_답하면_루프가_끝난다(programs: dict) -> None:
     물은_것, 결과 = _끝까지(programs)
 
     assert 결과.reason == COMPLETE
+    # "다 끝났다"가 실제로 판정과 한도가 끝났다는 뜻인지 본다. 멈추는 이유만 보면
+    # 판정이 덜 끝났는데 멈춰도 통과한다.
+    답 = {name: _정답[name] for name in 물은_것}
+    for pid in 결과.candidates:
+        평가 = assess(programs[pid], 답)
+        assert 평가.decision.status == PRECHECK_MATCH, f"{pid}: 판정이 안 끝났는데 멈춤"
+        assert 평가.loan_limit.amount_krw is not None, f"{pid}: 한도가 안 나왔는데 멈춤"
     assert len(물은_것) == len(set(물은_것)), f"같은 것을 두 번 물음: {물은_것}"
     assert 물은_것[0] == "intended_tenure"
 
