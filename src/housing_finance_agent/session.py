@@ -5,7 +5,7 @@
 
 - 브라우저를 새로 고치면 다 사라진다
 - "어떤 문장이 이 판정을 만들었나"를 이을 수 없다
-- 질문을 하나씩 던지는 구조를 얹을 곳이 없다 — "몇 번째 질문인가"가 상태다
+- 질문을 하나씩 던지는 구조를 얹을 곳이 없다 — 무엇을 모른다고 했는지가 상태다
 
 여기서 지키는 판단 셋.
 
@@ -47,6 +47,10 @@ SESSION_STARTED = "SESSION_STARTED"
 EXTRACTED = "EXTRACTED"
 FIELD_SET = "FIELD_SET"
 ASSESSED = "ASSESSED"
+# 사용자가 모른다고 한 항목. 값이 아니므로 상태(`replay`)에 넣지 않고 따로 읽는다.
+# 질문 자체는 기록하지 않는다 — 질문 정책이 코드라 기록을 다시 돌리면 같은 질문이
+# 나오고, GET 요청이 기록을 쓰면 새로고침만 해도 "물었다"가 쌓인다.
+FIELD_DECLINED = "FIELD_DECLINED"
 
 # 값이 어디서 왔는가. 파생값은 저장하지 않으므로 둘뿐이다.
 BY_USER = "USER"
@@ -130,9 +134,22 @@ class SessionStore:
         """사용자가 직접 넣거나 고친 값. `None`은 지우라는 뜻이다."""
         self._append(session_id, FIELD_SET, {"values": values})
 
-    def record_assessment(self, session_id: str, summary: list[dict]) -> None:
-        """무엇으로 판정했는지. 결과 전체가 아니라 되짚을 수 있는 만큼만 남긴다."""
-        self._append(session_id, ASSESSED, {"results": summary})
+    def record_assessment(
+        self, session_id: str, summary: list[dict], question_policy_version: int | None = None
+    ) -> None:
+        """무엇으로 판정했는지. 결과 전체가 아니라 되짚을 수 있는 만큼만 남긴다.
+
+        질문 정책 버전을 함께 남긴다. 질문은 기록하지 않고 다시 계산하므로, 정책이
+        바뀌면 옛 세션에서 다른 질문이 나온다. 버전이 있어야 그 이유를 가린다.
+        """
+        payload: dict = {"results": summary}
+        if question_policy_version is not None:
+            payload["question_policy_version"] = question_policy_version
+        self._append(session_id, ASSESSED, payload)
+
+    def record_declined(self, session_id: str, field_name: str) -> None:
+        """사용자가 이 항목은 모른다고 했다. 다시 묻지 않는다."""
+        self._append(session_id, FIELD_DECLINED, {"field": field_name})
 
     # ── 읽기 ──────────────────────────────────────────────────────────
     def exists(self, session_id: str) -> bool:
@@ -152,6 +169,9 @@ class SessionStore:
     def state(self, session_id: str) -> dict[str, Held]:
         """**기록에서 만든다. 따로 저장한 것을 읽지 않는다.**"""
         return replay(self.events(session_id))
+
+    def declined(self, session_id: str) -> set[str]:
+        return declined_of(self.events(session_id))
 
     # ── 내부 ──────────────────────────────────────────────────────────
     def _append(self, session_id: str, kind: str, payload: dict) -> None:
@@ -187,6 +207,26 @@ def replay(events: list[Event]) -> dict[str, Held]:
                 else:
                     state[name] = Held(value, BY_USER, event.at)
     return state
+
+
+def declined_of(events: list[Event]) -> set[str]:
+    """모른다고 한 항목. `replay`와 같이 **나중 것이 이긴다.**
+
+    모른다고 한 뒤에 값을 넣으면(직접 넣든 문장에서 읽든) 더는 모르는 항목이 아니다.
+    그 값을 나중에 지워도 모른다고 했던 기록은 되살리지 않는다 — 값을 넣은 순간
+    이미 풀렸고, 지운 것은 새로 한 행동이라 다시 물어도 된다.
+
+    **값을 지우는 것(`None`)만으로는 풀리지 않는다.** 화면이 빈 칸을 한꺼번에 `None`으로
+    보내면, 모른다고 한 항목이 저장할 때마다 전부 풀려 다시 묻게 된다(2026-09-24 검토).
+    """
+    declined: set[str] = set()
+    for event in events:
+        if event.kind == FIELD_DECLINED:
+            declined.add(event.payload["field"])
+        elif event.kind in (EXTRACTED, FIELD_SET):
+            values = event.payload.get("values") or {}
+            declined -= {name for name, value in values.items() if value is not None}
+    return declined
 
 
 def profile_of(state: dict[str, Held]) -> dict:

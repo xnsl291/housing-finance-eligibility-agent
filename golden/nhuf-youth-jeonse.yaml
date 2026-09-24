@@ -123,11 +123,30 @@ scenarios:
       status: PRECHECK_MATCH
 
   - name: 소득 범위가 기준을 걸친다
-    왜: 걸칠 때만 묻는다. 값이 아예 없는 것과 다른 상태로 낸다
+    왜: |
+      걸칠 때만 묻는다. 값이 아예 없는 것과 다른 상태로 낸다. 소득 기준을 올려 주는
+      특례에 해당하지 않는다는 것까지 알아야 정밀도만 모자란 상태가 된다
+    profile:
+      combined_annual_income_krw: {low: 45000000, high: 55000000}
+      marital_status: SINGLE
+      minor_children_count: 0
+      is_innovation_city_relocated_worker: false
+      is_redevelopment_area_tenant: false
+    expect:
+      status: CONDITIONAL
+      imprecise_fields: [combined_annual_income_krw]
+
+  - name: 소득이 걸치는데 특례 해당 여부를 모르면 특례 조건도 묻는다
+    왜: |
+      위 케이스의 짝. 신혼이면 기준이 5천만원에서 올라가 걸치지 않는다. 일반 기준에
+      **걸릴 때**는 특례 조건을 묻는데 **걸칠 때**는 안 물어서, 사용자가 소득을 모른다고
+      하면 물을 것이 남았는데도 멈췄다(2026-09-24 검토)
     profile:
       combined_annual_income_krw: {low: 45000000, high: 55000000}
     expect:
-      status: CONDITIONAL
+      status: INSUFFICIENT_INFORMATION
+      missing_fields:
+        [minor_children_count, is_innovation_city_relocated_worker, is_redevelopment_area_tenant, marital_status]
       imprecise_fields: [combined_annual_income_krw]
 
   # --- 신청 기한 경계 3건 ---
