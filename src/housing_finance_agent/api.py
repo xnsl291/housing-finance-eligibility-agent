@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 from housing_finance_agent.amount import Range
 from housing_finance_agent.assessment import assess
 from housing_finance_agent.extraction import ExtractionError, LlmClient, extract_profile
+from housing_finance_agent.next_action import POLICY_VERSION, next_action
 from housing_finance_agent.rules import available_programs, field_catalog, load_program
 from housing_finance_agent.session import SessionStore, profile_of
 
@@ -38,6 +39,10 @@ class MessageRequest(BaseModel):
 class FieldsRequest(BaseModel):
     # `None`은 "이 값을 지운다"는 뜻이다. 화면에서 칸을 비운 경우다.
     values: dict
+
+
+class DeclineRequest(BaseModel):
+    field: str = Field(min_length=1)
 
 
 class CheckRequest(BaseModel):
@@ -232,8 +237,56 @@ def create_app(
                 }
                 for r in results
             ],
+            question_policy_version=POLICY_VERSION,
         )
         return {"session_id": session_id, "results": results}
+
+    @app.get("/v1/sessions/{session_id}/next")
+    def get_next(session_id: str) -> dict:
+        """다음에 무엇을 할지. **기록을 쓰지 않는다** — 몇 번을 불러도 같은 답이다.
+
+        "그만 묻고 결과 보기"는 서버 상태가 아니다. 화면이 이 경로 대신 판정 경로를
+        부르면 된다.
+        """
+        _세션_확인(session_id)
+        profile = {
+            name: _as_value(value) for name, value in profile_of(store.state(session_id)).items()
+        }
+        programs = {pid: load_program(pid) for pid in available_programs()}
+        result = next_action(programs, profile, store.declined(session_id))
+        catalog = field_catalog()
+        응답 = {
+            "session_id": session_id,
+            "action": result.action,
+            "candidates": result.candidates,
+            "policy_version": result.policy_version,
+        }
+        if result.field is not None:
+            항목 = catalog[result.field]
+            응답["question"] = {
+                "field": result.field,
+                "label": 항목["label"],
+                "kind": 항목["kind"],
+                "ask_kind": result.ask_kind,
+                "why": result.why,
+                "needed_by": result.needed_by,
+                "how_to_check": 항목.get("how_to_check"),
+                "choices": 항목.get("choices"),
+                "choice_labels": 항목.get("choice_labels"),
+            }
+        else:
+            응답["reason"] = result.reason
+            응답["declined_needed"] = result.declined_needed
+        return 응답
+
+    @app.post("/v1/sessions/{session_id}/declined")
+    def decline(session_id: str, request: DeclineRequest) -> dict:
+        """사용자가 이 항목은 모른다고 했다. 다음 질문에서 빠진다."""
+        _세션_확인(session_id)
+        if request.field not in field_catalog():
+            raise HTTPException(422, f"없는 항목입니다: {request.field}")
+        store.record_declined(session_id, request.field)
+        return {"session_id": session_id, "declined": sorted(store.declined(session_id))}
 
     @app.get("/v1/sessions/{session_id}/trace")
     def get_trace(session_id: str) -> dict:

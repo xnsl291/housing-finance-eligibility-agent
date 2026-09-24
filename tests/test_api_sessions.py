@@ -162,3 +162,60 @@ def test_범위_값이_오가도_모양이_유지된다(client) -> None:
     돌아온 = client.get(f"/v1/sessions/{session_id}").json()
 
     assert 돌아온["values"]["combined_annual_income_krw"]["value"] == 범위
+
+
+def test_다음_질문을_하나_준다(client) -> None:
+    session_id = _세션(client)
+
+    응답 = client.get(f"/v1/sessions/{session_id}/next")
+
+    assert 응답.status_code == 200
+    본문 = 응답.json()
+    assert 본문["action"] == "ASK"
+    assert 본문["question"]["field"] == "intended_tenure"
+    # 화면이 코드를 그대로 보여 주지 않도록 표기를 함께 준다.
+    assert 본문["question"]["label"]
+    assert 본문["question"]["choice_labels"]["JEONSE"]
+
+
+def test_다음_질문을_물어도_기록이_쌓이지_않는다(client) -> None:
+    """GET이 기록을 쓰면 새로고침만 해도 "물었다"가 쌓인다. 질문은 기록에서 다시 계산한다."""
+    session_id = _세션(client)
+    client.get(f"/v1/sessions/{session_id}/next")
+    client.get(f"/v1/sessions/{session_id}/next")
+
+    종류 = [e["kind"] for e in client.get(f"/v1/sessions/{session_id}/trace").json()["events"]]
+
+    assert 종류 == ["SESSION_STARTED"]
+
+
+def test_모른다고_하면_다음_질문이_바뀐다(client) -> None:
+    session_id = _세션(client)
+
+    응답 = client.post(f"/v1/sessions/{session_id}/declined", json={"field": "intended_tenure"})
+    다음 = client.get(f"/v1/sessions/{session_id}/next").json()
+
+    assert 응답.json()["declined"] == ["intended_tenure"]
+    assert 다음["question"]["field"] != "intended_tenure"
+
+
+def test_없는_항목을_모른다고_하면_422다(client) -> None:
+    session_id = _세션(client)
+
+    응답 = client.post(f"/v1/sessions/{session_id}/declined", json={"field": "나이"})
+
+    assert 응답.status_code == 422
+
+
+def test_물을_것이_없으면_이유와_함께_결과를_내라고_한다(client) -> None:
+    session_id = _세션(client)
+    client.put(
+        f"/v1/sessions/{session_id}/fields",
+        json={"values": {"intended_tenure": "PURCHASE", "home_ownership_status": "HAS_HOME"}},
+    )
+
+    본문 = client.get(f"/v1/sessions/{session_id}/next").json()
+
+    assert 본문["action"] == "RESULT"
+    assert 본문["reason"] == "ALL_NOT_MATCHED"
+    assert 본문["candidates"] == ["nhuf-didimdol"]
