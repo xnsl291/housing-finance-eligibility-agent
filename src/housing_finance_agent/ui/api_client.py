@@ -25,7 +25,11 @@ _DEFAULT_URL = "http://127.0.0.1:8000"
 
 # 추출과 판정은 로컬 LLM을 거쳐 수십 초가 걸린다. 목록 조회는 그럴 일이 없으므로
 # 짧게 끊어서, 서버가 죽었을 때 화면이 3분을 기다리지 않게 한다.
-_LLM_TIMEOUT = 180
+#
+# LLM을 거치는 호출의 대기 시간은 `HFA_UI_LLM_TIMEOUT`으로 바꾼다. **서버의
+# `HFA_OLLAMA_TIMEOUT`보다 길어야 한다.** 짧으면 서버는 아직 기다리는데 화면이 먼저
+# 포기해, 사용자는 "연결할 수 없다"를 보고 서버는 뒤늦게 답을 버린다.
+_LLM_TIMEOUT_DEFAULT = 180
 _QUICK_TIMEOUT = 10
 
 # 윈도우 경로(C:\...)와 유닉스 경로(/home/...). 서버 문구에 섞여 들어올 수 있다.
@@ -48,6 +52,10 @@ class ApiError(Exception):
         self.status = status
 
 
+def llm_timeout() -> float:
+    return float(os.environ.get("HFA_UI_LLM_TIMEOUT", _LLM_TIMEOUT_DEFAULT))
+
+
 def base_url() -> str:
     """API 주소. 서버를 다른 포트에 띄우는 경우가 있어 환경변수로 연다."""
     return os.environ.get("HFA_API_URL", _DEFAULT_URL).rstrip("/")
@@ -62,14 +70,14 @@ def fields() -> dict:
 
 
 def extract(message: str) -> dict:
-    return _call("POST", "/v1/profiles/extract", {"message": message}, _LLM_TIMEOUT)
+    return _call("POST", "/v1/profiles/extract", {"message": message}, llm_timeout())
 
 
 def check(profile: dict, program_ids: list[str] | None = None) -> dict:
     payload: dict = {"profile": profile}
     if program_ids is not None:
         payload["program_ids"] = program_ids
-    return _call("POST", "/v1/eligibility/check", payload, _LLM_TIMEOUT)
+    return _call("POST", "/v1/eligibility/check", payload, llm_timeout())
 
 
 # ── 세션 ──────────────────────────────────────────────────────────────
@@ -85,7 +93,7 @@ def start_session() -> str:
 
 def send_message(session_id: str, message: str) -> dict:
     """문장을 읽어 세션에 남긴다. LLM을 거치므로 오래 걸릴 수 있다."""
-    return _call("POST", f"/v1/sessions/{session_id}/messages", {"message": message}, _LLM_TIMEOUT)
+    return _call("POST", f"/v1/sessions/{session_id}/messages", {"message": message}, llm_timeout())
 
 
 def set_fields(session_id: str, values: dict) -> dict:
@@ -107,7 +115,7 @@ def decline(session_id: str, field: str) -> dict:
 
 
 def assess_session(session_id: str, program_ids: list[str] | None = None) -> dict:
-    return _call("POST", f"/v1/sessions/{session_id}/assessment", program_ids, _LLM_TIMEOUT)
+    return _call("POST", f"/v1/sessions/{session_id}/assessment", program_ids, llm_timeout())
 
 
 def trace(session_id: str) -> dict:
