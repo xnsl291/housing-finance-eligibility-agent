@@ -120,6 +120,17 @@ def _입력칸(질문: dict, 순번: int) -> object:
             return None
         st.caption(amount_text(int(값)))
         return int(값)
+    if kind == "DATE":
+        # **자유 입력 칸으로 받지 않는다.** 판정 엔진이 `date.fromisoformat`으로 읽어서
+        # 형식이 하나뿐인데, 칸에 형식이 안 적혀 있으면 사용자가 찍어 맞혀야 한다.
+        # 달력으로 받으면 틀린 형식이 아예 만들어지지 않는다.
+        #
+        # 범위(`min_value`·`max_value`)는 일부러 넘기지 않는다. 기본값이 오늘 ±10년이고
+        # 밖의 날짜는 조용히 `None`이 되는데(2026-09-30 측정), 이 세 날짜는 규칙이
+        # "잔금지급일과 전입일 중 빠른 날로부터 3개월 이내"로 묶어 두므로 10년 밖은
+        # 판정에 쓰일 수 없다. 범위를 직접 박으면 규칙에 없는 조건을 화면이 만든다.
+        고른 = st.date_input("날짜를 골라 주세요", value=None, format="YYYY-MM-DD", key=키)
+        return None if 고른 is None else 고른.isoformat()
     if kind == "INT":
         값 = st.number_input("숫자로 적어 주세요", value=None, step=1, key=키)
         return None if 값 is None else int(값)

@@ -211,7 +211,13 @@ _FIELD_ORDER = {name: index for index, name in enumerate(fields.SPEC)}
 #
 # `how_to_check`가 있는 항목을 쉬운 것으로 보지 않는다. 확인 방법이 적혀 있는 항목은
 # 순자산·전용면적·주택가격처럼 **찾아봐야 답할 수 있는 것**이라 오히려 어렵다.
-_EFFORT = {"CHOICE": 0, "BOOL": 0, "INT": 1, "TEXT": 2, "FLOAT": 3, "AMOUNT": 3}
+# 항목 종류별로 "답하기가 얼마나 번거로운가". `kind_of`가 내는 값을 그대로 키로 쓰므로
+# 종류가 하나 늘면 여기도 늘려야 한다 — 빠지면 순위를 매기다 KeyError로 터진다.
+#
+# `DATE`는 계약서나 등본을 찾아봐야 해서 실제로는 `AMOUNT`만큼 번거롭지만 `TEXT`와 같은
+# 2로 둔다. 이번 변경은 날짜를 달력으로 받게 하는 것이고, **질문 순서까지 같이 바꾸면
+# 골든이 무엇 때문에 달라졌는지 못 가린다.** 순서는 따로 정한다.
+_EFFORT = {"CHOICE": 0, "BOOL": 0, "INT": 1, "TEXT": 2, "DATE": 2, "FLOAT": 3, "AMOUNT": 3}
 
 
 def _rank(need: _Need) -> tuple:

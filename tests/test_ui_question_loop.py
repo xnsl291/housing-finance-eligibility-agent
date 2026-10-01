@@ -14,6 +14,7 @@ import io
 import json
 import urllib.error
 import urllib.request
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -160,3 +161,36 @@ def test_모른다고만_하면_끝까지_가서_모른_것을_밝힌다(서버:
 
     assert at.session_state["stop"]["reason"] == "ONLY_DECLINED_LEFT"
     assert any("모르셔서 확정하지 못한" in w.value for w in at.warning)
+
+
+def test_날짜는_달력으로_묻고_형식이_맞는_값만_보낸다(서버: TestClient) -> None:
+    """**자유 입력 칸으로 받으면 그 질문에서 못 나갔다.**
+
+    2026-09-30 실물 확인: 날짜 항목의 칸이 `적어 주세요` 자유 입력이었고 형식 안내도
+    없었다. 서버는 `YYYY-MM-DD`만 받으므로(`fields.problem_of`) 찍어 맞히지 못하면
+    같은 질문이 계속 나왔다. 달력으로 받으면 틀린 형식이 아예 만들어지지 않는다.
+    """
+    at = AppTest.from_file(str(_앱), default_timeout=30).run()
+    _문장을_읽고_확인한다(at)
+    session_id = at.session_state["session_id"]
+
+    def 지금_질문() -> dict:
+        return 서버.get(f"/v1/sessions/{session_id}/next").json()["question"]
+
+    for _ in range(15):
+        if 지금_질문()["kind"] == "DATE":
+            break
+        _버튼(at, "모르겠어요").click().run()
+    else:
+        pytest.fail("날짜를 묻는 질문까지 가지 못했다")
+
+    항목 = 지금_질문()["field"]
+    assert at.date_input, f"{항목}을 달력이 아닌 칸으로 묻고 있다"
+    assert not at.text_input, "자유 입력 칸이 같이 그려졌다"
+
+    at.date_input[0].set_value(date(2026, 10, 1)).run()
+    _버튼(at, "답하기").click().run()
+
+    assert not at.error, [e.value for e in at.error]
+    남은_값 = 서버.get(f"/v1/sessions/{session_id}").json()["values"]
+    assert 남은_값[항목]["value"] == "2026-10-01", "달력에서 고른 날짜가 ISO로 안 갔다"

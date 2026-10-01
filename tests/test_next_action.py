@@ -183,3 +183,18 @@ def test_전세와_매매가_섞이지_않으면_전세_매매를_묻지_않는�
     결과 = next_action(상품, {})
 
     assert 결과.field == "age"
+
+
+def test_항목_종류가_모두_질문_순위_표에_있다() -> None:
+    """`_EFFORT`는 `kind_of`가 내는 값을 키로 쓴다. 종류가 하나 늘면 여기도 늘려야 한다.
+
+    안 늘리면 그 종류의 항목을 물어야 하는 순간에만 `KeyError`가 난다 — 테스트 330건이
+    전부 통과하면서도 실제 루프가 터지는 모양이다. 2026-09-30에 `DATE`를 추가하며 이
+    표를 같이 고쳐야 한다는 것을 코드를 읽어야 알 수 있었다. 읽지 않아도 알게 한다.
+    """
+    from housing_finance_agent import fields
+    from housing_finance_agent.next_action import _EFFORT
+
+    빠진 = sorted({fields.kind_of(name) for name in fields.SPEC} - set(_EFFORT))
+
+    assert not 빠진, f"_EFFORT에 없는 종류: {빠진}"

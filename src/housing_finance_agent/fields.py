@@ -77,6 +77,11 @@ DESCRIPTIONS: dict[str, str] = {
 }
 
 
+# 날짜로 읽는 항목. 판정 엔진이 `date.fromisoformat`으로 읽으므로 형식이 틀리면 판정
+# 도중에 예외가 난다. 들어오는 자리에서 막는다.
+DATE_FIELDS = frozenset({"contract_balance_date", "move_in_date", "application_date"})
+
+
 def kind_of(name: str) -> str:
     """화면이 어떤 입력 칸을 그릴지 정하는 데 쓴다."""
     spec = SPEC[name]
@@ -86,14 +91,14 @@ def kind_of(name: str) -> str:
         return "CHOICE"
     if spec is bool:
         return "BOOL"
+    if name in DATE_FIELDS:
+        # **여기가 없으면 날짜가 자유 입력 칸으로 그려진다.** 그러면 사용자가
+        # `YYYY-MM-DD`를 찍어 맞히지 못하는 한 아래 `problem_of`가 계속 거절하고,
+        # 질문 루프가 그 항목에서 못 나간다(2026-09-30 실물 확인).
+        return "DATE"
     if spec is str:
         return "TEXT"
     return "INT" if spec is int else "FLOAT"
-
-
-# 날짜로 읽는 항목. 판정 엔진이 `date.fromisoformat`으로 읽으므로 형식이 틀리면 판정
-# 도중에 예외가 난다. 들어오는 자리에서 막는다.
-DATE_FIELDS = frozenset({"contract_balance_date", "move_in_date", "application_date"})
 
 
 def problem_of(name: str, value: object) -> str | None:

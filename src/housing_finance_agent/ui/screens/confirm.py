@@ -17,6 +17,8 @@ LLM이 뽑는다.
 
 from __future__ import annotations
 
+from datetime import date
+
 import streamlit as st
 
 from housing_finance_agent.ui import api_client
@@ -150,6 +152,13 @@ def _받기(name: str, spec: dict, extracted: dict, profile: dict, errors: list[
             horizontal=True,
         )
         value = _BOOL_VALUES[골라진]
+    elif kind == "DATE":
+        # 질문 화면과 같은 이유로 달력이다(`questions.py._입력칸`). 다만 이쪽은 LLM이
+        # 읽은 값이 미리 들어올 수 있어서, 형식이 맞는 것만 채운다.
+        고른 = st.date_input(
+            label, value=_날짜(읽은_값), format="YYYY-MM-DD", key=_key(name), help=도움말
+        )
+        value = None if 고른 is None else 고른.isoformat()
     elif kind == "INT":
         value = st.number_input(
             label, value=_숫자(읽은_값, int), step=1, key=_key(name), help=도움말
@@ -253,6 +262,21 @@ def _숫자(value: object, 형: type) -> object:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
     return 형(value)
+
+
+def _날짜(value: object) -> object:
+    """날짜 칸의 초깃값. 형식이 맞는 문자열만 채우고 나머지는 비워 둔다.
+
+    LLM이 `"2026년 10월 1일"`처럼 내놓을 수 있다. 서버가 그런 값을 못 읽은 값으로
+    넘겨 주므로(`api.py` add_message) 여기까지 오지 않는 것이 정상이지만, 초깃값에서
+    예외가 나면 확인 화면 전체가 안 그려지므로 한 번 더 막는다.
+    """
+    if not isinstance(value, str):
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
 
 
 def _key(name: str) -> str:
