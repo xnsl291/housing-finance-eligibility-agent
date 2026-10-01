@@ -190,19 +190,33 @@ def create_app(
         except Exception as error:
             raise HTTPException(503, f"LLM 호출에 실패했습니다: {error}") from error
 
+        # **LLM이 낸 값도 항목 정의로 검사한다.** 값이 들어오는 자리가 둘인데 아래
+        # `set_fields`만 막혀 있었다. 2026-09-30 확인: LLM이 `move_in_date`를
+        # `"2026년 10월 1일"`로 내놓으면 그대로 세션에 쌓이고, 판정과 다음 질문이 둘 다
+        # `ValueError: Invalid isoformat string`으로 터졌다. 값이 기록에 남아 있어서
+        # 새로고침해도 되살아나지 않고 **그 세션은 전체 초기화 말고는 길이 없었다.**
+        #
+        # 사용자가 넣은 값은 422로 되돌려 다시 넣게 하면 되지만, LLM이 낸 값은 되돌릴
+        # 상대가 없다. 그래서 거절하되 버리지 않고 `unreadable`로 넘긴다 — 확인 화면이
+        # 원문과 함께 "그대로 쓸 수 없습니다. 직접 넣어 주세요"를 보여 주는 자리다.
+        읽은_값: dict[str, object] = {}
+        못_쓴_값 = dict(result.unreadable)
+        for name, value in result.values.items():
+            보낼 = _as_json(value)
+            if problem_of(name, 보낼):
+                못_쓴_값[name] = str(result.sources.get(name) or 보낼)
+            else:
+                읽은_값[name] = 보낼
+
         store.record_extraction(
             session_id,
-            {
-                "values": {name: _as_json(value) for name, value in result.values.items()},
-                "sources": result.sources,
-                "unreadable": result.unreadable,
-            },
+            {"values": 읽은_값, "sources": result.sources, "unreadable": 못_쓴_값},
         )
         응답 = _상태_응답(session_id)
         # 경고와 못 읽은 값은 이번 문장에 대한 것이라 상태가 아니다. 저장하지 않고
         # 이 응답에만 실어 보낸다.
         응답["warnings"] = result.warnings
-        응답["unreadable"] = result.unreadable
+        응답["unreadable"] = 못_쓴_값
         return 응답
 
     @app.put("/v1/sessions/{session_id}/fields")
@@ -212,8 +226,11 @@ def create_app(
         낯선 = sorted(name for name in request.values if name not in field_catalog())
         if 낯선:
             raise HTTPException(422, f"없는 항목입니다: {', '.join(낯선)}")
+        # 코드 이름을 그대로 내보내면 화면이 `임대차계약 잔금지급일`이라 부르는 항목을
+        # 오류에서만 `contract_balance_date`로 부른다. 이름표의 정본은 항목 목록이다.
+        이름표 = field_catalog()
         틀린 = [
-            f"{name}: {문제}"
+            f"{이름표[name].get('label', name)}: {문제}"
             for name, value in sorted(request.values.items())
             if (문제 := problem_of(name, value))
         ]
