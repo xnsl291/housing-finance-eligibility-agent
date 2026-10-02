@@ -21,7 +21,7 @@ from datetime import date
 
 import streamlit as st
 
-from housing_finance_agent.ui import api_client
+from housing_finance_agent.ui import api_client, chrome
 from housing_finance_agent.ui.flow import confirm_updates
 from housing_finance_agent.ui.labels import amount_text
 
@@ -42,7 +42,8 @@ def clear_edits() -> None:
 
 
 def render() -> None:
-    st.subheader("2. 이렇게 읽었습니다")
+    chrome.eyebrow("읽은 내용 확인")
+    st.subheader("이렇게 읽었습니다")
 
     extracted = st.session_state.get("extracted")
     if extracted is None:

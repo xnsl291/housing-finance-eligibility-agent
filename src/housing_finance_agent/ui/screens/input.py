@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from housing_finance_agent.ui import api_client
+from housing_finance_agent.ui import api_client, chrome
 from housing_finance_agent.ui.flow import extracted_from
 from housing_finance_agent.ui.screens import confirm
 
@@ -40,16 +40,16 @@ EXAMPLES: tuple[tuple[str, str], ...] = (
 
 
 def render() -> None:
-    st.subheader("1. 조건 입력")
+    chrome.eyebrow("조건 입력")
+    st.subheader("상황을 문장으로 적어 주세요")
     st.caption(
-        "상황을 문장으로 적어 주세요. 읽은 내용은 다음 화면에서 직접 확인하고 고치고, "
-        "판정에 더 필요한 것은 그다음에 하나씩 여쭙니다."
+        "읽은 내용은 다음 화면에서 직접 확인하고 고칠 수 있고, 판정에 더 필요한 것은 "
+        "그다음에 하나씩 여쭙니다."
     )
 
     # 입력 칸보다 먼저 보여 준다. 다 쓰고 나서 읽는 안내는 이미 늦다.
-    st.info(
-        "주민등록번호·계좌번호·집 주소는 적지 마세요. 판정에 쓰지 않고 저장하지도 않습니다.",
-        icon="🔒",
+    chrome.note(
+        "주민등록번호·계좌번호·집 주소는 적지 마세요. 판정에 쓰지 않고 저장하지도 않습니다."
     )
 
     _예시_버튼()
@@ -98,7 +98,10 @@ def _읽기(message: str) -> None:
     st.session_state.pop("extract_error", None)
     try:
         session_id = api_client.start_session()
-        응답 = api_client.send_message(session_id, message)
+        # 표시가 없으면 사용자는 멈춘 줄 알고 버튼을 다시 누른다. 이 컴퓨터에서
+        # 문장 하나에 3~12초 걸린다(2026-10-01 실측).
+        with chrome.thinking("문장을 읽고 있습니다"):
+            응답 = api_client.send_message(session_id, message)
     except api_client.ApiError as error:
         # 다음 실행에서도 보여 줘야 한다. 오류 아래 버튼을 누르면 화면이 다시 그려지는데
         # 그때 오류가 사라지면 그 버튼도 같이 사라진다.

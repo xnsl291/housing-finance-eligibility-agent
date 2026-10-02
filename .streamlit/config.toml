@@ -1,4 +1,4 @@
-# 실행 옵션을 파일로 못 박는다.
+# 실행 옵션과 겉모습을 파일로 못 박는다.
 #
 # 명령줄 플래그로만 두면 한 번 빼먹었을 때 그대로 노출된다. 신청자의 나이·소득·
 # 자산을 다루는 화면이라 기본값을 쓰면 로컬 LLM을 쓰는 이유가 무너진다.
@@ -16,30 +16,82 @@ gatherUsageStats = false
 # 데모 녹화에서 그대로 노출된다.
 showErrorDetails = false
 
-# 색을 여기서 정하는 이유
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 겉모습
 #
-# Streamlit 기본 강조색은 빨강(#FF4B4B)이다. 이 화면은 빨강을 이미 뜻이 있는 색으로
-# 쓰고 있다 — `조건 불충족`과 불충족 사유 문구가 빨강이다(ui/screens/results.py의
-# _판정_표시). 강조색까지 빨강이면 조건을 전부 통과한 화면에도 빨간 버튼이 크게
-# 들어와서, 색이 판정과 아무 상관 없는 신호가 된다.
+# `DESIGN-mastercard.md`가 정리한 디자인 언어를 따른다. 핵심은 네 가지다.
 #
-# 그래서 강조색은 판정 색 어느 것과도 겹치지 않는 남색으로 둔다. 판정에 쓰는 네
-# 색(초록·주황·빨강·파랑)은 Streamlit 기본값을 그대로 쓴다. 판정 색까지 손대면
-# `:green[...]` 같은 표기가 화면마다 다른 뜻이 된다.
+#   1. 바탕이 흰색이 아니라 **따뜻한 크림**이다. 이 한 줄이 분위기의 절반을 정한다
+#   2. 모서리는 **20 / 40 / 999**만 쓴다. 8~12는 쓰지 않는다 — 어중간하면 흔해 보인다
+#   3. 기본 버튼은 **먹색**이고, 주황은 법적 동의·안내에만 쓴다
+#   4. 본문 굵기가 **450**이다. 400보다 부드럽고 500보다 단단하다
+#
+# **판정에 쓰는 네 색(초록·주황·빨강·파랑)은 손대지 않는다.** 그 색들은 이 화면에서
+# 뜻이 있다 — 초록은 사전 조건 부합, 빨강은 조건 불충족이다. 겉모습을 맞추자고
+# 색의 뜻을 흔들면 `:green[...]` 표기가 화면마다 다른 것을 가리키게 된다.
 [theme]
 base = "light"
-primaryColor = "#1F4E79"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F3F6FA"
-textColor = "#1B2028"
-linkColor = "#1F4E79"
 
-# 규칙 원문 인용을 st.text로 내는데, 기본 회색 코드 배경이 본문과 대비가 커서
-# 인용이 스무 개 이어지면 줄무늬처럼 보인다. 배경을 본문 쪽으로 붙인다.
-codeBackgroundColor = "#F3F6FA"
-borderColor = "#DDE3EC"
-baseRadius = "medium"
+# 바탕 — Canvas Cream. 흰색이 아니다.
+backgroundColor = "#F3F0EE"
+# 한 단계 밝은 크림(Lifted Cream). 종이 위에 종이를 올린 느낌을 낸다.
+secondaryBackgroundColor = "#FCFBFA"
 
-# 입력 칸에 테두리를 준다. 확인 화면(화면 2)은 칸이 스무 개 넘게 세로로 이어지는데,
-# 테두리가 없으면 어디까지가 한 항목인지 구분이 안 된다.
+# 글자와 기본 버튼 — Ink Black. 순검정이 아니라 크림 쪽으로 살짝 기운 따뜻한 검정이다.
+#
+# 기본 강조색을 먹색으로 두는 것이 이 디자인의 규칙이다. 앞서 남색을 썼던 이유
+# (기본 빨강이 '조건 불충족'과 겹친다)는 먹색에서도 그대로 지켜진다.
+textColor = "#141413"
+primaryColor = "#141413"
+
+linkColor = "#3860BE"
+borderColor = "#D1CDC7"
+# 규칙 원문 인용을 st.text로 내는데, 기본 회색 코드 배경은 크림 위에서 대비가 크다.
+codeBackgroundColor = "#FCFBFA"
+
+# 모서리. 문서가 정한 세 값 중 본문 위젯에 해당하는 20px를 쓴다.
+baseRadius = "20px"
+buttonRadius = "20px"
+
+# 입력 칸에 테두리를 준다. 확인 화면은 칸이 스무 개 넘게 이어지는데 테두리가
+# 없으면 어디까지가 한 항목인지 구분이 안 된다.
 showWidgetBorder = true
+
+# 본문 450. 문서가 "이 굵기가 정체성"이라고 적어 둔 값이고, Streamlit이 50 단위로
+# 받기 때문에 그대로 넣을 수 있다. Streamlit이 여기서 +100/+200을 파생시킨다.
+baseFontWeight = 450
+
+# 원본 서체(MarkForMC)는 독점이고 **한글 글리프가 없다.** 문서 §3이 대체를 전제하고
+# 기준 두 개를 남겼다 — 제목 자간 -2%와 본문 450 굵기를 지킬 것.
+#
+# 이 화면은 전부 한글이라 라틴 전용 대체(Sofia Sans)는 쓸 수 없다. 한글과 라틴을
+# 한 벌로 덮으면서 기하학적 산세리프이고 가변 굵기라 450을 정확히 낼 수 있는
+# Pretendard를 쓴다. SIL OFL이라 재배포에 문제가 없다.
+#
+# **인터넷이 없으면 안 받아진다.** 그때는 아래 fallback으로 떨어지고 화면은 그대로
+# 돈다. 데모 녹화 전에 한 번 띄워서 글꼴이 바뀌었는지 확인할 것.
+font = "Pretendard, Apple SD Gothic Neo, Malgun Gothic, sans-serif"
+
+[[theme.fontFaces]]
+family = "Pretendard"
+url = "https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/variable/woff2/PretendardVariable.woff2"
+weight = "100 900"
+style = "normal"
+
+# 사이드바를 먹색으로 둔다.
+#
+# 문서가 말하는 리듬이 **크림 바탕 → 밝은 크림 → 먹색**의 세 단계다. 원본에서
+# 먹색을 맡은 자리는 푸터인데, 이 화면에는 푸터가 없고 대신 사이드바가 항상 붙어
+# 있다. 담는 내용도 어울린다 — 서버 상태와 판정에 쓰는 상품 목록이라, 본문(신청자
+# 이야기)과 성격이 다른 '기관 쪽' 정보다.
+#
+# **되돌리기 쉬운 자리다.** 어색하면 이 절만 지우면 크림 사이드바로 돌아온다.
+[theme.sidebar]
+backgroundColor = "#141413"
+secondaryBackgroundColor = "#262627"
+textColor = "#FCFBFA"
+primaryColor = "#F37338"
+linkColor = "#F37338"
+borderColor = "#3A3A38"
+codeBackgroundColor = "#262627"
