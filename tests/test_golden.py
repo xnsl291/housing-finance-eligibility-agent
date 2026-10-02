@@ -68,6 +68,21 @@ def test_골든_시나리오(name: str, program_id: str, profile: dict, expect: 
     if "imprecise_fields" in expect:
         assert decision.imprecise_fields == expect["imprecise_fields"], f"{name}: 걸친 항목이 다름"
 
+    if "superseded_rules" in expect:
+        # 특례가 일반 규칙을 덮었는지. **판정 상태만 보면 안 잡히는 자리다** —
+        # 덮든 안 덮든 결과가 같은 경우가 있는데, 화면 4가 "통과"로 보여 주느냐
+        # "특례로 대체됨"으로 보여 주느냐가 달라진다. 전자는 사용자가 그 기준을
+        # 통과했다고 읽는데 실제로는 더 엄격한 기준이 걸린다.
+        덮인 = [item.rule_id for item in decision.rule_outcomes if item.outcome == "SUPERSEDED"]
+        assert 덮인 == expect["superseded_rules"], f"{name}: 특례로 대체된 규칙이 다름"
+
+    if "limit_reason" in expect:
+        # 금액을 못 낸 사유. 사유마다 사용자가 할 일이 다르고, **무엇보다 "몰라서
+        # 안 냈다"와 "계산해서 이 금액이다"를 구분해야 한다.**
+        assert result.loan_limit is not None, f"{name}: 한도 객체가 없음"
+        사유 = result.loan_limit.reason
+        assert 사유 == expect["limit_reason"], f"{name}: 한도 미산출 사유가 다름"
+
     if "loan_amount_krw" in expect:
         assert result.loan_limit is not None, f"{name}: 한도를 내지 못함"
         assert result.loan_limit.amount_krw == expect["loan_amount_krw"], f"{name}: 한도가 다름"
@@ -83,7 +98,7 @@ def test_시나리오가_충분히_있다() -> None:
     for _, program_id, _, _ in _cases():
         상품별[program_id] = 상품별.get(program_id, 0) + 1
 
-    assert len(상품별) == 2
+    assert len(상품별) == 3, "상품이 늘거나 줄었다. 골든 파일이 빠졌는지 확인할 것"
     assert all(count >= 6 for count in 상품별.values())
 
 

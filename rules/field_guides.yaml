@@ -33,6 +33,19 @@ home_ownership_status:
     NO_HOME_ALL_MEMBERS: 세대원 전원 무주택
     HAS_HOME: 주택 보유
 
+is_first_time_buyer:
+  label: 생애최초 주택구입
+  how_to_check: 본인과 배우자 모두 과거에 주택을 소유한 적이 없어야 합니다
+
+intended_tenure:
+  label: 전세인지 매매인지
+  choice_labels:
+    JEONSE: 전세를 구한다
+    PURCHASE: 집을 산다
+  note: |
+    이 항목 하나로 볼 상품이 갈린다. 전세 상품과 매매 상품의 조건이 전혀 달라서,
+    모르는 채로 전부 판정하면 사용자가 자기와 무관한 결과까지 읽어야 한다.
+
 marital_status:
   label: 혼인 상태
   choice_labels:
@@ -54,16 +67,24 @@ net_asset_krw:
 
 housing_area_m2:
   label: 전용면적
+  # 평으로 말한 수는 보통 공급면적이고 판정이 보는 것은 전용면적이다. 환산 대응이
+  # 단지마다 달라 시스템이 대신 바꾸지 않는다(extraction._평으로_말했나).
+  how_to_check: 평이 아니라 제곱미터로 넣어 주세요. 등기부등본이나 매물 정보의 전용면적입니다
 
 lease_deposit_krw:
   label: 임차보증금
 
 housing_value_krw:
   label: 주택가격
+  how_to_check: 매매계약서의 매매대금 또는 담보주택 평가액입니다
   note: 전세보증금과 다르다. 매매가격이다.
 
 deposit_paid_ratio:
   label: 임차보증금 지급 비율
+  # 창구를 알려 주는 안내가 아니라 **단위 안내**다. 전용면적의 '평이 아니라 제곱미터'와
+  # 같은 자리다. 규칙이 0.05(5%)와 비교하므로 10%를 낸 사람이 10이라고 적으면
+  # 1000%로 읽힌다 — 칸이 단위를 말하지 않아서 생기는 문제다.
+  how_to_check: 임차보증금 중 이미 낸 비율입니다. 10%를 냈으면 0.1로 적어 주세요
 
 region_name:
   label: 주택 소재지

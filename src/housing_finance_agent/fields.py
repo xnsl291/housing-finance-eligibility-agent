@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 AMOUNT = "AMOUNT"
 
 SPEC: dict[str, object] = {
@@ -17,6 +19,9 @@ SPEC: dict[str, object] = {
     "household_type": ["SINGLE", "MULTI"],
     "home_ownership_status": ["NO_HOME_ALL_MEMBERS", "HAS_HOME"],
     "marital_status": ["SINGLE", "MARRIED", "NEWLYWED"],
+    "is_first_time_buyer": bool,
+    # 전세를 구하는가 집을 사는가. 이 항목 하나로 볼 상품이 갈린다.
+    "intended_tenure": ["JEONSE", "PURCHASE"],
     "minor_children_count": int,
     # 수도권인지는 LLM에게 묻지 않는다. profile.enrich가 지역명에서 만든다.
     "region_name": str,
@@ -48,6 +53,8 @@ DESCRIPTIONS: dict[str, str] = {
     "household_type": "혼자 사는 단독세대면 SINGLE, 아니면 MULTI",
     "home_ownership_status": "세대원 전원 무주택이면 NO_HOME_ALL_MEMBERS",
     "marital_status": "혼인 7년 이내면 NEWLYWED, 그 외 기혼이면 MARRIED, 미혼이면 SINGLE",
+    "is_first_time_buyer": ("생애 처음으로 집을 사는 경우라고 **직접 말한 경우만** true"),
+    "intended_tenure": "전세를 구하면 JEONSE, 집을 사려면 PURCHASE",
     "minor_children_count": "미성년 자녀 수",
     "region_name": '임차할 주택이 있는 지역 이름 그대로 (예: "서울", "경기도 성남시", "부산")',
     "employment_category": "중소기업 또는 중견기업 재직이면 SME_OR_MID_SIZED, 그 외 OTHER",
@@ -70,6 +77,11 @@ DESCRIPTIONS: dict[str, str] = {
 }
 
 
+# 날짜로 읽는 항목. 판정 엔진이 `date.fromisoformat`으로 읽으므로 형식이 틀리면 판정
+# 도중에 예외가 난다. 들어오는 자리에서 막는다.
+DATE_FIELDS = frozenset({"contract_balance_date", "move_in_date", "application_date"})
+
+
 def kind_of(name: str) -> str:
     """화면이 어떤 입력 칸을 그릴지 정하는 데 쓴다."""
     spec = SPEC[name]
@@ -79,6 +91,59 @@ def kind_of(name: str) -> str:
         return "CHOICE"
     if spec is bool:
         return "BOOL"
+    if name in DATE_FIELDS:
+        # **여기가 없으면 날짜가 자유 입력 칸으로 그려진다.** 그러면 사용자가
+        # `YYYY-MM-DD`를 찍어 맞히지 못하는 한 아래 `problem_of`가 계속 거절하고,
+        # 질문 루프가 그 항목에서 못 나간다(2026-09-30 실물 확인).
+        return "DATE"
     if spec is str:
         return "TEXT"
     return "INT" if spec is int else "FLOAT"
+
+
+def problem_of(name: str, value: object) -> str | None:
+    """사용자가 넣은 값이 항목 정의에 맞는지 본다. 맞으면 None, 아니면 이유.
+
+    이름만 보고 값을 안 보면 `"jeonse"` 같은 값이 들어와, 판정은 전세 상품을 보는데
+    질문 루프는 후보가 없다고 하는 식으로 두 경로가 반대로 말한다(2026-09-24 검토).
+
+    `None`은 값을 지운다는 뜻이라 늘 받는다.
+    """
+    if value is None:
+        return None
+    spec = SPEC[name]
+    if isinstance(spec, list):
+        return None if value in spec else f"허용값이 아님: {value!r} (가능: {', '.join(spec)})"
+    if spec is bool:
+        return None if isinstance(value, bool) else "참/거짓이어야 함"
+    if spec is int:
+        return None if _is_int(value) else "정수여야 함"
+    if spec is float:
+        return None if _is_number(value) else "숫자여야 함"
+    if spec is AMOUNT:
+        if _is_int(value) and value >= 0:
+            return None
+        # 범위는 화면이 {"low", "high"}로 보낸다.
+        if isinstance(value, dict) and value.keys() == {"low", "high"}:
+            low, high = value["low"], value["high"]
+            if _is_int(low) and _is_int(high) and 0 <= low <= high:
+                return None
+        return "0 이상의 원 단위 정수 또는 {low, high} 범위여야 함"
+    # 나머지는 문자열 항목이다.
+    if not isinstance(value, str) or not value.strip():
+        return "비어 있지 않은 문자열이어야 함"
+    if name in DATE_FIELDS:
+        try:
+            date.fromisoformat(value)
+        except ValueError:
+            return "YYYY-MM-DD 형식이어야 함"
+    return None
+
+
+def _is_int(value: object) -> bool:
+    # bool은 int의 하위 타입이라 True가 1로 통과한다. 따로 막는다.
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_number(value: object) -> bool:
+    return _is_int(value) or isinstance(value, float)

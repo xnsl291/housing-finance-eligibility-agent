@@ -17,9 +17,12 @@ LLM이 뽑는다.
 
 from __future__ import annotations
 
+from datetime import date
+
 import streamlit as st
 
 from housing_finance_agent.ui import api_client, chrome
+from housing_finance_agent.ui.flow import confirm_updates
 from housing_finance_agent.ui.labels import amount_text
 
 # 입력 칸의 세션 키 앞자리. 문장을 다시 읽었을 때 이전 문장의 수정값이 남지 않게
@@ -56,8 +59,8 @@ def render() -> None:
         return
 
     st.caption(
-        "틀린 곳이 있으면 고쳐 주세요. 고치지 않고 넘어가면 읽은 값 그대로 판정합니다. "
-        "확인 버튼을 누르기 전에는 판정하지 않습니다."
+        "틀린 곳이 있으면 고쳐 주세요. 고치지 않고 넘어가면 읽은 값 그대로 씁니다. "
+        "판정에 더 필요한 것은 다음 단계에서 하나씩 여쭙니다."
     )
 
     for warning in extracted.get("warnings", []):
@@ -76,8 +79,10 @@ def render() -> None:
     for name in 읽은_항목:
         _받기(name, catalog[name], extracted, profile, errors)
 
-    with st.expander(f"비어 있는 항목 {len(빈_항목)}개 — 아는 값이 있으면 직접 채워 주세요"):
-        st.caption("비워 두면 그 항목은 '모름'으로 판정합니다. 화면이 대신 채우지 않습니다.")
+    with st.expander(f"비어 있는 항목 {len(빈_항목)}개 — 아는 값이 있으면 미리 채워도 됩니다"):
+        st.caption(
+            "비워 두면 판정에 필요한 것만 다음 단계에서 여쭙니다. 화면이 대신 채우지 않습니다."
+        )
         for name in 빈_항목:
             _받기(name, catalog[name], extracted, profile, errors)
 
@@ -85,16 +90,19 @@ def render() -> None:
     for message in errors:
         st.error(message)
 
-    if st.button("이 조건으로 판정", type="primary", disabled=bool(errors)):
-        if not profile:
-            # 빈 프로필로 두면 판정이 돌지 않는데 성공 문구만 떠서 막다른 길이 된다.
-            # 직접 입력으로 넘어온 사용자가 바로 만나는 자리다(2026-09-14 검수).
-            st.error("채운 항목이 없습니다. 아는 값을 하나 이상 넣어 주세요")
-            return
-        st.session_state["confirmed_profile"] = profile
-        # 앞선 판정 결과는 고치기 전 값으로 낸 것이라 그대로 두면 안 된다.
-        st.session_state.pop("results", None)
-        st.success(f"{len(profile)}개 항목으로 판정합니다")
+    if st.button("확인했습니다 — 다음", type="primary", disabled=bool(errors)):
+        # 채운 항목이 없어도 넘어간다. 예전에는 빈 채로 판정하면 막다른 길이라 막았는데,
+        # 이제는 다음 단계가 필요한 것을 하나씩 묻는다.
+        바뀐_것 = confirm_updates(extracted.get("values", {}), profile)
+        if 바뀐_것:
+            try:
+                api_client.set_fields(st.session_state["session_id"], 바뀐_것)
+            except api_client.ApiError as error:
+                # 서버가 값을 항목 정의로 검사한다(422). 확인 단계에 머문다.
+                st.error(str(error))
+                return
+        st.session_state["confirmed"] = True
+        st.rerun()
 
 
 def _받기(name: str, spec: dict, extracted: dict, profile: dict, errors: list[str]) -> None:
@@ -111,7 +119,11 @@ def _받기(name: str, spec: dict, extracted: dict, profile: dict, errors: list[
 
     if 못_읽은_원문:
         # 빈칸만 보여 주면 무엇을 고쳐야 하는지 모른다. 원문을 요약하지 않고 그대로 쓴다.
-        st.warning(f"{label}: “{못_읽은_원문}”을 숫자로 읽지 못했습니다. 직접 넣어 주세요")
+        #
+        # "숫자로 읽지 못했다"고 적지 않는다. 단위가 빠진 금액은 정말 못 읽은 것이지만,
+        # 평으로 말한 면적은 숫자는 읽혔고 **그 수를 쓸 수 없다**는 뜻이다(전용면적인지
+        # 공급면적인지 문장이 정하지 못한다). 두 경우에 다 맞는 말로 적는다.
+        st.warning(f"{label}: “{못_읽은_원문}”은 그대로 쓸 수 없습니다. 직접 넣어 주세요")
 
     if kind == "AMOUNT":
         value, error = _금액칸(name, label, 도움말, 읽은_값)
@@ -141,6 +153,13 @@ def _받기(name: str, spec: dict, extracted: dict, profile: dict, errors: list[
             horizontal=True,
         )
         value = _BOOL_VALUES[골라진]
+    elif kind == "DATE":
+        # 질문 화면과 같은 이유로 달력이다(`questions.py._입력칸`). 다만 이쪽은 LLM이
+        # 읽은 값이 미리 들어올 수 있어서, 형식이 맞는 것만 채운다.
+        고른 = st.date_input(
+            label, value=_날짜(읽은_값), format="YYYY-MM-DD", key=_key(name), help=도움말
+        )
+        value = None if 고른 is None else 고른.isoformat()
     elif kind == "INT":
         value = st.number_input(
             label, value=_숫자(읽은_값, int), step=1, key=_key(name), help=도움말
@@ -244,6 +263,21 @@ def _숫자(value: object, 형: type) -> object:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
     return 형(value)
+
+
+def _날짜(value: object) -> object:
+    """날짜 칸의 초깃값. 형식이 맞는 문자열만 채우고 나머지는 비워 둔다.
+
+    LLM이 `"2026년 10월 1일"`처럼 내놓을 수 있다. 서버가 그런 값을 못 읽은 값으로
+    넘겨 주므로(`api.py` add_message) 여기까지 오지 않는 것이 정상이지만, 초깃값에서
+    예외가 나면 확인 화면 전체가 안 그려지므로 한 번 더 막는다.
+    """
+    if not isinstance(value, str):
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
 
 
 def _key(name: str) -> str:

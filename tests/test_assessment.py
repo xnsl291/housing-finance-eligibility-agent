@@ -75,13 +75,18 @@ def test_확인_방법이_원문에_있는_항목은_그것도_알려_준다() -
 
 
 def test_확인_방법이_없는_항목은_이름만_알려_준다() -> None:
-    """없는 창구를 지어내지 않는다. 모른다는 사실만 정확히 전한다."""
-    모름 = {key: value for key, value in _통과.items() if key != "housing_area_m2"}
+    """없는 창구를 지어내지 않는다. 모른다는 사실만 정확히 전한다.
+
+    나이를 예로 쓴다. 전용면적을 쓰다가 2026-09-22에 그 항목에 `how_to_check`가
+    붙어서(평으로 말한 수를 쓰지 말라는 안내) 이 테스트가 깨졌다. 확인 방법이
+    **정말로** 없는 항목을 골라야 뜻이 유지된다.
+    """
+    모름 = {key: value for key, value in _통과.items() if key != "age"}
 
     result = assess(load_program("nhuf-youth-jeonse"), 모름)
 
-    안내 = [action for action in result.next_actions if "전용면적" in action]
-    assert 안내 == ["전용면적 정보가 필요합니다"]
+    안내 = [action for action in result.next_actions if "나이" in action]
+    assert 안내 == ["나이 정보가 필요합니다"]
 
 
 def test_항목_안내는_두_상품이_함께_쓴다() -> None:

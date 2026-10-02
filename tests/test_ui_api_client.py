@@ -141,3 +141,19 @@ def test_경로_지우기가_금액을_건드리지_않는다() -> None:
     assert api_client.strip_paths("연 4,000만원 / 보증금 1억 8,000만원") == (
         "연 4,000만원 / 보증금 1억 8,000만원"
     )
+
+
+def test_LLM을_거치는_호출의_대기_시간을_환경변수로_늘린다(monkeypatch: pytest.MonkeyPatch) -> None:
+    """GPU가 없는 컴퓨터에서는 문장 하나에 1분이 넘게 걸린다. 화면이 먼저 포기하면 안 된다."""
+    받은_시간 = []
+
+    def fake(request: urllib.request.Request, timeout: int = 0) -> _응답:
+        받은_시간.append(timeout)
+        return _응답({"values": {}, "warnings": [], "unreadable": {}})
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    monkeypatch.setenv("HFA_UI_LLM_TIMEOUT", "600")
+
+    api_client.send_message("s", "만 29세입니다")
+
+    assert 받은_시간 == [600.0]

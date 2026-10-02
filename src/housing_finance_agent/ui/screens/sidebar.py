@@ -31,13 +31,23 @@ def render() -> None:
         except ApiError as error:
             # 서버가 죽은 것을 "조건이 안 맞는다"로 읽히게 쓰면 안 된다. 사용자
             # 조건과 무관한 문제라는 것이 문구에서 드러나야 한다.
-            st.error(f"API 서버에 연결되지 않았습니다 — {error}")
+            st.error(f"API 서버에 연결되지 않았습니다 — {error}", icon="🚨")
+            st.caption("서버를 띄운 뒤 화면을 새로 고쳐 주세요.")
         else:
-            st.markdown(f":green[● 연결됨] · {상태.get('status', '상태 표시 없음')}")
+            st.success(f"API 서버 연결됨 ({상태.get('status', '상태 표시 없음')})", icon="✅")
             _상품_목록(상태.get("programs") or [])
 
         st.divider()
         _초기화()
+
+        st.divider()
+        # 화면이 세션 경로로 옮겨 오면서 이 문구가 사실이 아니게 됐다. 문장은 저장하지
+        # 않지만, 읽어 낸 값과 답은 질문을 이어 가려고 서버 세션에 남는다(D-30).
+        # 약속하는 문구가 실제와 다르면 개인정보를 다루는 화면에서 가장 나쁜 종류의 오류다.
+        st.caption(
+            "입력한 문장은 저장하지 않습니다. 문장에서 읽어 낸 값과 질문에 답한 값은 "
+            "판정을 이어 가기 위해 이 컴퓨터의 서버 세션에 남습니다."
+        )
 
 
 def _상품_목록(program_ids: list[str]) -> None:
@@ -65,4 +75,4 @@ def _초기화() -> None:
     if st.button("전체 초기화", use_container_width=True):
         st.session_state.clear()
         st.rerun()
-    st.caption("입력한 내용은 판정에만 쓰고 저장하지 않습니다.")
+    st.caption("입력한 문장과 판정 결과를 모두 지웁니다. 데모를 다시 시작할 때 쓰세요.")

@@ -26,6 +26,14 @@ from __future__ import annotations
 # 근거: 상품 안내의 금리 항목에 "지방 소재(서울, 인천, 경기지역 이외)"라고 적혀 있다.
 _CAPITAL_AREA_KEYWORDS = ("서울", "인천", "경기")
 
+# 파생 항목을 만드는 데 쓰인 원래 항목. 판정은 파생 항목이 없다고 알려 주지만
+# 사용자는 파생 항목에 답할 수 없다 — "수도권인가요"가 아니라 "어느 지역인가요"를
+# 물어야 한다. enrich가 바뀌면 이 표도 같이 바뀌므로 여기에 둔다.
+DERIVED_FROM: dict[str, tuple[str, ...]] = {
+    "region": ("region_name",),
+    "age_after_service_credit": ("age", "military_service_years"),
+}
+
 
 def enrich(profile: dict) -> dict:
     """판정에 쓸 파생 값을 더한 새 dict를 준다. 받은 dict는 바꾸지 않는다."""

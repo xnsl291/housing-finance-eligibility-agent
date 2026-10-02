@@ -128,10 +128,13 @@ def test_한도를_못_낸_이유를_구분해서_준다() -> None:
     program = load_program("nhuf-youth-jeonse")
 
     보증금_없음 = estimate_loan_limit(program, {"age": 30, "household_type": "SINGLE"})
-    assert 보증금_없음.reason == "DEPOSIT_UNKNOWN"
+    assert 보증금_없음.reason == "BASE_UNKNOWN"
+    # 비율을 어느 값에 걸었는지도 함께 담는다. 전세는 임차보증금, 매매는 주택가격이라
+    # 사유 코드만으로는 "무엇을 알려 달라"고 말할 수 없다.
+    assert 보증금_없음.ratio_field == "lease_deposit_krw"
 
     범위 = {**_기본, "lease_deposit_krw": Range(180000000, 200000000)}
-    assert estimate_loan_limit(program, 범위).reason == "DEPOSIT_IMPRECISE"
+    assert estimate_loan_limit(program, 범위).reason == "BASE_IMPRECISE"
 
     구간_모름 = {"age": 24, "lease_deposit_krw": 200000000}
     assert estimate_loan_limit(program, 구간_모름).reason == "TIER_UNKNOWN"
@@ -171,3 +174,14 @@ def test_파생_항목은_편집_대상에서_뺀다() -> None:
     assert "region" not in catalog
     assert "age_after_service_credit" not in catalog
     assert "region_name" in catalog
+
+
+def test_비율_항목은_단위를_알려_준다() -> None:
+    """`0~1` 비율인데 칸에는 `숫자로 적어 주세요`만 있었다.
+
+    규칙 B-17이 0.05(5%)와 비교하므로 10%를 낸 사람이 `10`이라고 적으면 1000%로 읽혀
+    통과한다. 2026-09-30 실물 확인에서 날짜와 같은 부류(칸이 단위를 말하지 않음)로 드러났다.
+    """
+    안내 = field_catalog()["deposit_paid_ratio"].get("how_to_check", "")
+
+    assert "0.1" in 안내, f"비율을 어떻게 적는지 알려 주지 않는다: {안내!r}"

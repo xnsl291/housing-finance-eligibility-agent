@@ -33,9 +33,16 @@ def _그려진_단계(앱) -> str:
     return "(없음)"
 
 
-_뽑은_값 = {
-    "values": {"age": 30, "combined_annual_income_krw": 40000000},
-    "sources": {"age": "만 30세"},
+# 세션 경로의 응답 모양이다. 값마다 출처가 붙는다(`flow.extracted_from`).
+_읽은_응답 = {
+    "values": {
+        "age": {"value": 30, "source": "LLM", "phrase": "만 30세"},
+        "combined_annual_income_krw": {
+            "value": 40000000,
+            "source": "LLM",
+            "phrase": "연봉 4천만원",
+        },
+    },
     "unreadable": {},
     "warnings": [],
 }
@@ -46,7 +53,8 @@ def 앱(monkeypatch):
     """실물 LLM과 서버를 부르지 않는다. 여기서 보는 것은 화면 전환뿐이다."""
     from housing_finance_agent.ui import api_client
 
-    monkeypatch.setattr(api_client, "extract", lambda message: _뽑은_값)
+    monkeypatch.setattr(api_client, "start_session", lambda: "세션1")
+    monkeypatch.setattr(api_client, "send_message", lambda session_id, message: _읽은_응답)
     monkeypatch.setattr(api_client, "health", lambda: {"status": "ok", "programs": []})
     monkeypatch.setattr(api_client, "fields", lambda: {"fields": {}})
     return AppTest.from_file(str(_APP), default_timeout=30).run()
@@ -119,7 +127,7 @@ def test_문장_읽기가_생각중으로_감싸여_있다() -> None:
     감싼_줄 = "with chrome.thinking("
     assert 감싼_줄 in 본문, "추출이 생각 중 표시로 감싸여 있지 않다"
     앞 = 본문.index(감싼_줄)
-    뒤 = 본문.index("api_client.extract(", 앞)
+    뒤 = 본문.index("api_client.send_message(", 앞)
     assert 뒤 - 앞 < 120, "생각 중 표시와 추출 호출이 떨어져 있다"
 
 
