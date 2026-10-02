@@ -273,3 +273,69 @@ def test_세션으로_판정하면_질문_정책_버전이_기록에_남는다(c
         기록[-1]["payload"]["question_policy_version"]
         == client.get(f"/v1/sessions/{session_id}/next").json()["policy_version"]
     )
+
+
+def _LLM이_내놓은_값으로_세션을_만든다(tmp_path, 값: dict) -> TestClient:
+    return TestClient(
+        create_app(
+            FakeLlm(json.dumps(값, ensure_ascii=False)),
+            sessions=SessionStore(tmp_path / "sessions.db"),
+        )
+    )
+
+
+def test_LLM이_낸_날짜가_형식에_안_맞으면_저장하지_않는다(tmp_path) -> None:
+    """**값이 들어오는 자리가 둘인데 한 곳만 막혀 있었다.**
+
+    `set_fields`는 `problem_of`로 걸렀지만 `messages`는 안 걸렀다. 2026-09-30 재현:
+    LLM이 `"2026년 10월 1일"`을 내놓으면 그대로 세션에 쌓이고 판정과 다음 질문이 둘 다
+    `ValueError: Invalid isoformat string`으로 터졌다. 값이 기록에 남아서 새로고침해도
+    되살아나지 않고, 그 세션은 전체 초기화 말고는 길이 없었다.
+    """
+    client = _LLM이_내놓은_값으로_세션을_만든다(
+        tmp_path,
+        {
+            "age": 29,
+            "move_in_date": "2026년 10월 1일",
+            "_sources": {"move_in_date": "10월 1일에 전입했어요"},
+        },
+    )
+    session_id = client.post("/v1/sessions").json()["session_id"]
+
+    응답 = client.post(f"/v1/sessions/{session_id}/messages", json={"message": "전입했어요"})
+
+    본문 = 응답.json()
+    assert "move_in_date" not in 본문["values"], "형식이 틀린 날짜가 저장됐다"
+    assert 본문["values"]["age"]["value"] == 29, "같이 온 멀쩡한 값까지 버렸다"
+    # 버리지 않고 사람에게 넘긴다. 확인 화면이 원문과 함께 직접 넣으라고 말하는 자리다.
+    assert 본문["unreadable"]["move_in_date"] == "10월 1일에 전입했어요"
+
+
+def test_못_쓰는_날짜가_와도_판정과_다음_질문이_살아_있다(tmp_path) -> None:
+    """저장을 막는 것만으로는 부족하다. **그 세션으로 계속 갈 수 있어야 한다.**"""
+    client = _LLM이_내놓은_값으로_세션을_만든다(
+        tmp_path, {"intended_tenure": "JEONSE", "move_in_date": "2026년 10월 1일"}
+    )
+    session_id = client.post("/v1/sessions").json()["session_id"]
+    client.post(f"/v1/sessions/{session_id}/messages", json={"message": "전세 알아봐요"})
+
+    assert client.post(f"/v1/sessions/{session_id}/assessment").status_code == 200
+    다음 = client.get(f"/v1/sessions/{session_id}/next")
+    assert 다음.status_code == 200
+    assert 다음.json()["action"] == "ASK", "루프가 멈췄다"
+    # 값으로 안 남았으니 아직 물을 거리로 남아 있다. 순서상 먼저 물을 것이 있어서
+    # 이번에 물은 항목이 날짜는 아니다 — 여기서 확인하는 것은 **세션이 계속 간다**는 것뿐이다.
+    assert "move_in_date" not in client.get(f"/v1/sessions/{session_id}").json()["values"]
+
+
+def test_값이_틀렸다는_말에_코드_이름을_쓰지_않는다(client) -> None:
+    """화면은 `임대차계약 잔금지급일`이라 부르는데 오류만 `contract_balance_date`였다."""
+    session_id = _세션(client)
+
+    응답 = client.put(
+        f"/v1/sessions/{session_id}/fields", json={"values": {"contract_balance_date": "10월 1일"}}
+    )
+
+    문구 = 응답.json()["detail"]
+    assert "임대차계약 잔금지급일" in 문구
+    assert "contract_balance_date" not in 문구
