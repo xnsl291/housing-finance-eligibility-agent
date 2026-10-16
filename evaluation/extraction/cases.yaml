@@ -36,6 +36,7 @@ cases:
       age: 29
       household_head_status: HEAD
       home_ownership_status: NO_HOME_ALL_MEMBERS
+      intended_tenure: JEONSE
       region_name: 서울
       lease_deposit_krw: 180000000
 
@@ -61,6 +62,7 @@ cases:
       marital_status: NEWLYWED
       minor_children_count: 0
       combined_annual_income_krw: 60000000
+      intended_tenure: JEONSE
       region_name: 경기도 성남시
       lease_deposit_krw: 250000000
 
@@ -71,6 +73,7 @@ cases:
     text: 전세 1억짜리 원룸 알아보는 중입니다. 나이는 만 27세예요.
     expect:
       age: 27
+      intended_tenure: JEONSE
       lease_deposit_krw: 100000000
 
   - id: E-05
@@ -79,6 +82,7 @@ cases:
       전세보증금과 매매가는 다른 항목이고 보증금 상한 규칙이 전자만 본다
     text: 서울 전세 3억으로 구하고 있습니다.
     expect:
+      intended_tenure: JEONSE
       region_name: 서울
       lease_deposit_krw: 300000000
 
@@ -94,6 +98,7 @@ cases:
     왜: 소수점이 든 억 단위
     text: 보증금 1.8억 전세를 보고 있습니다.
     expect:
+      intended_tenure: JEONSE
       lease_deposit_krw: 180000000
 
   - id: E-08
@@ -201,16 +206,64 @@ cases:
     왜: 비수도권. 보증금 상한이 2억으로 낮아진다
     text: 부산에서 전세 2억5천을 알아보고 있습니다.
     expect:
+      intended_tenure: JEONSE
       region_name: 부산
       lease_deposit_krw: 250000000
 
   # ── 아무것도 뽑지 말아야 하는 경우 ────────────────────────────────────
   - id: E-23
     왜: |
-      판정에 쓸 값이 하나도 없는 문장이다. **무언가를 뽑으면 전부 환각이다.**
-      이 케이스가 환각률을 재는 기준선이 된다
+      **값이 하나뿐인 문장이다.** 2026-09-22에는 "뽑을 게 하나도 없는 문장"으로 두고
+      환각률 기준선으로 썼는데, #18이 `intended_tenure`를 만든 뒤로는 "전세 대출"이
+      그 항목을 정한다. 기준선 역할은 E-25로 옮기고 이 케이스는 **다른 것에 끌려가지
+      않고 하나만 뽑는가**를 본다
     text: 전세 대출을 받고 싶은데 어떻게 해야 하는지 잘 모르겠습니다.
+    expect:
+      intended_tenure: JEONSE
+
+  - id: E-25
+    왜: |
+      판정에 쓸 값이 하나도 없는 문장이다. **무언가를 뽑으면 전부 환각이다.**
+      이 케이스가 환각률을 재는 기준선이 된다 — E-23이 맡고 있던 역할인데, 항목이
+      늘면서 그 문장이 값을 하나 갖게 돼 따로 세웠다.
+      **항목을 늘릴 때는 이 케이스의 문장도 다시 봐야 한다.** 늘어난 항목을 이 문장이
+      정하게 되면 기준선이 또 조용히 사라진다
+    text: 대출을 받고 싶은데 절차가 어떻게 되는지 알려 주세요.
     expect: {}
+
+  # ── 매매 (디딤돌) ─────────────────────────────────────────────────────
+  #
+  # **2026-10-02에 추가했다.** #18에서 매매 상품을 넣었는데 이 평가셋에 매매 문장이
+  # 하나도 없어서 `housing_value_krw`와 `is_first_time_buyer`가 한 번도 측정되지
+  # 않고 있었다. 전세만 재면서 "추출 정확도"라고 부르고 있었다.
+  - id: E-26
+    왜: 매매의 기본 형태. 주택가격·생애최초·전세냐 매매냐가 한 문장에 있다
+    text: 생애 처음으로 집을 사려고 합니다. 서울에서 5억짜리 아파트를 보고 있고 만 34세입니다.
+    expect:
+      age: 34
+      intended_tenure: PURCHASE
+      is_first_time_buyer: true
+      housing_value_krw: 500000000
+      region_name: 서울
+
+  - id: E-27
+    왜: |
+      매매가와 전세보증금은 다른 항목이고 보증금 상한 규칙은 후자만 본다. E-05의
+      짝이다 — 거기서는 "전세 3억"이 주택가격으로 잘못 갔다. 반대 방향도 막아야 한다
+    text: 집을 사려고 하는데 매매가는 3억입니다.
+    expect:
+      intended_tenure: PURCHASE
+      housing_value_krw: 300000000
+
+  - id: E-28
+    왜: |
+      **전세냐 매매냐를 말하지 않은 문장이다.** 이 항목이 뽑히면 환각이고, 질문 루프가
+      1순위로 물어야 하는 항목이라 잘못 채워지면 후보 상품이 조용히 반으로 줄어든다
+    text: 만 30세이고 연봉 4천만원입니다. 서울에 살아요.
+    expect:
+      age: 30
+      combined_annual_income_krw: 40000000
+      region_name: 서울
 
   - id: E-24
     왜: 개인정보가 섞인 경우. 값은 정상적으로 뽑되 주민번호는 경고로만 남아야 한다
@@ -227,3 +280,16 @@ cases:
 consistency:
   repeat: 3
   case_ids: [E-01, E-03, E-04, E-08, E-23]
+
+# 이 평가셋이 **일부러 다루지 않는** 항목.
+#
+# 2026-10-02에 둔 장치다. #18이 `intended_tenure`를 만들었는데 라벨을 안 늘려서,
+# 맞게 뽑은 값이 환각으로 집계되고 있었다(환각률 2.0%가 16.0%로 보였다). 같은 일이
+# 다시 생기지 않게 **항목이 하나 늘면 테스트가 분류를 요구한다**
+# (`tests/test_extraction_cases.py`).
+#
+# 여기 적으면 "안 재기로 정했다"는 뜻이다. 이유 없이 적어서 통과시키면 장치가 무의미하다.
+uncovered_fields:
+  is_redevelopment_area_tenant: |
+    긍정 사례를 두지 않는다. 정의가 "직접 말한 경우만 true"이고, 말하지 않았는데 뽑는
+    것을 막는 쪽이 중요하다. E-04가 그 역할을 한다(원룸 이야기를 이 값으로 읽지 않는가)
