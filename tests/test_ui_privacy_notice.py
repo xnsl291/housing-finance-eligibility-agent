@@ -24,3 +24,35 @@ def test_주소는_가리지_못한다고_알린다() -> None:
     )
     assert "주소는 가리지 못합니다" in PRIVACY_NOTICE
     assert "저장하지도 않습니다" not in PRIVACY_NOTICE
+
+
+def _삭제_경로가_있다() -> bool:
+    from pathlib import Path
+
+    api = Path(__file__).resolve().parents[1] / "src/housing_finance_agent/api.py"
+    return "@app.delete" in api.read_text(encoding="utf-8")
+
+
+def test_사이드바_안내가_저장되는_것을_다_말한다() -> None:
+    """2026-10-16까지 "서버 세션에 남는다"고만 했다. 파일이고, 다시 켜도 남고, 근거도 남는다."""
+    from housing_finance_agent.ui.screens.sidebar import PRIVACY_NOTE
+
+    for 말해야_할_것 in ("세션 파일", "다시 켜도", "근거", "답한 값", "모른다고 한"):
+        assert 말해야_할_것 in PRIVACY_NOTE, f"안내가 '{말해야_할_것}'을 말하지 않는다"
+
+
+def test_지울_수_없는_동안에는_지울_수_없다고_말한다() -> None:
+    """서버에 지우는 경로가 생기면 이 테스트가 실패한다 — 그때 문구를 같이 고칠 것."""
+    from housing_finance_agent.ui.screens.sidebar import PRIVACY_NOTE, RESET_NOTE
+
+    assert not _삭제_경로가_있다(), "서버에 삭제 경로가 생겼다. 안내와 초기화 문구를 고칠 것"
+    assert "지울 수 없습니다" in PRIVACY_NOTE
+    assert "서버에 남은 기록은 지워지지 않습니다" in RESET_NOTE
+    assert "모두 지웁니다" not in RESET_NOTE
+
+
+def test_확인_과정_아래_문구가_남는_것을_줄여_말하지_않는다() -> None:
+    from housing_finance_agent.ui.app import TRACE_NOTE
+
+    assert "만 남" not in TRACE_NOTE, "남는 것을 일부만 말하면서 '만'이라고 하면 안 된다"
+    assert "서버에 남습니다" in TRACE_NOTE
