@@ -82,7 +82,7 @@ def _버튼(at: AppTest, 이름: str):
 def _문장을_읽고_확인한다(at: AppTest) -> None:
     at.text_area(key="input_message").input("서울 전세 3억, 29살, 연봉 4천").run()
     _버튼(at, "조건 읽기").click().run()
-    assert at.subheader[0].value == "2. 이렇게 읽었습니다", "확인 단계를 건너뛰었다"
+    assert at.subheader[0].value == "이렇게 읽었습니다", "확인 단계를 건너뛰었다"
     _버튼(at, "확인했습니다 — 다음").click().run()
 
 
@@ -95,7 +95,7 @@ def test_확인을_마치면_서버가_정한_질문을_하나씩_묻는다(서�
     at = AppTest.from_file(str(_앱), default_timeout=30).run()
     _문장을_읽고_확인한다(at)
 
-    assert at.subheader[0].value == "3. 하나씩 확인"
+    assert at.subheader[0].value == "몇 가지만 더 여쭙겠습니다"
     session_id = at.session_state["session_id"]
     서버가_정한_것 = 서버.get(f"/v1/sessions/{session_id}/next").json()["question"]["label"]
     assert any(m.value == f"#### {서버가_정한_것}" for m in at.markdown), (
@@ -153,7 +153,7 @@ def test_모른다고만_하면_끝까지_가서_모른_것을_밝힌다(서버:
     _문장을_읽고_확인한다(at)
 
     for _ in range(30):
-        if at.subheader[0].value != "3. 하나씩 확인":
+        if at.subheader[0].value != "몇 가지만 더 여쭙겠습니다":
             break
         _버튼(at, "모르겠어요").click().run()
     else:
