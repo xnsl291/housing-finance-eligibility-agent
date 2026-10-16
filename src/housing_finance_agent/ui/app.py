@@ -35,6 +35,10 @@ from housing_finance_agent.ui import api_client, chrome
 from housing_finance_agent.ui.flow import USER_STOPPED, stop_message, trace_lines
 from housing_finance_agent.ui.screens import confirm, input, questions, results, sidebar
 
+# 확인 과정 아래 한 줄. 2026-10-16까지 "읽어 낸 값과 근거 구절**만** 남깁니다"였는데,
+# 직접 넣거나 답한 값과 모른다고 한 항목도 남는다. "만"이 틀렸다.
+TRACE_NOTE = "입력하신 문장 전체는 저장하지 않습니다. 위에 보이는 값과 근거 구절은 서버에 남습니다."
+
 STEPS = ("조건 입력", "읽은 내용 확인", "하나씩 확인", "판정 결과")
 
 
@@ -117,7 +121,7 @@ def _결과() -> None:
             return
         for 번호, 줄 in enumerate(trace_lines(기록, catalog), start=1):
             st.markdown(f"{번호}. {줄}")
-        st.caption("입력하신 문장 자체는 저장하지 않고, 읽어 낸 값과 근거 구절만 남깁니다.")
+        st.caption(TRACE_NOTE)
 
 
 def _항목_목록() -> dict:
