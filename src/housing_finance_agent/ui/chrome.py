@@ -159,6 +159,12 @@ _움직임_CSS = """
   from {{ opacity: 0; transform: translateY(-2.5rem); }}
   to   {{ opacity: 1; transform: translateY(0); }}
 }}
+/* 위의 움직임을 본문에 실제로 거는 줄이다. 2026-10-16까지 이 줄이 없어서 움직임이
+   정의만 되고 아무 데도 걸리지 않았다 — main의 app.py에 있던 작동하는 판을 이
+   파일로 옮기면서 빠졌다. 테스트가 화면 요소 이름만 보고 있어서 통과했다. */
+[data-testid="stMainBlockContainer"] {{
+  animation: hfaStep{단계} 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}}
 /* 움직임을 줄이도록 설정한 사용자에게는 넣지 않는다. */
 @media (prefers-reduced-motion: reduce) {{
   [data-testid="stMainBlockContainer"] {{ animation: none; }}

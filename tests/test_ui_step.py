@@ -177,3 +177,22 @@ def test_본문이_넓게_열리고_상한이_있다() -> None:
 
     assert 'layout="wide"' in 앱, "본문을 좁게 열고 있다"
     assert "max-width:" in _CSS, "폭 상한이 없다"
+
+
+def test_단계_전환_움직임이_본문에_실제로_걸린다() -> None:
+    """**정의만 하고 걸지 않으면 아무것도 안 움직인다.**
+
+    2026-10-16 검토에서 드러났다. `@keyframes`만 있고 그것을 본문에 거는 `animation:`
+    줄이 없었다. 위 테스트는 CSS에 화면 요소 이름이 있는지만 봐서, 그 이름이 "움직임을
+    끄는" 줄에만 남아 있어도 통과했다.
+    """
+    import re
+
+    from housing_finance_agent.ui.chrome import _움직임_CSS
+
+    css = _움직임_CSS.format(단계=2)
+    # 움직임을 줄이는 설정 블록을 뺀 나머지에서 찾는다. 그 블록의 `animation: none`은
+    # 움직임을 거는 줄이 아니다.
+    평소 = re.sub(r"@media \(prefers-reduced-motion[^{]*\{.*?\}\s*\}", "", css, flags=re.S)
+
+    assert re.search(r"animation:\s*hfaStep2\b", 평소), "움직임이 정의만 되고 본문에 걸리지 않는다"
