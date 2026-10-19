@@ -3,11 +3,12 @@
 **이 시스템에서 LLM이 닿는 유일한 자리다.** 판정과 계산은 LLM이 못 건드린다.
 그래서 여기의 관심사는 "잘 뽑는가"보다 **"잘못 뽑은 것을 걸러내는가"**다.
 
-걸러내는 기준이 셋이다.
+걸러내는 기준이 넷이다.
 
 1. 모르는 항목 이름은 버린다
 2. 정해진 값이 아니면 버린다 — 세대주 여부에 `가장`이 오면 쓸 수 없다
 3. 금액은 LLM이 준 숫자를 믿지 않는다. 표현을 받아 파서가 바꾼다
+4. 특례를 막는 쪽의 값(거짓, `OTHER`, `MARRIED`)은 추출로 받지 않는다. 사람이 답한다
 
 **버린 것은 값이 없는 상태가 된다. 억지로 고치지 않는다.** 뽑은 결과는 그대로
 판정에 들어가지 않고 사용자 확인을 거친다(계획서 §13.3).
@@ -92,6 +93,8 @@ def extract_profile(llm: LlmClient, text: str) -> ExtractedProfile:
             else:
                 values[name] = parsed
             continue
+        if _단정할_수_없는_값.get(name) == given:
+            continue
         accepted = _accept(_FIELDS[name], given)
         if accepted is not None:
             values[name] = accepted
@@ -100,6 +103,16 @@ def extract_profile(llm: LlmClient, text: str) -> ExtractedProfile:
         values=values, sources=sources, unreadable=unreadable, warnings=warnings
     )
 
+
+# 추출로는 받지 않는 값. **특례를 막는 쪽의 값이라, 틀리면 해당자가 조용히 탈락한다.**
+# 불리언에서 false를 버리는 것(`_accept`)과 같은 이유다. 버리면 빈칸으로 남고 질문
+# 루프가 사용자에게 직접 묻는다. 그렇다고 말한 사람이 한 번 더 답하는 비용이 더 싸다.
+#
+# - `OTHER`: "직장인"만으로는 중소·중견기업인지 모른다. 모델이 "그 외"로 채우면 청년
+#   전세의 병역 특례(만 39세까지) 판단이 막힌다(2026-10-02 측정 E-02)
+# - `MARRIED`: 신혼(혼인 7년 이내)과 가르는 계산을 모델이 틀린다. "결혼 2년차"를
+#   `MARRIED`로 읽어 소득 기준이 7.5천에서 5천만원으로 내려갔다(E-03, 2026-09-16부터 반복)
+_단정할_수_없는_값 = {"employment_category": "OTHER", "marital_status": "MARRIED"}
 
 # 면적을 평으로 말한 경우를 알아보는 데 쓴다. 전용면적만 이 문제가 있다 —
 # 금액은 파서가 단위를 보고, 나머지 항목에는 평 단위가 없다.
