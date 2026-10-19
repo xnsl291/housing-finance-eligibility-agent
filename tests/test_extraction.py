@@ -244,3 +244,96 @@ def test_제곱미터로_말한_면적은_그대로_쓴다() -> None:
 
     assert result.values == {"housing_area_m2": 59.0}
     assert not result.unreadable
+
+
+def test_특례를_막는_값은_추출로_받지_않는다() -> None:
+    """불리언에서 거짓을 버리는 것과 같은 이유다. 틀리면 해당자가 조용히 탈락한다.
+
+    - "직장인"을 `OTHER`로 채우면 청년 전세의 병역 특례 판단이 막힌다(2026-10-02 E-02)
+    - "결혼 2년차"를 `MARRIED`로 읽으면 신혼 소득 기준(7.5천만원)이 빠진다(E-03)
+
+    버리면 빈칸으로 남고 질문 루프가 직접 묻는다.
+    """
+    llm = FakeLlm(_reply(age=31, employment_category="OTHER", marital_status="MARRIED"))
+
+    result = extract_profile(llm, "결혼 2년차 직장인이고 만 31세입니다")
+
+    assert result.values == {"age": 31}, "단정할 수 없는 값을 받았다"
+
+
+def test_특례를_여는_값은_받는다() -> None:
+    """위 테스트의 짝. 신혼·중소기업까지 버리면 해당자가 그 사실을 못 전한다."""
+    llm = FakeLlm(_reply(employment_category="SME_OR_MID_SIZED", marital_status="NEWLYWED"))
+
+    result = extract_profile(llm, "중소기업에 다니고 결혼 1년차입니다")
+
+    assert result.values == {
+        "employment_category": "SME_OR_MID_SIZED",
+        "marital_status": "NEWLYWED",
+    }
+
+
+def test_단위를_채우며_떨어뜨린_어림말을_근거에서_되살린다() -> None:
+    """"연 7천 정도"가 `7천만원`으로 오면 한 값으로 굳는다(2026-10-02 측정 E-09).
+
+    사용자는 6.3천~7.7천 어딘가라고 했다. 기준선 근처에서는 이 차이가 판정을 가른다.
+    """
+    llm = FakeLlm(
+        _reply(
+            combined_annual_income_krw="7천만원",
+            _sources={"combined_annual_income_krw": "연 7천 정도"},
+        )
+    )
+
+    result = extract_profile(llm, "연 7천 정도 법니다")
+
+    assert result.values["combined_annual_income_krw"] == Range(63000000, 77000000)
+
+
+def test_근거에_어림말이_없으면_정확한_값으로_둔다() -> None:
+    """위 테스트의 짝. 아무 금액이나 범위로 넓히면 정확히 말한 사람의 값이 흐려진다."""
+    llm = FakeLlm(
+        _reply(
+            combined_annual_income_krw="7천만원",
+            _sources={"combined_annual_income_krw": "연봉 7천"},
+        )
+    )
+
+    result = extract_profile(llm, "연봉 7천입니다")
+
+    assert result.values["combined_annual_income_krw"] == 70000000
+
+
+def test_연도를_말하지_않은_날짜는_쓰지_않고_원문을_남긴다() -> None:
+    """날짜 칸은 `YYYY-MM-DD`라 모델이 연도를 지어낸다(2026-10-02 측정 E-20).
+
+    "4월 20일"이 2024-04-20으로 들어가면 신청 기한 판정이 2년 어긋난다. 앞 날짜의
+    연도를 이어 붙이지 않는다 — 해를 넘기는 경우에 틀린다.
+    """
+    llm = FakeLlm(
+        _reply(
+            contract_balance_date="2026-03-10",
+            move_in_date="2024-04-20",
+            _sources={
+                "contract_balance_date": "잔금은 2026년 3월 10일",
+                "move_in_date": "전입은 4월 20일",
+            },
+        )
+    )
+
+    result = extract_profile(llm, "잔금은 2026년 3월 10일, 전입은 4월 20일")
+
+    assert result.values == {"contract_balance_date": "2026-03-10"}
+    assert result.unreadable["move_in_date"] == "전입은 4월 20일", "원문을 안 남겼다"
+
+
+@pytest.mark.parametrize("근거", ["2026-03-10", "2026.3.10", "26년 3월 10일"])
+def test_연도를_말한_날짜는_받는다(근거: str) -> None:
+    """위 테스트의 짝. 연도를 적는 여러 모양을 다 막으면 정상 입력이 빈칸이 된다."""
+    llm = FakeLlm(
+        _reply(contract_balance_date="2026-03-10", _sources={"contract_balance_date": 근거})
+    )
+
+    result = extract_profile(llm, f"잔금일은 {근거}입니다")
+
+    assert result.values == {"contract_balance_date": "2026-03-10"}
