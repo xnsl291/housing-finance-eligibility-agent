@@ -271,3 +271,34 @@ def test_특례를_여는_값은_받는다() -> None:
         "employment_category": "SME_OR_MID_SIZED",
         "marital_status": "NEWLYWED",
     }
+
+
+def test_단위를_채우며_떨어뜨린_어림말을_근거에서_되살린다() -> None:
+    """"연 7천 정도"가 `7천만원`으로 오면 한 값으로 굳는다(2026-10-02 측정 E-09).
+
+    사용자는 6.3천~7.7천 어딘가라고 했다. 기준선 근처에서는 이 차이가 판정을 가른다.
+    """
+    llm = FakeLlm(
+        _reply(
+            combined_annual_income_krw="7천만원",
+            _sources={"combined_annual_income_krw": "연 7천 정도"},
+        )
+    )
+
+    result = extract_profile(llm, "연 7천 정도 법니다")
+
+    assert result.values["combined_annual_income_krw"] == Range(63000000, 77000000)
+
+
+def test_근거에_어림말이_없으면_정확한_값으로_둔다() -> None:
+    """위 테스트의 짝. 아무 금액이나 범위로 넓히면 정확히 말한 사람의 값이 흐려진다."""
+    llm = FakeLlm(
+        _reply(
+            combined_annual_income_krw="7천만원",
+            _sources={"combined_annual_income_krw": "연봉 7천"},
+        )
+    )
+
+    result = extract_profile(llm, "연봉 7천입니다")
+
+    assert result.values["combined_annual_income_krw"] == 70000000

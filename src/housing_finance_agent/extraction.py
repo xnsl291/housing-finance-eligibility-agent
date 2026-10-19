@@ -87,7 +87,7 @@ def extract_profile(llm: LlmClient, text: str) -> ExtractedProfile:
             unreadable[name] = str(sources.get(name) or given)
             continue
         if _FIELDS[name] is _AMOUNT:
-            parsed = parse_amount(str(given))
+            parsed = parse_amount(_어림말을_되살린다(str(given), sources.get(name)))
             if parsed is None:
                 unreadable[name] = str(given)
             else:
@@ -113,6 +113,26 @@ def extract_profile(llm: LlmClient, text: str) -> ExtractedProfile:
 # - `MARRIED`: 신혼(혼인 7년 이내)과 가르는 계산을 모델이 틀린다. "결혼 2년차"를
 #   `MARRIED`로 읽어 소득 기준이 7.5천에서 5천만원으로 내려갔다(E-03, 2026-09-16부터 반복)
 _단정할_수_없는_값 = {"employment_category": "OTHER", "marital_status": "MARRIED"}
+
+# 금액 뒤에 붙는 어림말. 파서가 이 말이 붙은 금액을 범위로 읽는다(`amount._FUZZY_SUFFIX`).
+_어림말 = re.compile(r"쯤|정도|가량|남짓|언저리")
+
+
+def _어림말을_되살린다(given: str, source: str | None) -> str:
+    """모델이 단위를 채우며 떨어뜨린 어림말을 근거 구절에서 다시 붙인다.
+
+    "연 7천 정도"를 모델이 `7천만원`으로 주면 파서는 정확히 7천만원으로 읽는다.
+    사용자는 6.3천~7.7천 어딘가라고 했는데 한 값으로 굳는다(2026-10-02 측정 E-09).
+    기준선 근처에서는 이 차이가 통과와 탈락을 가른다.
+
+    근거 구절은 모델이 문장에서 옮겨 온 것이라 사용자가 한 말에 더 가깝다. 이미 붙어
+    있으면 그대로 둔다.
+    """
+    found = _어림말.search(source or "")
+    if found is None or _어림말.search(given):
+        return given
+    return f"{given} {found.group()}"
+
 
 # 면적을 평으로 말한 경우를 알아보는 데 쓴다. 전용면적만 이 문제가 있다 —
 # 금액은 파서가 단위를 보고, 나머지 항목에는 평 단위가 없다.
@@ -231,6 +251,7 @@ def build_prompt(text: str) -> str:
   그럴듯하다는 이유로 true를 만들면 안 됩니다.
 - 금액은 숫자로 바꾸지 마세요. 표현을 그대로 주되 **단위가 빠졌으면 채워 주세요.**
   "연봉 4천" → "4천만원", "전세 3억" → "3억", "연 7천" → "7천만원"
+  "정도", "쯤" 같은 말은 지우지 마세요. "연 7천 정도" → "7천만원 정도"
   단위를 채울 수 없으면 그 항목은 null로 두세요.
 - 월 단위 소득이면 "월 300만원"처럼 월이라고 적어 주세요.
 - 목록이 있는 항목은 그 목록의 값만 쓰세요.
