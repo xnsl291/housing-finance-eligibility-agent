@@ -108,6 +108,14 @@ def extract_profile(llm: LlmClient, text: str) -> ExtractedProfile:
         accepted = _accept(_FIELDS[name], given)
         if accepted is not None:
             values[name] = accepted
+        elif _FIELDS[name] is not bool and str(given).strip():
+            # 모양이 틀린 값을 조용히 버리면 사용자는 말한 것이 사라진 줄도 모른다.
+            # 모델이 면적을 `"59제곱미터"` 문자열로 주자 실수 항목이 버렸고, 확인 화면에
+            # 아무 흔적이 없었다(2026-10-19 측정 E-17). 원문을 남겨 사람이 넣게 한다.
+            #
+            # 불리언은 제외한다. 거짓을 버리는 것은 의도이고(`_accept`), 그때마다 경고를
+            # 띄우면 말하지 않은 항목마다 "직접 넣어 주세요"가 뜬다.
+            unreadable[name] = str(sources.get(name) or given)
 
     return ExtractedProfile(
         values=values, sources=sources, unreadable=unreadable, warnings=warnings

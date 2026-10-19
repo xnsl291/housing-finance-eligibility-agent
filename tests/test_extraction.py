@@ -102,6 +102,8 @@ def test_정해진_값이_아니면_버린다() -> None:
 
     assert "household_head_status" not in result.values
     assert result.values["age"] == 29
+    # 버리되 흔적은 남긴다. 확인 화면이 원문을 보여 주고 직접 고르게 한다.
+    assert result.unreadable["household_head_status"] == "가장"
 
 
 def test_null은_넣지_않는다() -> None:
@@ -337,3 +339,31 @@ def test_연도를_말한_날짜는_받는다(근거: str) -> None:
     result = extract_profile(llm, f"잔금일은 {근거}입니다")
 
     assert result.values == {"contract_balance_date": "2026-03-10"}
+
+
+def test_모양이_틀린_숫자는_조용히_버리지_않고_원문을_남긴다() -> None:
+    """모델이 면적을 `"59제곱미터"` 문자열로 줬다(2026-10-19 측정 E-17).
+
+    실수 항목이 문자열을 버리면서 `unreadable`에도 안 남겨, 확인 화면에서 사용자가
+    말한 면적이 흔적 없이 사라졌다.
+    """
+    llm = FakeLlm(
+        _reply(
+            housing_area_m2="59제곱미터",
+            _sources={"housing_area_m2": "전용면적 59제곱미터"},
+        )
+    )
+
+    result = extract_profile(llm, "전용면적 59제곱미터 아파트입니다")
+
+    assert result.values == {}
+    assert result.unreadable == {"housing_area_m2": "전용면적 59제곱미터"}
+
+
+def test_불리언의_거짓은_원문으로도_남기지_않는다() -> None:
+    """위 테스트의 짝. 거짓을 버리는 것은 의도라 경고를 띄우면 안 된다."""
+    llm = FakeLlm(_reply(is_redevelopment_area_tenant=False))
+
+    result = extract_profile(llm, "만 30세입니다")
+
+    assert result.unreadable == {}
