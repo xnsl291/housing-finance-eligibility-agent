@@ -302,3 +302,38 @@ def test_근거에_어림말이_없으면_정확한_값으로_둔다() -> None:
     result = extract_profile(llm, "연봉 7천입니다")
 
     assert result.values["combined_annual_income_krw"] == 70000000
+
+
+def test_연도를_말하지_않은_날짜는_쓰지_않고_원문을_남긴다() -> None:
+    """날짜 칸은 `YYYY-MM-DD`라 모델이 연도를 지어낸다(2026-10-02 측정 E-20).
+
+    "4월 20일"이 2024-04-20으로 들어가면 신청 기한 판정이 2년 어긋난다. 앞 날짜의
+    연도를 이어 붙이지 않는다 — 해를 넘기는 경우에 틀린다.
+    """
+    llm = FakeLlm(
+        _reply(
+            contract_balance_date="2026-03-10",
+            move_in_date="2024-04-20",
+            _sources={
+                "contract_balance_date": "잔금은 2026년 3월 10일",
+                "move_in_date": "전입은 4월 20일",
+            },
+        )
+    )
+
+    result = extract_profile(llm, "잔금은 2026년 3월 10일, 전입은 4월 20일")
+
+    assert result.values == {"contract_balance_date": "2026-03-10"}
+    assert result.unreadable["move_in_date"] == "전입은 4월 20일", "원문을 안 남겼다"
+
+
+@pytest.mark.parametrize("근거", ["2026-03-10", "2026.3.10", "26년 3월 10일"])
+def test_연도를_말한_날짜는_받는다(근거: str) -> None:
+    """위 테스트의 짝. 연도를 적는 여러 모양을 다 막으면 정상 입력이 빈칸이 된다."""
+    llm = FakeLlm(
+        _reply(contract_balance_date="2026-03-10", _sources={"contract_balance_date": 근거})
+    )
+
+    result = extract_profile(llm, f"잔금일은 {근거}입니다")
+
+    assert result.values == {"contract_balance_date": "2026-03-10"}

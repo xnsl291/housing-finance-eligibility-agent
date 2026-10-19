@@ -23,6 +23,7 @@ from typing import Protocol
 
 from housing_finance_agent.amount import parse_amount
 from housing_finance_agent.fields import AMOUNT as _AMOUNT
+from housing_finance_agent.fields import DATE_FIELDS
 from housing_finance_agent.fields import DESCRIPTIONS as _DESCRIPTIONS
 from housing_finance_agent.fields import SPEC as _FIELDS
 
@@ -95,6 +96,15 @@ def extract_profile(llm: LlmClient, text: str) -> ExtractedProfile:
             continue
         if _단정할_수_없는_값.get(name) == given:
             continue
+        if name in DATE_FIELDS and not _연도.search(sources.get(name) or ""):
+            # 날짜 칸은 `YYYY-MM-DD`라서 모델이 연도를 비워 둘 수가 없다. 문장에
+            # 연도가 없으면 지어낸다 — "4월 20일"을 2024-04-20으로 냈다(2026-10-02
+            # 측정 E-20). 신청 기한 판정이 2년 어긋난다.
+            #
+            # 앞 날짜의 연도를 이어 붙이지 않는다. "잔금 12월 20일, 전입 1월 5일"처럼
+            # 해를 넘기면 틀린다. 원문을 남겨 사람이 고르게 한다.
+            unreadable[name] = str(sources.get(name) or given)
+            continue
         accepted = _accept(_FIELDS[name], given)
         if accepted is not None:
             values[name] = accepted
@@ -113,6 +123,9 @@ def extract_profile(llm: LlmClient, text: str) -> ExtractedProfile:
 # - `MARRIED`: 신혼(혼인 7년 이내)과 가르는 계산을 모델이 틀린다. "결혼 2년차"를
 #   `MARRIED`로 읽어 소득 기준이 7.5천에서 5천만원으로 내려갔다(E-03, 2026-09-16부터 반복)
 _단정할_수_없는_값 = {"employment_category": "OTHER", "marital_status": "MARRIED"}
+
+# 근거 구절에 연도가 있는가. "2026년", "2026-03-10", "2026.3.10", "26년"
+_연도 = re.compile(r"(?<!\d)(?:\d{4}|\d{2}\s*년)")
 
 # 금액 뒤에 붙는 어림말. 파서가 이 말이 붙은 금액을 범위로 읽는다(`amount._FUZZY_SUFFIX`).
 _어림말 = re.compile(r"쯤|정도|가량|남짓|언저리")
