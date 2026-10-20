@@ -92,8 +92,10 @@
   color: var(--err-fg);
 }
 
+/* 오류 줄도 aria-live 영역이라 비어 있어도 남겨 둔다(display:none이면 읽기 트리에서 빠져
+   처음 뜨는 오류를 놓칠 수 있음). 빈 줄이 간격을 한 번 더 만들지 않게 gap만큼 당긴다 */
 .error:empty {
-  display: none;
+  margin-top: -6px;
 }
 
 /* 억·만 표기 */
