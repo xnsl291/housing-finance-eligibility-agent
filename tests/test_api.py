@@ -64,6 +64,18 @@ def test_상태를_알려_준다() -> None:
     assert response.json()["programs"]
 
 
+def test_상품_목록은_규칙_파일의_이름을_그대로_낸다() -> None:
+    """화면이 상품 이름을 따로 적지 않게 한다. 목록은 `/health`의 id와 같아야 한다."""
+    client = _client()
+    목록 = client.get("/v1/programs").json()["programs"]
+
+    assert [p["program_id"] for p in 목록] == client.get("/health").json()["programs"]
+    이름 = {p["program_id"]: p["program_name"] for p in 목록}
+    assert 이름["nhuf-youth-jeonse"] == "청년전용 버팀목전세자금"
+    assert {p["tenure"] for p in 목록} <= {"JEONSE", "PURCHASE"}
+    assert all(p["source_url"].startswith("https://") for p in 목록)
+
+
 def test_문장에서_조건을_뽑아_준다() -> None:
     response = _client().post("/v1/profiles/extract", json={"message": "만 29세 연봉 4천만원"})
 
