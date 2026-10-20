@@ -84,6 +84,11 @@ describe("사이드바", () => {
     expect(screen.queryByText("지우지 못했습니다. 잠시 뒤 다시 눌러 주세요")).not.toBeInTheDocument();
   });
 
+  it("상품 목록이 비어 있으면(받지 못함) 상품 묶음 제목도 그리지 않는다", () => {
+    render(<Sidebar programs={[]} apiBase="" connected={false} onReset={() => {}} />);
+    expect(screen.queryByText("판정에 쓰는 상품")).not.toBeInTheDocument();
+  });
+
   it("연결을 확인하기 전에는 연결됐다고 말하지 않는다", () => {
     render(<Sidebar programs={programs} apiBase="" connected={null} onReset={() => {}} />);
     expect(screen.getByText("판정 서버 연결 확인 중")).toBeInTheDocument();

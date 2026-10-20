@@ -78,17 +78,20 @@ export function Sidebar({ programs, apiBase, connected, onReset, confirmReset = 
       </section>
       <hr className={styles.rule} />
 
-      <section className={styles.group}>
-        <h2 className={styles.label}>판정에 쓰는 상품</h2>
-        <ul className={styles.list}>
-          {programs.map((p) => (
-            <li key={p.program_id} className={styles.program}>
-              {p.tenure && <span className={styles.tenure}>{TENURE[p.tenure]}</span>}
-              {p.program_name}
-            </li>
-          ))}
-        </ul>
-      </section>
+      {/* 상품 목록을 받지 못하면 제목만 남지 않게 묶음을 뺀다(첫 화면 S0-b와 같은 규칙) */}
+      {programs.length > 0 && (
+        <section className={styles.group}>
+          <h2 className={styles.label}>판정에 쓰는 상품</h2>
+          <ul className={styles.list}>
+            {programs.map((p) => (
+              <li key={p.program_id} className={styles.program}>
+                {p.tenure && <span className={styles.tenure}>{TENURE[p.tenure]}</span>}
+                {p.program_name}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <details className={styles.dev}>
         <summary>
           <Icon name="chevronRight" size={14} />

@@ -205,7 +205,9 @@ export function Write() {
         ) : failure && text ? (
           <>
             <SystemError key={failure.id} title={text.title} icon={text.icon} onRetry={failure.action === "read" ? read : startDirect}>
-              {text.body} {KEEP_DRAFT}
+              {/* 서버가 준 문구는 마침표 없이 끝나기도 해서 한 줄로 이어 붙이지 않고 줄을 나눈다 */}
+              <span className={styles.line}>{text.body}</span>
+              <span className={styles.line}>{KEEP_DRAFT}</span>
             </SystemError>
             {text.direct && (
               <>
