@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from housing_finance_agent.ui import api_client
+from housing_finance_agent.ui import api_client, chrome
 from housing_finance_agent.ui.flow import USER_STOPPED
 from housing_finance_agent.ui.labels import amount_text
 
@@ -20,7 +20,8 @@ _BOOL_OPTIONS = {"예": True, "아니오": False}
 
 
 def render() -> None:
-    st.subheader("3. 하나씩 확인")
+    chrome.eyebrow("하나씩 확인")
+    st.subheader("몇 가지만 더 여쭙겠습니다")
     session_id = st.session_state["session_id"]
 
     try:
