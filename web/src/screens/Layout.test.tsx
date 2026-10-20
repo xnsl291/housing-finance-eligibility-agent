@@ -1,6 +1,7 @@
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
-import { fakeServer, renderApp } from "./testing";
+import { callsTo, fakeServer, json, renderApp } from "./testing";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -46,5 +47,68 @@ describe("연결 상태", () => {
     });
     renderApp("/write");
     expect(await screen.findByText("판정 서버에 연결되지 않음")).toBeInTheDocument();
+  });
+});
+
+const SENTENCE = "만 31세이고 연봉 5천입니다.";
+
+describe("사이드바 — 전체 초기화와 내 기록 지우기", () => {
+  it("전체 초기화는 확인(M1) 뒤 적은 문장을 비우고 첫 화면으로 간다. 서버에는 아무것도 보내지 않는다", async () => {
+    const user = userEvent.setup();
+    const server = fakeServer();
+    renderApp("/write");
+    await user.type(screen.getByRole("textbox", { name: "상황을 자유롭게 적어 주세요" }), SENTENCE);
+
+    await user.click(screen.getByRole("button", { name: "전체 초기화" }));
+    await user.click(screen.getByRole("button", { name: "처음으로" }));
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/);
+
+    await user.click(screen.getByRole("button", { name: "문장으로 적기" }));
+    expect(screen.getByRole("textbox", { name: "상황을 자유롭게 적어 주세요" })).toHaveValue("");
+    expect(server.mock.calls.filter(([, init]) => (init?.method ?? "GET") !== "GET")).toHaveLength(0);
+  });
+
+  it("주소에 세션이 없으면 내 기록 지우기 버튼이 없고, 있으면 있다", () => {
+    fakeServer();
+    const { unmount } = renderApp("/write");
+    expect(screen.queryByRole("button", { name: "내 기록 지우기" })).not.toBeInTheDocument();
+    unmount();
+    renderApp("/s/s-7/questions");
+    expect(screen.getByRole("button", { name: "내 기록 지우기" })).toBeInTheDocument();
+  });
+
+  it("내 기록 지우기는 확인(M2) 뒤 서버 세션을 지우고, 메모리를 비워 첫 화면으로 가며 완료를 알린다", async () => {
+    const user = userEvent.setup();
+    const server = fakeServer({
+      "POST /v1/sessions": () => json({ session_id: "s-1" }, 201),
+      "POST /v1/sessions/s-1/messages": () => json({ session_id: "s-1", values: {}, warnings: [], unreadable: {} }),
+      "DELETE /v1/sessions/s-1": () => json({ session_id: "s-1", deleted: true }),
+    });
+    renderApp("/write");
+    await user.type(screen.getByRole("textbox", { name: "상황을 자유롭게 적어 주세요" }), SENTENCE);
+    await user.click(screen.getByRole("button", { name: "조건 읽기" }));
+    await vi.waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/s/s-1/confirm"));
+
+    await user.click(screen.getByRole("button", { name: "내 기록 지우기" }));
+    expect(screen.getByRole("button", { name: "취소" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "지우기" }));
+
+    await vi.waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/));
+    expect(callsTo(server, "DELETE /v1/sessions/s-1")).toHaveLength(1);
+    expect(screen.getByText("내 기록을 서버에서 지웠습니다.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "문장으로 적기" }));
+    expect(screen.getByRole("textbox", { name: "상황을 자유롭게 적어 주세요" })).toHaveValue("");
+  });
+
+  it("지우기가 실패하면 첫 화면으로 가지 않고 창 안에 다시 누르라고 알린다", async () => {
+    const user = userEvent.setup();
+    fakeServer({ "DELETE /v1/sessions/s-7": () => json({ detail: "고장" }, 500) });
+    renderApp("/s/s-7/confirm");
+    await user.click(screen.getByRole("button", { name: "내 기록 지우기" }));
+    await user.click(screen.getByRole("button", { name: "지우기" }));
+
+    expect(await screen.findByText("지우지 못했습니다. 잠시 뒤 다시 눌러 주세요")).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent("/s/s-7/confirm");
   });
 });

@@ -36,7 +36,10 @@ describe("S0 첫 화면 — 시작 버튼", () => {
     renderApp("/");
     await user.click(screen.getByRole("button", { name: "문장으로 적기" }));
     expect(screen.getByTestId("location")).toHaveTextContent("/write");
-    expect(screen.getByRole("heading", { level: 1, name: "상황을 문장으로 적어 주세요" })).toHaveFocus();
+    // 초점은 화면이 그려진 뒤의 효과(effect)에서 옮겨지므로 기다린다
+    await vi.waitFor(() =>
+      expect(screen.getByRole("heading", { level: 1, name: "상황을 문장으로 적어 주세요" })).toHaveFocus(),
+    );
     // 세션은 문장을 보낼 때 연다. 여기서 미리 열지 않는다
     expect(callsTo(server, "POST /v1/sessions")).toHaveLength(0);
   });

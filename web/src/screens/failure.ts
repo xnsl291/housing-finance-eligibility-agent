@@ -18,8 +18,11 @@ export interface FailureText {
   title: string;
   body: string;
   icon: IconName;
-  /** 문장 없이 항목을 직접 채우는 길(S1-F)을 권할지. 문장 읽기가 실패·지연된 경우만 */
-  offerDirect: boolean;
+  /**
+   * 문장 없이 항목을 직접 채우는 길(S1-F)을 권할지와 그 버튼의 무게. 문장 읽기가 실패·지연된 경우만.
+   * 503은 다시 해도 같을 가능성이 커 직접 입력이 주 버튼, 시간 초과는 다시 시도가 먼저라 보조 버튼(시안 S1-d·S1-f)
+   */
+  direct: "primary" | "secondary" | null;
 }
 
 export function describeFailure(error: unknown, stage: Stage): FailureText {
@@ -29,7 +32,7 @@ export function describeFailure(error: unknown, stage: Stage): FailureText {
       title: "지금 판정 서버에 연결할 수 없습니다",
       body: "조건의 문제가 아닙니다.",
       icon: "serverOff",
-      offerDirect: false,
+      direct: null,
     };
   }
   if (error instanceof ApiError && error.kind === "timeout") {
@@ -39,14 +42,14 @@ export function describeFailure(error: unknown, stage: Stage): FailureText {
         title: "문장을 읽는 데 너무 오래 걸려 중단했습니다",
         body: "서버는 켜져 있습니다. 다시 시도하거나, 항목을 직접 고를 수 있습니다.",
         icon: "timer",
-        offerDirect: true,
+        direct: "secondary",
       };
     }
     return {
       title: "서버가 제때 답하지 않아 중단했습니다",
       body: "조건의 문제가 아닙니다. 잠시 뒤 다시 시도해 주세요.",
       icon: "timer",
-      offerDirect: false,
+      direct: null,
     };
   }
   if (error instanceof ApiError && error.status === 503 && stage === "read") {
@@ -55,7 +58,7 @@ export function describeFailure(error: unknown, stage: Stage): FailureText {
       title: "조건을 읽지 못했습니다",
       body: "문장 해석이 실패한 것이고 조건에 문제가 있는 것은 아닙니다. 아래로 넘어가면 문장 없이 항목을 직접 채워서 판정할 수 있습니다.",
       icon: "fileX",
-      offerDirect: true,
+      direct: "primary",
     };
   }
   // 그 밖의 거절은 서버가 준 문구를 그대로(설계서 S1 '그 밖의 오류'). ApiError가 아닌 것은 화면 쪽 잘못이다
@@ -63,6 +66,6 @@ export function describeFailure(error: unknown, stage: Stage): FailureText {
     title: "요청을 처리하지 못했습니다",
     body: error instanceof ApiError ? error.message : "화면에서 예상하지 못한 오류가 났습니다. 다시 시도해 주세요.",
     icon: "alertCircle",
-    offerDirect: false,
+    direct: null,
   };
 }
