@@ -56,6 +56,23 @@ describe("완료 알림", () => {
   });
 });
 
+describe("완료 알림 타이머", () => {
+  it("onClose가 매번 새 함수여도 타이머가 다시 시작되지 않는다", () => {
+    vi.useFakeTimers();
+    const first = vi.fn();
+    const second = vi.fn();
+    const { rerender } = render(<Toast message="결과를 복사했습니다" onClose={first} />);
+
+    act(() => vi.advanceTimersByTime(3_000));
+    rerender(<Toast message="결과를 복사했습니다" onClose={second} />);
+    act(() => vi.advanceTimersByTime(1_000));
+
+    // 처음 뜬 지 4초에 한 번, 그때의 최신 onClose로 닫는다
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledOnce();
+  });
+});
+
 describe("멈춘 이유 배너 (설계서 8.4)", () => {
   it("물을 게 없어 멈춤과 모르셔서 멈춤이 다르게 보인다", () => {
     const { container, rerender } = render(<StopBanner reason="COMPLETE" />);

@@ -92,11 +92,17 @@ const TOAST_MS = 4_000;
  * message가 null이면 아무것도 안 보이지만 live 영역은 남겨 둔다.
  */
 export function Toast({ message, onClose }: { message: string | null; onClose: () => void }) {
+  // 부모가 onClose를 매 렌더 새 함수로 넘겨도(`() => setMessage(null)`) 타이머가 다시 시작되면
+  // 알림이 사라지지 않는다. 타이머는 message에만 걸고, 닫을 때는 그때의 최신 onClose를 부른다
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  });
   useEffect(() => {
     if (!message) return;
-    const t = setTimeout(onClose, TOAST_MS);
+    const t = setTimeout(() => closeRef.current(), TOAST_MS);
     return () => clearTimeout(t);
-  }, [message, onClose]);
+  }, [message]);
 
   return (
     <div role="status" aria-live="polite" className={styles.toastArea}>
