@@ -30,3 +30,26 @@ jobs:
       - run: ruff check .
 
       - run: pytest
+
+  # 화면(web/). 타입 검사·테스트·빌드를 돈다. 빌드가 깨지면 `serve.py`가 낼 화면이 없다.
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+
+      - run: npm test
+
+      - run: npm run build
+

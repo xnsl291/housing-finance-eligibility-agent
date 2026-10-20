@@ -1,0 +1,42 @@
+/*
+ * 시안(`_note/design/금융.pen`)의 변수 27개를 이름 그대로 옮긴 것.
+ *
+ * 이름을 바꾸지 않는 이유: 시안과 코드를 나란히 놓고 대조할 때 1:1로 찾을 수 있어야 함.
+ * 시안 값을 바꾸면 여기도 같이 바꿈. 색은 판정 4색(ok·warn·no·info)과 오류에만 씀(설계서 11.5).
+ *
+ * 서체만 시안과 다름. 시안은 도구에 Pretendard가 없어 Noto Sans KR로 그렸고(가정 문서 1번),
+ * 설계서 11.5는 Pretendard를 지정함.
+ */
+:root {
+  --bg: #ffffff;
+  --bg-soft: #f7f6f4;
+  --surface: #ffffff;
+  --ink: #141413;
+  --ink-2: #3d3b38;
+  --ink-3: #5e5b57;
+  --ink-4: #6f6c68;
+  --line: #e3e0db;
+  --line-strong: #c9c5be;
+  --chip-bg: #edebe7;
+
+  --ok-fg: #12653a;
+  --ok-bg: #e8f3ec;
+  --ok-line: #b6d8c4;
+  --warn-fg: #8f4e00;
+  --warn-bg: #fbefdf;
+  --warn-line: #e8c79b;
+  --no-fg: #a3242b;
+  --no-bg: #faeaea;
+  --no-line: #e4b4b6;
+  --info-fg: #1f4e8c;
+  --info-bg: #e9eff8;
+  --info-line: #b6c9e4;
+  --err-fg: #b3261e;
+
+  --font: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic",
+    sans-serif;
+
+  --r-card: 12px;
+  --r-sm: 8px;
+  --r-chip: 4px;
+}

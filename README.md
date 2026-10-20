@@ -179,6 +179,18 @@ ollama pull qwen3.5:4b-q4_K_M
 ./.venv/Scripts/python.exe -m streamlit run src/housing_finance_agent/ui/app.py
 ```
 
+**새 화면(React, 만드는 중).** `web/`에 있습니다. Node 24가 필요합니다.
+
+```powershell
+cd web
+npm ci
+npm run dev     # 개발: http://127.0.0.1:5173. API 요청은 2번 서버(8000)로 넘깁니다
+npm run build   # 완성본: web/dist. 2번 서버가 같은 주소에서 화면을 함께 냅니다
+npm test
+```
+
+화면과 API를 같은 주소로 묶어 CORS를 열지 않습니다. 이 API에는 인증이 없어, CORS를 열면 다른 웹사이트도 판정 서버를 부를 수 있게 됩니다. 새 화면이 지금 화면을 전부 대신하면 Streamlit 화면은 지웁니다.
+
 화면 설정은 `.streamlit/config.toml`에 넣어 두었습니다 — `127.0.0.1` 바인딩, 사용 통계 끄기, 오류 상세 숨기기입니다.
 
 **명령줄 플래그로만 두면 한 번 빼먹었을 때 그대로 노출됩니다.** Streamlit 기본값은 전 인터페이스 바인딩에 통계 전송이고, 예외가 나면 로컬 경로가 든 스택트레이스를 브라우저에 그립니다. 신청자의 나이·소득·자산을 다루는 화면에서 기본값을 쓰면 로컬 LLM을 쓰는 이유가 무너집니다.
