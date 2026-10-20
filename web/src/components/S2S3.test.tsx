@@ -45,6 +45,21 @@ describe("읽은 항목 줄", () => {
   });
 });
 
+describe("읽은 항목 줄의 빈 값", () => {
+  it("값이 없으면 근거 줄·드롭다운과 같은 말인 '모름'으로 보인다", () => {
+    const { container } = render(
+      <ReadItemRow
+        label="무주택 여부"
+        value={null}
+        provenance={<Provenance kind="cleared" />}
+        editor={<TextField label="무주택 여부" value={null} onChange={() => {}} />}
+      />,
+    );
+    expect(screen.getByText("모름", { selector: "span" })).toBeInTheDocument();
+    expect(container).not.toHaveTextContent("(비어 있음)");
+  });
+});
+
 describe("질문 카드", () => {
   function Card({
     ready,

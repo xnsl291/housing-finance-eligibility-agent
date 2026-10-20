@@ -15,7 +15,10 @@ import styles from "./ReadItemRow.module.css";
 
 interface ReadItemRowProps {
   label: string;
-  /** 보여 줄 값(억·만 표기, 한국어 이름표 등). null이면 비어 있음 */
+  /**
+   * 보여 줄 값(억·만 표기, 한국어 이름표 등). null이면 '모름'으로 보인다. 근거 줄("모름으로 봅니다")과
+   * 드롭다운 첫 칸("— 모름 —")이 같은 상태를 '모름'이라 부르므로 여기도 같은 말을 쓴다
+   */
   value: string | null;
   unit?: string;
   /** 근거 한 줄(<Provenance>) */
@@ -44,7 +47,7 @@ export function ReadItemRow({ label, value, unit, provenance, editor }: ReadItem
           <span className={styles.chip}>고치는 중</span>
         ) : (
           <>
-            <span className={`${styles.value} ${value === null ? styles.empty : ""} num`}>{value ?? "(비어 있음)"}</span>
+            <span className={`${styles.value} ${value === null ? styles.empty : ""} num`}>{value ?? "모름"}</span>
             {unit && value !== null && <span className={styles.unit}>{unit}</span>}
           </>
         )}
