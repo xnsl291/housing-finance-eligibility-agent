@@ -55,6 +55,37 @@ describe("금액 칸", () => {
   });
 });
 
+describe("억·만 표기 live 영역은 늘 두고 글만 바꾼다", () => {
+  it("금액 칸: 못 알아본 글이어도 영역은 그대로 남고 글만 비운다", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<AmountField label="임차보증금" onChange={() => {}} />);
+    const live = container.querySelector('[aria-live="polite"]');
+    expect(live).toHaveTextContent("— 아직 비어 있습니다");
+
+    await user.type(screen.getByLabelText("임차보증금"), "삼억");
+    expect(live).toBeInTheDocument();
+    expect(live).toHaveTextContent("");
+
+    await user.clear(screen.getByLabelText("임차보증금"));
+    await user.type(screen.getByLabelText("임차보증금"), "3억");
+    expect(container.querySelector('[aria-live="polite"]')).toBe(live);
+    expect(live).toHaveTextContent("3억원");
+  });
+
+  it("범위 칸: 범위가 없을 때도 영역이 있고, 범위가 생기면 같은 영역에 글이 들어간다", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<RangeField label="소득" onChange={() => {}} />);
+    const live = container.querySelector('[aria-live="polite"]');
+    expect(live).toBeInTheDocument();
+    expect(live).toHaveTextContent("");
+
+    await user.type(screen.getByLabelText("소득 최소"), "4500");
+    await user.type(screen.getByLabelText("소득 최대"), "5천");
+    expect(container.querySelector('[aria-live="polite"]')).toBe(live);
+    expect(live).toHaveTextContent("4,500만~5,000만원");
+  });
+});
+
 describe("범위 칸 (G6)", () => {
   it("두 칸을 {low, high} 원 단위로 넘기고 아래에 범위를 억·만으로 보인다", async () => {
     const user = userEvent.setup();

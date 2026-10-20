@@ -58,13 +58,13 @@ export function AmountField({ label, defaultWon, onChange, help, error }: Amount
   );
 }
 
-/** 칸 아래 억·만 표기. 못 알아본 글이면(undefined) 비워 둔다 — 오류 줄이 대신 말한다 */
+/** 칸 아래 억·만 표기. 못 알아본 글이면(undefined) 글을 비운다 — 오류 줄이 대신 말한다 */
 function KoreanAmount({ won }: { won: number | null | undefined }) {
-  if (won === undefined) return null;
-  // aria-live: 치는 동안 바뀐 자릿수를 화면 읽기 프로그램도 확인할 수 있게(공손하게)
+  // aria-live: 치는 동안 바뀐 자릿수를 화면 읽기 프로그램도 확인할 수 있게(공손하게).
+  // 영역은 늘 두고 글만 바꾼다. 영역과 글이 함께 새로 생기면 읽지 않는 프로그램이 있다
   return (
     <span aria-live="polite" className={won === null ? styles.koreanEmpty : styles.koreanAmount}>
-      {won === null ? "— 아직 비어 있습니다" : formatWon(won)}
+      {won === undefined ? "" : won === null ? "— 아직 비어 있습니다" : formatWon(won)}
     </span>
   );
 }
@@ -128,11 +128,10 @@ export function RangeField({ label, defaultValue, onChange, error }: RangeFieldP
         {cell("high")}
       </div>
       <FieldError id={`${id}-error`} message={shown} />
-      {range && (
-        <span aria-live="polite" className={styles.koreanAmount}>
-          {formatRange(range.low, range.high)}
-        </span>
-      )}
+      {/* 영역은 늘 두고 글만 바꾼다(KoreanAmount와 같은 이유) */}
+      <span aria-live="polite" className={styles.koreanAmount}>
+        {range ? formatRange(range.low, range.high) : ""}
+      </span>
       <span id={`${id}-help`} className={styles.help}>
         정확한 값을 아시면 두 칸에 같은 값을 넣어 주세요
       </span>

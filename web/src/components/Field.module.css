@@ -109,6 +109,13 @@
   color: var(--ink-4);
 }
 
+/* 억·만 표기 live 영역은 글이 없어도 남겨 둔다(display:none이면 읽기 트리에서 빠짐).
+   빈 영역이 칸 사이 간격(gap 6px)을 한 번 더 만들지 않게 그만큼 당긴다 */
+.koreanAmount:empty,
+.koreanEmpty:empty {
+  margin-top: -6px;
+}
+
 /* 예·아니오·모름 라디오. 체크박스를 쓰지 않는다(G4) */
 .radios {
   display: flex;
