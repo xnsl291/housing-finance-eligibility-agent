@@ -41,12 +41,18 @@ def test_사이드바_안내가_저장되는_것을_다_말한다() -> None:
         assert 말해야_할_것 in PRIVACY_NOTE, f"안내가 '{말해야_할_것}'을 말하지 않는다"
 
 
-def test_지울_수_없는_동안에는_지울_수_없다고_말한다() -> None:
-    """서버에 지우는 경로가 생기면 이 테스트가 실패한다 — 그때 문구를 같이 고칠 것."""
-    from housing_finance_agent.ui.screens.sidebar import PRIVACY_NOTE, RESET_NOTE
+def test_지우는_경로가_있으면_지울_수_있다고_말한다() -> None:
+    """2026-10-20까지는 지우는 경로가 없어 "지울 수 없습니다"라고 했다.
 
-    assert not _삭제_경로가_있다(), "서버에 삭제 경로가 생겼다. 안내와 초기화 문구를 고칠 것"
-    assert "지울 수 없습니다" in PRIVACY_NOTE
+    경로가 생기면서 안내를 바꿨다. 경로가 다시 없어지면 이 테스트가 실패한다 — 그때
+    안내도 되돌릴 것. `전체 초기화`는 여전히 화면만 비우므로 그 설명은 그대로다.
+    """
+    from housing_finance_agent.ui.screens.sidebar import DELETE_NOTE, PRIVACY_NOTE, RESET_NOTE
+
+    assert _삭제_경로가_있다(), "서버에 삭제 경로가 없다. 안내를 '지울 수 없습니다'로 되돌릴 것"
+    assert "지울 수 없습니다" not in PRIVACY_NOTE
+    assert "내 기록 지우기" in PRIVACY_NOTE
+    assert "되돌릴 수 없습니다" in DELETE_NOTE
     assert "서버에 남은 기록은 지워지지 않습니다" in RESET_NOTE
     assert "모두 지웁니다" not in RESET_NOTE
 

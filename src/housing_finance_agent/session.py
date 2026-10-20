@@ -86,6 +86,10 @@ class SessionStore:
     def __init__(self, db_path: str | Path = ":memory:") -> None:
         self._db = sqlite3.connect(str(db_path), check_same_thread=False)
         self._db.row_factory = sqlite3.Row
+        # 지운 기록이 파일의 빈 자리에 남지 않게 덮어쓴다. 이 설정이 없으면 SQLite는
+        # 지운 행을 "빈 자리"로 표시만 하고 내용은 그대로 둬서, 파일을 열어 보면 지웠다고
+        # 한 값이 읽힌다. 연결마다 켜야 하는 설정이다.
+        self._db.execute("PRAGMA secure_delete = ON")
         self._db.executescript(
             """
             CREATE TABLE IF NOT EXISTS sessions (
@@ -150,6 +154,16 @@ class SessionStore:
     def record_declined(self, session_id: str, field_name: str) -> None:
         """사용자가 이 항목은 모른다고 했다. 다시 묻지 않는다."""
         self._append(session_id, FIELD_DECLINED, {"field": field_name})
+
+    def delete(self, session_id: str) -> None:
+        """세션과 그 기록을 모두 지운다. 되돌릴 수 없다.
+
+        기록이 정본이라 기록을 지우면 상태도, 판정의 근거도 함께 사라진다. 일부만
+        지우는 방법은 두지 않는다 — 남긴 기록에서 지운 값을 짐작할 수 있다.
+        """
+        self._db.execute("DELETE FROM events WHERE session_id = ?", (session_id,))
+        self._db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+        self._db.commit()
 
     # ── 읽기 ──────────────────────────────────────────────────────────
     def exists(self, session_id: str) -> bool:

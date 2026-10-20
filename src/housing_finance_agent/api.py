@@ -244,6 +244,17 @@ def create_app(
         _세션_확인(session_id)
         return _상태_응답(session_id)
 
+    @app.delete("/v1/sessions/{session_id}")
+    def delete_session(session_id: str) -> dict:
+        """사용자가 자기 기록을 지운다.
+
+        화면이 "서버에 저장된다"고 알리는데 지울 길이 없으면 사용자는 알고도 어쩔 수
+        없다(화면 설계서 결함 D3). 지운 뒤 같은 id로 부르면 404다.
+        """
+        _세션_확인(session_id)
+        store.delete(session_id)
+        return {"session_id": session_id, "deleted": True}
+
     @app.post("/v1/sessions/{session_id}/assessment")
     def assess_session(session_id: str, program_ids: list[str] | None = None) -> dict:
         """지금까지 모인 값으로 판정한다."""
