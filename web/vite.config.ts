@@ -25,5 +25,8 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test-setup.ts"],
+    // vitest는 기본으로 CSS를 빈 글로 바꾼다(?raw 포함). 색 대비 테스트(styles/tokens.test.ts)가
+    // tokens.css 글을 읽어야 해서 이 파일만 그대로 둔다
+    css: { include: [/tokens\.css/] },
   },
 });
