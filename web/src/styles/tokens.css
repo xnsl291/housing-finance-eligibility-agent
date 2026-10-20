@@ -33,6 +33,17 @@
   --info-line: #b6c9e4;
   --err-fg: #b3261e;
 
+  /*
+   * 시안 B0 값 표에 변수 이름 없이 값만 있던 네 색. 이름은 여기서 붙임.
+   * off-*: 잠긴 버튼 바탕·글자(표의 "(잠김)" 줄).
+   * side-*: 먹색 사이드바 안에서만 쓰는 회색. side-muted(#9B9893)는 흰 바탕에서 약 2.6:1로
+   * 미달이라 사이드바 밖에서는 쓰지 않음(시안 C0 4절).
+   */
+  --off-bg: #d8d5d0;
+  --off-fg: #8f8c87;
+  --side-muted: #9b9893;
+  --side-line: #6b6862;
+
   --font: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic",
     sans-serif;
 
