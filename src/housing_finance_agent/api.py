@@ -229,11 +229,16 @@ def create_app(
         # 코드 이름을 그대로 내보내면 화면이 `임대차계약 잔금지급일`이라 부르는 항목을
         # 오류에서만 `contract_balance_date`로 부른다. 이름표의 정본은 항목 목록이다.
         이름표 = field_catalog()
-        틀린 = [
-            f"{이름표[name].get('label', name)}: {문제}"
-            for name, value in sorted(request.values.items())
-            if (문제 := problem_of(name, value))
-        ]
+        틀린 = []
+        for name, value in sorted(request.values.items()):
+            if not (문제 := problem_of(name, value)):
+                continue
+            항목 = 이름표[name]
+            if 항목.get("choices"):
+                # 선택지 코드(HEAD 등)가 아니라 화면이 보여 주는 이름으로 알린다.
+                표기 = 항목.get("choice_labels") or {}
+                문제 += f"({', '.join(표기.get(c, c) for c in 항목['choices'])})"
+            틀린.append(f"{항목.get('label', name)}: {문제}")
         if 틀린:
             raise HTTPException(422, f"값이 맞지 않습니다 — {'; '.join(틀린)}")
         store.record_fields(session_id, request.values)
