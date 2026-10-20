@@ -16,21 +16,24 @@ from __future__ import annotations
 
 import streamlit as st
 
-from housing_finance_agent.ui.api_client import ApiError, base_url, health
+from housing_finance_agent.ui.api_client import ApiError, base_url, delete_session, health
 
 # 개인정보 안내와 초기화 설명. **실제로 하는 것만 말한다**(입력 화면 안내와 같은 원칙).
 #
 # 2026-10-16까지 두 문구가 사실보다 덜 말하거나 더 말했다.
 # - 안내는 "서버 세션에 남는다"고만 했다. 실제로는 서버를 다시 켜도 남는 파일
 #   (`sessions.db`)에 저장되고, 값마다 근거가 된 문장 일부(근거 구절)도 저장된다
-# - 초기화 설명은 "모두 지운다"고 했는데, 이 버튼은 화면 상태만 비운다. 서버에는
-#   기록을 지우는 경로가 없다
+# - 초기화 설명은 "모두 지운다"고 했는데, 이 버튼은 화면 상태만 비운다
+#
+# 2026-10-20 서버에 지우는 경로가 생겨 `내 기록 지우기`를 두고 안내를 바꿨다.
+# `전체 초기화`는 여전히 화면만 비우므로 두 버튼의 설명을 따로 둔다.
 PRIVACY_NOTE = (
     "입력한 문장 전체는 저장하지 않습니다. 문장에서 읽어 낸 값과 그 근거가 된 문장 일부, "
     "직접 넣거나 답한 값, 모른다고 한 항목은 판정을 이어 가기 위해 서버의 세션 파일에 "
     "저장되며 서버를 다시 켜도 남습니다. 주민등록번호·계좌번호로 보이는 부분은 가린 뒤 "
-    "저장합니다. 지금은 이 기록을 화면에서 지울 수 없습니다."
+    "저장합니다. 이 기록은 '내 기록 지우기'로 서버에서 지울 수 있습니다."
 )
+DELETE_NOTE = "읽어 낸 값과 답한 내용을 서버에서 지웁니다. 되돌릴 수 없습니다."
 RESET_NOTE = (
     "이 화면의 입력과 결과를 지우고 처음으로 돌아갑니다. 서버에 남은 기록은 지워지지 않습니다."
 )
@@ -55,6 +58,7 @@ def render() -> None:
 
         st.divider()
         _초기화()
+        _기록_지우기()
 
         st.divider()
         # 화면이 세션 경로로 옮겨 오면서 이 문구가 사실이 아니게 됐다. 문장은 저장하지
@@ -89,3 +93,24 @@ def _초기화() -> None:
         st.session_state.clear()
         st.rerun()
     st.caption(RESET_NOTE)
+
+
+def _기록_지우기() -> None:
+    """서버 세션을 지우고 화면도 처음으로 돌린다.
+
+    되돌릴 수 없으므로 한 번 더 확인받는다. 세션이 아직 없으면 지울 것이 없어 버튼을
+    두지 않는다.
+    """
+    session_id = st.session_state.get("session_id")
+    if not session_id:
+        return
+    확인 = st.checkbox("되돌릴 수 없다는 것을 확인했습니다", key="delete_confirm")
+    if st.button("내 기록 지우기", use_container_width=True, disabled=not 확인):
+        try:
+            delete_session(session_id)
+        except ApiError as error:
+            st.error(f"기록을 지우지 못했습니다 — {error}", icon="🚨")
+            return
+        st.session_state.clear()
+        st.rerun()
+    st.caption(DELETE_NOTE)

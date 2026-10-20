@@ -356,3 +356,14 @@ def test_값이_틀렸다는_말에_코드_이름을_쓰지_않는다(client) ->
     문구 = 응답.json()["detail"]
     assert "임대차계약 잔금지급일" in 문구
     assert "contract_balance_date" not in 문구
+
+
+def test_세션을_지우면_다시_부를_수_없다(client) -> None:
+    session_id = _세션(client)
+    client.put(f"/v1/sessions/{session_id}/fields", json={"values": {"age": 31}})
+
+    응답 = client.delete(f"/v1/sessions/{session_id}")
+
+    assert 응답.status_code == 200
+    assert client.get(f"/v1/sessions/{session_id}").status_code == 404
+    assert client.delete(f"/v1/sessions/{session_id}").status_code == 404

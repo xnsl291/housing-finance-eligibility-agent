@@ -247,3 +247,33 @@ def test_값을_지우는_것만으로는_모른다는_기록이_풀리지_않�
     store.record_fields(session_id, {"net_asset_krw": None})
 
     assert store.declined(session_id) == {"net_asset_krw"}
+
+
+def test_지우면_세션과_기록이_모두_사라진다(store) -> None:
+    session_id = store.start()
+    store.record_fields(session_id, {"age": 31})
+    남길 = store.start()
+    store.record_fields(남길, {"age": 40})
+
+    store.delete(session_id)
+
+    assert not store.exists(session_id)
+    assert store.events(session_id) == []
+    # 다른 사람의 세션은 건드리지 않는다.
+    assert store.state(남길)["age"].value == 40
+
+
+def test_지운_값은_파일에도_남지_않는다(tmp_path) -> None:
+    """SQLite는 지운 행을 빈 자리로 표시만 해서, 설정 없이는 파일을 열면 값이 읽힌다."""
+    path = tmp_path / "sessions.db"
+    store = SessionStore(path)
+    session_id = store.start()
+    표식 = "지워져야하는근거구절표식"
+    store.record_extraction(
+        session_id, {"values": {"age": 31}, "sources": {"age": 표식}, "unreadable": {}}
+    )
+    assert 표식.encode("utf-8") in path.read_bytes()
+
+    store.delete(session_id)
+
+    assert 표식.encode("utf-8") not in path.read_bytes()

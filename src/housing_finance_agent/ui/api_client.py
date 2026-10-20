@@ -105,6 +105,11 @@ def session_state(session_id: str) -> dict:
     return _call("GET", f"/v1/sessions/{session_id}", None, _QUICK_TIMEOUT)
 
 
+def delete_session(session_id: str) -> dict:
+    """서버에 남은 이 세션의 값과 답을 지운다."""
+    return _call("DELETE", f"/v1/sessions/{session_id}", None, _QUICK_TIMEOUT)
+
+
 def next_action(session_id: str) -> dict:
     """다음에 물을 것 하나, 또는 멈출 이유. 서버가 기록을 쓰지 않는 조회다."""
     return _call("GET", f"/v1/sessions/{session_id}/next", None, _QUICK_TIMEOUT)
