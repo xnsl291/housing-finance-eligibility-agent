@@ -64,3 +64,23 @@ describe("상품 카드의 한도 (G7)", () => {
     expect(screen.getByRole("heading", { name: "더 알려 주시면 판정할 수 있는 것" })).toBeInTheDocument();
   });
 });
+
+describe("상품 카드의 공식 링크와 목록", () => {
+  it("공식 안내 링크 이름에 상품 이름이 들어가 카드끼리 구분된다", () => {
+    card("CONDITIONAL", { won: null }, 1);
+    const link = screen.getByRole("link", { name: /공식 안내 페이지/ });
+    expect(link).toHaveAccessibleName(expect.stringContaining("청년전용 버팀목전세자금"));
+    expect(link).toHaveAccessibleName(expect.stringContaining("(새 창)"));
+  });
+
+  it("같은 글의 목록 줄이 둘이어도 key 경고 없이 둘 다 그린다", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      card("CONDITIONAL", { won: null }, 2, ["세대 구성 정보가 필요합니다", "세대 구성 정보가 필요합니다"]);
+      expect(screen.getAllByText("세대 구성 정보가 필요합니다")).toHaveLength(2);
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+    }
+  });
+});

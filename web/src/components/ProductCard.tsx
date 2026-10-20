@@ -71,19 +71,21 @@ export function ProductCard({ name, status, limit, unresolved, items, sourceUrl,
         <div className={styles.list}>
           <h4 className={styles.listTitle}>{LIST_TITLE[status]}</h4>
           <ul className={status === "NOT_MATCHED" ? styles.failed : undefined}>
-            {items.map((item) => (
-              <li key={item}>{item}</li>
+            {/* 서버 문장이 겹칠 수 있어(같은 사유가 두 규칙에서 나옴) 글만으로는 key가 겹친다 */}
+            {items.map((item, i) => (
+              <li key={`${i}-${item}`}>{item}</li>
             ))}
           </ul>
         </div>
       )}
 
       <div className={styles.foot}>
-        {/* 공식 페이지는 카드에서 바로 보이게(N10) */}
+        {/* 공식 페이지는 카드에서 바로 보이게(N10). 카드가 여럿이면 링크 목록에서 "공식 안내 페이지"가
+            줄줄이 나와 구분이 안 되므로, 화면 읽기 프로그램에만 상품 이름을 붙인다 */}
         <a className={styles.link} href={sourceUrl} target="_blank" rel="noreferrer">
           <Icon name="externalLink" size={14} />
           공식 안내 페이지
-          <span className="sr-only">(새 창)</span>
+          <span className="sr-only"> {name} (새 창)</span>
         </a>
         <details className={styles.details}>
           <summary>
