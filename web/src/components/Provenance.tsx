@@ -8,7 +8,7 @@
 import { Icon, type IconName } from "./Icon";
 import styles from "./Provenance.module.css";
 
-export type ProvenanceProps =
+type ProvenanceProps =
   /** 문장에서 읽은 값 그대로 */
   | { kind: "read"; phrase: string }
   /** 범위로 읽음. range는 formatRange로 만든 글 */

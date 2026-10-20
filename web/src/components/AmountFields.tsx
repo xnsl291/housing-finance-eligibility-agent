@@ -39,7 +39,6 @@ export function AmountField({ label, defaultWon, onChange, help, error }: Amount
           <input
             id={a.id}
             className={`${styles.input} ${styles.amount}`}
-            inputMode="text"
             placeholder="예: 3억 2천"
             aria-describedby={a.describedBy}
             aria-invalid={a.invalid || undefined}

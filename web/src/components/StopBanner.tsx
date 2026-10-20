@@ -10,7 +10,7 @@ import { Icon, type IconName } from "./Icon";
 import styles from "./StopBanner.module.css";
 
 /** 서버 next.reason + 화면이 아는 USER_STOPPED. 그 밖의 값은 '판정했습니다'로 */
-export type StopReason = "COMPLETE" | "ALL_NOT_MATCHED" | "ONLY_DECLINED_LEFT" | "USER_STOPPED";
+type StopReason = "COMPLETE" | "ALL_NOT_MATCHED" | "ONLY_DECLINED_LEFT" | "USER_STOPPED";
 
 const BANNER: Record<StopReason | "OTHER", { icon: IconName; title: string; body: string }> = {
   COMPLETE: { icon: "check", title: "모두 확인했습니다", body: "판정에 필요한 항목을 모두 확인했습니다." },

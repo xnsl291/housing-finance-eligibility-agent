@@ -13,9 +13,9 @@ import { Notice } from "./Notice";
 import styles from "./AppHeader.module.css";
 
 /** 서버 쪽 화면의 STEPS(`ui/app.py`)와 같은 순서·이름 */
-export const STEPS = ["조건 입력", "읽은 내용 확인", "하나씩 확인", "판정 결과"] as const;
+const STEPS = ["조건 입력", "읽은 내용 확인", "하나씩 확인", "판정 결과"] as const;
 
-export type Step = 0 | 1 | 2 | 3;
+type Step = 0 | 1 | 2 | 3;
 
 /** step: 0 조건 입력 · 1 읽은 내용 확인 · 2 하나씩 확인 · 3 판정 결과 */
 export function StepIndicator({ step }: { step: Step }) {

@@ -15,7 +15,7 @@ import { useId, useState, type ReactNode } from "react";
 import { Icon } from "./Icon";
 import styles from "./Field.module.css";
 
-export interface A11y {
+interface A11y {
   id: string;
   describedBy: string | undefined;
   invalid: boolean;

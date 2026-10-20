@@ -20,7 +20,7 @@ import { VerdictBadge } from "./VerdictBadge";
 import styles from "./ProductCard.module.css";
 
 /** 설계서 8.3 한도를 못 낸 이유. 모르는 코드는 '대출 한도를 계산하지 못했습니다' */
-export const LIMIT_REASON: Record<string, string> = {
+const LIMIT_REASON: Record<string, string> = {
   BASE_UNKNOWN: "한도 계산에 쓰는 금액을 입력하면 한도를 계산할 수 있습니다",
   BASE_IMPRECISE: "금액이 범위로만 들어와 한도를 내지 않았습니다. 정확한 금액을 입력해 주세요",
   TIER_UNKNOWN: "한도 기준이 갈리는 조건을 아직 알 수 없어 금액을 내지 못했습니다",
