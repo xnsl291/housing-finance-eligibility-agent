@@ -64,6 +64,31 @@ def create_app(
     def health() -> dict:
         return {"status": "ok", "programs": available_programs()}
 
+    @app.get("/v1/programs")
+    def programs() -> dict:
+        """첫 화면이 보여 줄 상품 목록.
+
+        `/health`는 상품 id만 낸다. 화면이 이름을 따로 적어 두면 상품이 늘 때 두 곳을
+        고쳐야 하고, 한쪽만 고치면 판정하지 않는 상품을 안내하게 된다. 이름의 정본은
+        규칙 파일이므로 여기서 읽어 내려보낸다. `/health`의 모양은 바꾸지 않는다 —
+        지금 화면이 그 응답을 쓰고 있다.
+        """
+        목록 = []
+        for program_id in available_programs():
+            program = load_program(program_id)["program"]
+            목록.append(
+                {
+                    "program_id": program_id,
+                    "program_name": program["program_name"],
+                    "organization": program.get("organization"),
+                    # 전세인지 매매인지. 표기는 항목 목록의 `intended_tenure` 이름표를 쓴다.
+                    "tenure": program.get("tenure"),
+                    "source_url": program["source_url"],
+                    "source_checked_at": program["fetched_at"],
+                }
+            )
+        return {"programs": 목록}
+
     @app.get("/v1/fields")
     def fields() -> dict:
         """화면이 쓸 항목 목록.
