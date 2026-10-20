@@ -8,6 +8,11 @@
  * '내 기록 지우기'는 시안에 없다. 시안 뒤에 서버에 삭제 경로가 생겼고(PR #29) 개인정보 안내도
  * "'내 기록 지우기'로 서버에서 지울 수 있습니다"로 바뀌어, 안내가 말하는 버튼을 같은 자리에 둔다.
  * 되돌릴 수 없으므로 항상 확인 창(M2)을 거친다(설계서 C-RESET).
+ * 지울 세션이 없을 때(주소에 세션 번호가 없을 때)는 버튼을 그리지 않는다. 시안 S0·S1에 이 버튼이 없고,
+ * C-RESET도 지울 수 없는 자리에는 버튼을 두지 않는다고 정했다. 그때는 onDeleteRecords를 넘기지 않는다.
+ *
+ * '전체 초기화'는 적은 문장까지 지우므로 지울 것이 있으면 확인 창(M1)을 먼저 띄운다. 지울 것이 없으면
+ * 물을 것도 없어 바로 처음으로 간다(설계서 M1 "지울 것이 있을 때만").
  * 지우기가 실패하면 창을 닫지 않고 창 안에 다시 누르라는 문구를 보인다. 닫아 버리면 지워졌는지
  * 아닌지 사용자가 알 수 없다.
  *
@@ -28,13 +33,16 @@ interface SidebarProps {
   connected: boolean;
   /** 화면 값과 적은 문장을 지우고 처음으로. 서버 기록은 그대로 */
   onReset: () => void;
-  /** 서버의 세션과 기록을 지움(DELETE /v1/sessions/{id}) */
-  onDeleteRecords: () => Promise<unknown>;
+  /** 지울 것(적은 문장·세션)이 있으면 true. 그때만 확인 창(M1)을 띄운다 */
+  confirmReset?: boolean;
+  /** 서버의 세션과 기록을 지움(DELETE /v1/sessions/{id}). 지울 세션이 없으면 넘기지 않는다 — 버튼이 사라진다 */
+  onDeleteRecords?: () => Promise<unknown>;
 }
 
 const TENURE = { JEONSE: "전세", PURCHASE: "매매" } as const;
 
-export function Sidebar({ programs, apiBase, connected, onReset, onDeleteRecords }: SidebarProps) {
+export function Sidebar({ programs, apiBase, connected, onReset, confirmReset = false, onDeleteRecords }: SidebarProps) {
+  const [askingReset, setAskingReset] = useState(false);
   const [asking, setAsking] = useState(false);
   const [deleteFailed, setDeleteFailed] = useState(false);
 
@@ -101,7 +109,11 @@ export function Sidebar({ programs, apiBase, connected, onReset, onDeleteRecords
         {connected ? "판정 서버에 연결됨" : "판정 서버에 연결되지 않음"}
       </p>
       <div className={styles.group}>
-        <button type="button" className={styles.outline} onClick={onReset}>
+        <button
+          type="button"
+          className={styles.outline}
+          onClick={() => (confirmReset ? setAskingReset(true) : onReset())}
+        >
           전체 초기화
         </button>
         <p className={styles.small}>{NOTICE.reset}</p>
@@ -109,10 +121,26 @@ export function Sidebar({ programs, apiBase, connected, onReset, onDeleteRecords
       <section className={styles.group}>
         <h2 className={styles.label}>개인정보 안내</h2>
         <p className={styles.small}>{NOTICE.privacy}</p>
-        <button type="button" className={styles.outline} onClick={() => setAsking(true)}>
-          내 기록 지우기
-        </button>
+        {onDeleteRecords && (
+          <button type="button" className={styles.outline} onClick={() => setAsking(true)}>
+            내 기록 지우기
+          </button>
+        )}
       </section>
+
+      <ConfirmDialog
+        open={askingReset}
+        title="처음으로 돌아갈까요?"
+        confirmLabel="처음으로"
+        cancelLabel="계속하기"
+        onConfirm={() => {
+          setAskingReset(false);
+          onReset();
+        }}
+        onCancel={() => setAskingReset(false)}
+      >
+        {NOTICE.reset} 적어 두신 문장도 지워집니다.
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={asking}
@@ -122,7 +150,7 @@ export function Sidebar({ programs, apiBase, connected, onReset, onDeleteRecords
         onConfirm={async () => {
           setDeleteFailed(false);
           try {
-            await onDeleteRecords();
+            await onDeleteRecords?.();
           } catch {
             setDeleteFailed(true);
             return;

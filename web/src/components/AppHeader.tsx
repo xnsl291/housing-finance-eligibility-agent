@@ -4,6 +4,7 @@
  * 단계 표시는 눌러서 이동하는 탭이 아니다. 되돌아가는 길 제약(설계서 3.2)을 풀기 전에는
  * 누르게 만들면 안 되므로 버튼도 링크도 아니고, 탭으로 가지도 않는다(시안 C0 3절).
  * 단계는 따로 저장하지 않고 화면이 가진 값으로 계산해 넘긴다.
+ * 첫 화면(S0)은 아직 단계에 들어서기 전이라 단계 표시를 그리지 않는다(시안 S0). 그때는 step을 넘기지 않는다.
  *
  * 연결 상태는 정상일 때 작은 점 한 줄뿐이다. 끊기면 본문 맨 위에 시스템 오류가 뜬다
  * (머리나 사이드바에만 빨간 글씨를 두지 않음 — 결함 D5).
@@ -15,7 +16,7 @@ import styles from "./AppHeader.module.css";
 /** 서버 쪽 화면의 STEPS(`ui/app.py`)와 같은 순서·이름 */
 const STEPS = ["조건 입력", "읽은 내용 확인", "하나씩 확인", "판정 결과"] as const;
 
-type Step = 0 | 1 | 2 | 3;
+export type Step = 0 | 1 | 2 | 3;
 
 /** step: 0 조건 입력 · 1 읽은 내용 확인 · 2 하나씩 확인 · 3 판정 결과 */
 export function StepIndicator({ step }: { step: Step }) {
@@ -55,7 +56,7 @@ export function StepIndicator({ step }: { step: Step }) {
   );
 }
 
-export function AppHeader({ step, connected }: { step: Step; connected: boolean }) {
+export function AppHeader({ step, connected }: { step?: Step; connected: boolean }) {
   return (
     <header className={styles.header}>
       <div className={styles.titleRow}>
@@ -66,7 +67,7 @@ export function AppHeader({ step, connected }: { step: Step; connected: boolean 
         </span>
       </div>
       <Notice kind="header" />
-      <StepIndicator step={step} />
+      {step !== undefined && <StepIndicator step={step} />}
     </header>
   );
 }

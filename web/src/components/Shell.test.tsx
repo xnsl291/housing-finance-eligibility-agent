@@ -16,6 +16,12 @@ describe("단계 표시 (설계서 C-HEADER)", () => {
     expect(within(steps).queryByRole("link")).not.toBeInTheDocument();
   });
 
+  it("단계를 넘기지 않으면(첫 화면) 단계 표시를 그리지 않는다", () => {
+    render(<AppHeader connected />);
+    expect(screen.queryByRole("list", { name: "진행 단계" })).not.toBeInTheDocument();
+    expect(screen.getByText(/이 화면은 승인 여부를 판단하지 않습니다/)).toBeInTheDocument();
+  });
+
   it("머리 고지를 늘 보인다", () => {
     render(<AppHeader step={0} connected />);
     expect(screen.getByText(/이 화면은 승인 여부를 판단하지 않습니다/)).toBeInTheDocument();
@@ -76,5 +82,40 @@ describe("사이드바", () => {
     // 다시 열면 지난 실패 문구가 남아 있지 않다
     await user.click(screen.getByRole("button", { name: "내 기록 지우기" }));
     expect(screen.queryByText("지우지 못했습니다. 잠시 뒤 다시 눌러 주세요")).not.toBeInTheDocument();
+  });
+
+  it("지울 세션이 없으면(onDeleteRecords 없음) 내 기록 지우기 버튼을 그리지 않는다", () => {
+    render(<Sidebar programs={programs} apiBase="" connected onReset={() => {}} />);
+    expect(screen.queryByRole("button", { name: "내 기록 지우기" })).not.toBeInTheDocument();
+    // 개인정보 안내 문구는 그대로 둔다
+    expect(screen.getByText(/'내 기록 지우기'로 서버에서 지울 수 있습니다/)).toBeInTheDocument();
+  });
+
+  it("전체 초기화는 지울 것이 있으면 확인 창(M1)을 거치고, 계속하기가 기본 초점이다", async () => {
+    const user = userEvent.setup();
+    const onReset = vi.fn();
+    render(<Sidebar programs={programs} apiBase="" connected confirmReset onReset={onReset} />);
+
+    await user.click(screen.getByRole("button", { name: "전체 초기화" }));
+    const dialog = screen.getByRole("alertdialog", { name: "처음으로 돌아갈까요?" });
+    expect(dialog).toHaveTextContent("서버에 남은 기록은 지워지지 않습니다");
+    expect(screen.getByRole("button", { name: "계속하기" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "계속하기" }));
+    expect(onReset).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "전체 초기화" }));
+    await user.click(screen.getByRole("button", { name: "처음으로" }));
+    expect(onReset).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("전체 초기화는 지울 것이 없으면 묻지 않고 바로 처음으로 간다", async () => {
+    const user = userEvent.setup();
+    const onReset = vi.fn();
+    render(<Sidebar programs={programs} apiBase="" connected onReset={onReset} />);
+
+    await user.click(screen.getByRole("button", { name: "전체 초기화" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(onReset).toHaveBeenCalledOnce();
   });
 });

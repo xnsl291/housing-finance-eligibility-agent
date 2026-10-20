@@ -1,9 +1,9 @@
+/* 본문(크림 바탕) 맨 위에 붙는다. 따로 흰 띠를 두지 않고 아래 선 하나로 본문과 나눈다(시안 S0·S1 '머리') */
 .header {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 24px 28px;
-  background: var(--surface);
+  padding: 0 0 22px;
   border-bottom: 1px solid var(--line);
 }
 
