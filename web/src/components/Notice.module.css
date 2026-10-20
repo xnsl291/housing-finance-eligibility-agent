@@ -1,0 +1,12 @@
+.notice {
+  margin: 0;
+  padding: 2px 0 2px 13px;
+  border-left: 2px solid var(--ink-4);
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.header {
+  border-left: 3px solid var(--ink);
+  color: var(--ink);
+}

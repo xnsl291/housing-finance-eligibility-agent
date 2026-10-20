@@ -1,0 +1,38 @@
+/*
+ * 고지 한 줄과 개인정보 안내. 시안 B0 묶음 8, 설계서 4절 C-NOTICE·C-COPY.
+ *
+ * 문구는 서버 쪽 상수(Streamlit 화면)를 글자 그대로 옮긴 것이다. 저장·삭제를 약속하는
+ * 문구라 사실과 어긋나면 가장 나쁜 종류의 오류가 된다(G12). 다듬지 말 것.
+ * 정본: PRIVACY_NOTICE `ui/screens/input.py`, PRIVACY_NOTE·RESET_NOTE·DELETE_NOTE
+ * `ui/screens/sidebar.py`, TRACE_NOTE `ui/app.py`. 저쪽을 고치면 여기도 고친다.
+ *
+ * 개인정보 안내는 시안의 "지금은 이 기록을 화면에서 지울 수 없습니다"가 아니라 서버의
+ * 지금 문구다. 시안 뒤에 서버에 삭제 경로가 생겼다(PR #29).
+ */
+import styles from "./Notice.module.css";
+
+export const NOTICE = {
+  /** 모든 화면 머리 */
+  header:
+    "신청 전에 가능성을 가늠하는 도구입니다. 실제 심사는 기관이 합니다. 이 화면은 승인 여부를 판단하지 않습니다.",
+  /** 입력 화면, 입력 칸보다 위(PRIVACY_NOTICE) */
+  input:
+    "주민등록번호·계좌번호·집 주소는 적지 마세요. 주민등록번호와 계좌번호로 보이는 것은 가린 뒤 저장하지만, 집 주소는 가리지 못합니다. 지역은 '서울'이나 '경기도 성남시'처럼 시·군·구까지만 적어 주세요.",
+  /** 결과 화면 */
+  result: "실제 심사와 승인은 기관이 합니다. 이 화면은 신청 전 가늠만 합니다.",
+  /** 개인정보 안내(PRIVACY_NOTE) */
+  privacy:
+    "입력한 문장 전체는 저장하지 않습니다. 문장에서 읽어 낸 값과 그 근거가 된 문장 일부, 직접 넣거나 답한 값, 모른다고 한 항목은 판정을 이어 가기 위해 서버의 세션 파일에 저장되며 서버를 다시 켜도 남습니다. 주민등록번호·계좌번호로 보이는 부분은 가린 뒤 저장합니다. 이 기록은 '내 기록 지우기'로 서버에서 지울 수 있습니다.",
+  /** 전체 초기화 아래(RESET_NOTE) */
+  reset: "이 화면의 입력과 결과를 지우고 처음으로 돌아갑니다. 서버에 남은 기록은 지워지지 않습니다.",
+  /** 확인 과정 아래(TRACE_NOTE) */
+  trace: "입력하신 문장 전체는 저장하지 않습니다. 위에 보이는 값과 근거 구절은 서버에 남습니다.",
+} as const;
+
+/** 내 기록 지우기 확인 창 본문(DELETE_NOTE) */
+export const DELETE_NOTE = "읽어 낸 값과 답한 내용을 서버에서 지웁니다. 되돌릴 수 없습니다.";
+
+/** 색 상자 대신 왼쪽 세로선 한 줄. 머리 고지만 굵고 진하다 */
+export function Notice({ kind }: { kind: keyof typeof NOTICE }) {
+  return <p className={`${styles.notice} ${kind === "header" ? styles.header : ""}`}>{NOTICE[kind]}</p>;
+}
