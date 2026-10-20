@@ -1,7 +1,9 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 import { act, render, screen } from "@testing-library/react";
+
+// 서버 쪽 화면 상수 파일을 글 그대로 읽는다(Vite ?raw). node 타입을 들이지 않으려고 이렇게 함
+import appPy from "../../../src/housing_finance_agent/ui/app.py?raw";
+import inputPy from "../../../src/housing_finance_agent/ui/screens/input.py?raw";
+import sidebarPy from "../../../src/housing_finance_agent/ui/screens/sidebar.py?raw";
 
 import { LoadingSentence, SystemError, Toast } from "./Feedback";
 import { DELETE_NOTE, NOTICE } from "./Notice";
@@ -76,10 +78,10 @@ describe("멈춘 이유 배너 (설계서 8.4)", () => {
  * 저장·삭제에 대해 사실과 다른 말을 하게 된다(G12). 파이썬 파일을 직접 읽어 대조한다.
  */
 describe("고지 문구가 서버 쪽 상수와 같다 (C-COPY)", () => {
-  const root = resolve(__dirname, "../../../src/housing_finance_agent/ui");
+  const FILES = { "screens/input.py": inputPy, "screens/sidebar.py": sidebarPy, "app.py": appPy };
 
-  function pyConstant(file: string, name: string): string {
-    const src = readFileSync(resolve(root, file), "utf-8");
+  function pyConstant(file: keyof typeof FILES, name: string): string {
+    const src = FILES[file];
     // 한 줄짜리("...")와 괄호로 여러 줄을 이은 것 둘 다. 저장소 파일이 CRLF일 수 있다
     const m = new RegExp(String.raw`^${name} = (\([\s\S]*?\r?\n\)|"[^\r\n]*")`, "m").exec(src);
     if (!m) throw new Error(`${file}에 ${name}이 없음`);
