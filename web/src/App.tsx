@@ -7,23 +7,26 @@
 import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
 
-// 개발용 부품 모음. 사용자 화면 묶음에 섞이지 않게 따로 불러온다
-const ComponentGallery = lazy(() =>
-  import("./screens/ComponentGallery").then((m) => ({ default: m.ComponentGallery })),
-);
+// 개발용 부품 모음. 개발 서버에서만 등록한다. 완성본에서는 import.meta.env.DEV가 false로
+// 바뀌어 아래 import가 통째로 빠지므로 부품 모음 파일(ComponentGallery-*.js)이 만들어지지 않는다
+const ComponentGallery = import.meta.env.DEV
+  ? lazy(() => import("./screens/ComponentGallery").then((m) => ({ default: m.ComponentGallery })))
+  : null;
 
 export function App() {
   return (
     <Routes>
       <Route path="/" element={<main>주거금융 지원가능성 판정</main>} />
-      <Route
-        path="/_components"
-        element={
-          <Suspense>
-            <ComponentGallery />
-          </Suspense>
-        }
-      />
+      {ComponentGallery && (
+        <Route
+          path="/_components"
+          element={
+            <Suspense>
+              <ComponentGallery />
+            </Suspense>
+          }
+        />
+      )}
       <Route path="*" element={<main>없는 화면입니다</main>} />
     </Routes>
   );
