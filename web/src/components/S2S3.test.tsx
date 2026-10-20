@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { ChoiceList } from "./ChoiceFields";
@@ -46,7 +46,15 @@ describe("읽은 항목 줄", () => {
 });
 
 describe("질문 카드", () => {
-  function Card({ ready, onAnswer = () => {}, onDecline = () => {} }: { ready: boolean; onAnswer?: () => void; onDecline?: () => void }) {
+  function Card({
+    ready,
+    onAnswer = () => {},
+    onDecline = () => {},
+  }: {
+    ready: boolean;
+    onAnswer?: () => void | Promise<unknown>;
+    onDecline?: () => void | Promise<unknown>;
+  }) {
     return (
       <QuestionCard
         title="세대주 여부"
@@ -86,6 +94,40 @@ describe("질문 카드", () => {
 
     expect(onAnswer).not.toHaveBeenCalled();
     expect(onDecline).toHaveBeenCalledOnce();
+  });
+
+  it("'답하기'를 기다리는 동안 '모르겠어요'도 잠긴다", async () => {
+    const user = userEvent.setup();
+    let finish!: () => void;
+    const onAnswer = vi.fn(() => new Promise<void>((resolve) => (finish = resolve)));
+    const onDecline = vi.fn();
+    render(<Card ready onAnswer={onAnswer} onDecline={onDecline} />);
+
+    await user.click(screen.getByRole("button", { name: "답하기" }));
+    await user.click(screen.getByRole("button", { name: "모르겠어요" }));
+    expect(onAnswer).toHaveBeenCalledOnce();
+    expect(onDecline).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "모르겠어요" })).toHaveAttribute("aria-disabled", "true");
+
+    await act(async () => finish());
+    await user.click(screen.getByRole("button", { name: "모르겠어요" }));
+    expect(onDecline).toHaveBeenCalledOnce();
+  });
+
+  it("같은 순간 두 버튼을 눌러도(다시 그려지기 전) 하나만 보낸다", () => {
+    const onAnswer = vi.fn(() => new Promise<void>(() => {}));
+    const onDecline = vi.fn(() => new Promise<void>(() => {}));
+    render(<Card ready onAnswer={onAnswer} onDecline={onDecline} />);
+    const answer = screen.getByRole("button", { name: "답하기" });
+    const decline = screen.getByRole("button", { name: "모르겠어요" });
+
+    act(() => {
+      answer.click();
+      decline.click();
+    });
+
+    expect(onAnswer).toHaveBeenCalledOnce();
+    expect(onDecline).not.toHaveBeenCalled();
   });
 
   it("선택지 묶음 이름이 질문 제목이고, 아무것도 안 고른 채 시작한다", () => {
