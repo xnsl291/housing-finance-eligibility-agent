@@ -1,0 +1,47 @@
+/* 시안 S0·S1 '화면': 왼쪽 먹색 사이드바 280px + 크림 본문. 본문 최대 폭은 설계서 11.4의 약 1,280px */
+.app {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg-soft);
+}
+
+.app > aside {
+  flex-shrink: 0;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  padding: 40px 56px 56px;
+}
+
+.inner {
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  max-width: 1168px;
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+}
+
+/* 단계가 바뀐 순간에만(위 key) 위에서 내려온다. 움직임 줄이기를 켠 사용자에게는 넣지 않는다 */
+@media (prefers-reduced-motion: no-preference) {
+  .page {
+    animation: enter 420ms ease-out;
+  }
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

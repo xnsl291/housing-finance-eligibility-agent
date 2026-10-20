@@ -84,6 +84,12 @@ describe("사이드바", () => {
     expect(screen.queryByText("지우지 못했습니다. 잠시 뒤 다시 눌러 주세요")).not.toBeInTheDocument();
   });
 
+  it("연결을 확인하기 전에는 연결됐다고 말하지 않는다", () => {
+    render(<Sidebar programs={programs} apiBase="" connected={null} onReset={() => {}} />);
+    expect(screen.getByText("판정 서버 연결 확인 중")).toBeInTheDocument();
+    expect(screen.queryByText("판정 서버에 연결됨")).not.toBeInTheDocument();
+  });
+
   it("지울 세션이 없으면(onDeleteRecords 없음) 내 기록 지우기 버튼을 그리지 않는다", () => {
     render(<Sidebar programs={programs} apiBase="" connected onReset={() => {}} />);
     expect(screen.queryByRole("button", { name: "내 기록 지우기" })).not.toBeInTheDocument();

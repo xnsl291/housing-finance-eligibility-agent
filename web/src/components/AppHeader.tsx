@@ -56,14 +56,15 @@ export function StepIndicator({ step }: { step: Step }) {
   );
 }
 
-export function AppHeader({ step, connected }: { step?: Step; connected: boolean }) {
+/** connected: null은 아직 확인 전. 확인하기 전에 '연결됨'이라고 말하지 않는다 */
+export function AppHeader({ step, connected }: { step?: Step; connected: boolean | null }) {
   return (
     <header className={styles.header}>
       <div className={styles.titleRow}>
         <span className={styles.title}>주거금융 지원가능성 판정</span>
         <span className={styles.connection}>
           <span className={styles.dot} aria-hidden="true" />
-          {connected ? "연결됨" : "연결 안 됨"}
+          {connected === null ? "연결 확인 중" : connected ? "연결됨" : "연결 안 됨"}
         </span>
       </div>
       <Notice kind="header" />

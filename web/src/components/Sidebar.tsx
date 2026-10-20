@@ -30,7 +30,8 @@ interface SidebarProps {
   programs: Program[];
   /** 개발자 정보에 보일 API 주소 */
   apiBase: string;
-  connected: boolean;
+  /** null은 아직 확인 전. 확인하기 전에 '연결됨'이라고 말하지 않는다 */
+  connected: boolean | null;
   /** 화면 값과 적은 문장을 지우고 처음으로. 서버 기록은 그대로 */
   onReset: () => void;
   /** 지울 것(적은 문장·세션)이 있으면 true. 그때만 확인 창(M1)을 띄운다 */
@@ -106,7 +107,11 @@ export function Sidebar({ programs, apiBase, connected, onReset, confirmReset = 
 
       <p className={styles.connection}>
         <span className={styles.dot} aria-hidden="true" />
-        {connected ? "판정 서버에 연결됨" : "판정 서버에 연결되지 않음"}
+        {connected === null
+          ? "판정 서버 연결 확인 중"
+          : connected
+            ? "판정 서버에 연결됨"
+            : "판정 서버에 연결되지 않음"}
       </p>
       <div className={styles.group}>
         <button
