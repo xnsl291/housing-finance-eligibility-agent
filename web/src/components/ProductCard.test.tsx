@@ -31,6 +31,17 @@ describe("상품 카드의 한도 (G7)", () => {
     expect(screen.getByText("1억 4,400만원")).toBeInTheDocument();
   });
 
+  it.each(["CONDITIONAL", "INSUFFICIENT_INFORMATION"] as const)(
+    "%s이면 남은 조건 수가 0이어도 '예상 대출 한도'로 크게 보이지 않는다",
+    (status) => {
+      const { container } = card(status, { won: 144_000_000 }, 0);
+      expect(container).not.toHaveTextContent("예상 대출 한도");
+      expect(container).toHaveTextContent("지금까지 확인된 조건 기준 한도");
+      expect(container).toHaveTextContent("판정이 끝나지 않아 이 금액은 달라질 수 있습니다");
+      expect(container).not.toHaveTextContent("0개");
+    },
+  );
+
   it("확인 안 된 조건이 있으면 확정처럼 보이지 않게 단서를 단다", () => {
     const { container } = card("INSUFFICIENT_INFORMATION", { won: 144_000_000 }, 3);
     expect(container).not.toHaveTextContent("예상 대출 한도");

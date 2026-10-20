@@ -5,8 +5,9 @@
  * 한도는 보증금만 있으면 계산되므로, 소득을 모르는 '정보 부족'에서도 금액이 나온다.
  * 크게 띄우면 사용자는 확정으로 읽는다. 그래서 네 경우로 나눈다(시안 '예상 한도 네 가지 경우').
  *   ① 조건 불충족: 한도 줄이 아예 없다. 탈락한 사람에게 금액을 알려 주지 않는다
- *   ② 금액이 있고 남은 조건 0개: '예상 대출 한도' 크게
- *   ③ 금액이 있는데 확인 안 된 조건이 있음: 작게 + 회색 주의 상자(주황 '추가 확인 필요'와 모양으로 구분)
+ *   ② 판정이 '사전 조건 부합'(PRECHECK_MATCH)이고 남은 조건 0개: '예상 대출 한도' 크게
+ *   ③ 그 밖에 금액이 있음: 작게 + 회색 주의 상자(주황 '추가 확인 필요'와 모양으로 구분).
+ *      남은 조건 수가 0이어도 판정이 끝나지 않았으면(추가 확인 필요·정보 부족) 크게 띄우지 않는다
  *   ④ 금액을 못 냄: 설계서 8.3 사유 그대로
  * 아래 목록은 판정에 따라 뜻이 달라 제목을 다르게 단다(묶음 14).
  */
@@ -64,7 +65,7 @@ export function ProductCard({ name, status, limit, unresolved, items, sourceUrl,
         <VerdictBadge status={status} />
       </div>
 
-      {status !== "NOT_MATCHED" && <Limit limit={limit} unresolved={unresolved} />}
+      {status !== "NOT_MATCHED" && <Limit limit={limit} final={status === "PRECHECK_MATCH" && unresolved === 0} unresolved={unresolved} />}
 
       {items.length > 0 && (
         <div className={styles.list}>
@@ -96,18 +97,20 @@ export function ProductCard({ name, status, limit, unresolved, items, sourceUrl,
   );
 }
 
-function Limit({ limit, unresolved }: { limit: LimitInfo; unresolved: number }) {
+function Limit({ limit, final, unresolved }: { limit: LimitInfo; final: boolean; unresolved: number }) {
   if (limit.won === null) {
     return <p className={styles.noLimit}>{LIMIT_REASON[limit.reason ?? ""] ?? "대출 한도를 계산하지 못했습니다"}</p>;
   }
-  if (unresolved > 0) {
+  if (!final) {
     return (
       <div className={styles.limit}>
         <span className={styles.limitLabel}>지금까지 확인된 조건 기준 한도</span>
         <strong className={`${styles.partialAmount} num`}>{formatWon(limit.won)}</strong>
         <p className={styles.caution}>
           <Icon name="alertTriangle" size={15} />
-          아직 확인되지 않은 조건이 {unresolved}개 있어 이 금액은 달라질 수 있습니다
+          {unresolved > 0
+            ? `아직 확인되지 않은 조건이 ${unresolved}개 있어 이 금액은 달라질 수 있습니다`
+            : "판정이 끝나지 않아 이 금액은 달라질 수 있습니다"}
         </p>
       </div>
     );
