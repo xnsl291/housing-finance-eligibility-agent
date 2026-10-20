@@ -1,0 +1,82 @@
+/* 시안 B0 묶음 2. 그림자 없이 바탕과 1px 선으로만 구분(값 표 '테두리 1px') */
+.wrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  font: inherit;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.primary {
+  padding: 15px 26px;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 15.5px;
+  font-weight: 700;
+}
+
+.secondary {
+  padding: 14px 25px;
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line-strong);
+  font-size: 15px;
+}
+
+.text {
+  gap: 6px;
+  padding: 8px 2px;
+  background: none;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+
+.text:hover {
+  text-decoration: underline;
+}
+
+/* 잠김·로딩은 모양이 같다(시안 '잠긴 버튼'과 '로딩 버튼' 둘 다 off 색) */
+.button[aria-disabled="true"] {
+  background: var(--off-bg);
+  color: var(--off-fg);
+  border-color: transparent;
+  cursor: not-allowed;
+}
+
+.text[aria-disabled="true"] {
+  background: none;
+}
+
+.reason {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.spin {
+  display: inline-flex;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 움직임 줄이기를 켠 사용자에게는 돌리지 않는다(설계서 11.3). 글자가 남아 뜻은 같다 */
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}
