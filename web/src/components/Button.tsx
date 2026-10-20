@@ -10,6 +10,12 @@
  * 로딩: onClick이 Promise를 돌려주면 끝날 때까지 버튼이 스스로 잠긴다. 두 번 눌러 답이
  * 두 번 들어가는 것을 막는 자리다(N4). 상태(useState)는 다시 그려진 뒤에야 바뀌므로,
  * 아주 빠른 두 번 누름을 막으려고 ref로도 같이 막는다.
+ *
+ * 실패: 버튼은 잠금을 풀 뿐 실패를 해석하지 않는다. 무엇을 보여 줄지는 화면마다 달라서,
+ * 실패 처리는 onClick이 돌려준 Promise를 가진 부모가 한다(예: Sidebar의 '내 기록 지우기').
+ * 버튼이 기다리면서 실패를 다시 던지면 받을 곳이 없어 '처리되지 않은 rejection'이 되므로
+ * 버튼 안에서는 다시 던지지 않는다. 부모가 처리하지 않은 실패는 화면에 아무 표시가 없으니,
+ * 실패할 수 있는 일은 부모가 반드시 잡아 사용자에게 알린다.
  */
 import { useId, useRef, useState, type MouseEvent, type ReactNode } from "react";
 
@@ -54,6 +60,8 @@ export function Button({
     setBusy(true);
     try {
       await result;
+    } catch {
+      // 위 설명대로 부모 몫이다. 여기서는 잠금만 푼다
     } finally {
       busyRef.current = false;
       setBusy(false);

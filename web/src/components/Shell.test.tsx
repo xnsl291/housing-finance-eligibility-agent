@@ -56,4 +56,25 @@ describe("사이드바", () => {
     expect(onDelete).toHaveBeenCalledOnce();
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
+
+  it("지우기가 실패하면 창을 닫지 않고 창 안에 다시 누르라는 문구를 보인다", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn().mockRejectedValueOnce(new Error("서버 꺼짐")).mockResolvedValueOnce(undefined);
+    render(<Sidebar programs={programs} apiBase="" connected onReset={() => {}} onDeleteRecords={onDelete} />);
+
+    await user.click(screen.getByRole("button", { name: "내 기록 지우기" }));
+    await user.click(screen.getByRole("button", { name: "지우기" }));
+
+    const dialog = screen.getByRole("alertdialog", { name: "내 기록을 지울까요?" });
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("지우지 못했습니다. 잠시 뒤 다시 눌러 주세요");
+
+    // 다시 누르면 문구가 사라지고, 성공하면 닫힌다
+    await user.click(screen.getByRole("button", { name: "지우기" }));
+    expect(onDelete).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+
+    // 다시 열면 지난 실패 문구가 남아 있지 않다
+    await user.click(screen.getByRole("button", { name: "내 기록 지우기" }));
+    expect(screen.queryByText("지우지 못했습니다. 잠시 뒤 다시 눌러 주세요")).not.toBeInTheDocument();
+  });
 });

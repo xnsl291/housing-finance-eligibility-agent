@@ -146,3 +146,14 @@
 .side :focus-visible {
   outline-color: var(--surface);
 }
+
+/* '내 기록 지우기' 실패 문구. 확인 창(흰 바탕) 안에 그려지므로 사이드바 회색이 아니라 오류색 */
+.fail {
+  margin: 8px 0 0;
+  color: var(--err-fg);
+  font-weight: 600;
+}
+
+.fail:empty {
+  margin: 0;
+}

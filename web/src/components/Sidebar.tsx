@@ -8,6 +8,8 @@
  * '내 기록 지우기'는 시안에 없다. 시안 뒤에 서버에 삭제 경로가 생겼고(PR #29) 개인정보 안내도
  * "'내 기록 지우기'로 서버에서 지울 수 있습니다"로 바뀌어, 안내가 말하는 버튼을 같은 자리에 둔다.
  * 되돌릴 수 없으므로 항상 확인 창(M2)을 거친다(설계서 C-RESET).
+ * 지우기가 실패하면 창을 닫지 않고 창 안에 다시 누르라는 문구를 보인다. 닫아 버리면 지워졌는지
+ * 아닌지 사용자가 알 수 없다.
  *
  * 먹색 바탕 위 회색(side-muted)은 이 안에서만 쓴다. 흰 바탕에서는 대비가 모자란다(시안 C0 4절).
  */
@@ -34,6 +36,12 @@ const TENURE = { JEONSE: "전세", PURCHASE: "매매" } as const;
 
 export function Sidebar({ programs, apiBase, connected, onReset, onDeleteRecords }: SidebarProps) {
   const [asking, setAsking] = useState(false);
+  const [deleteFailed, setDeleteFailed] = useState(false);
+
+  function closeDialog() {
+    setAsking(false);
+    setDeleteFailed(false);
+  }
 
   return (
     <aside className={styles.side} aria-label="이 도구에 대해">
@@ -112,12 +120,22 @@ export function Sidebar({ programs, apiBase, connected, onReset, onDeleteRecords
         confirmLabel="지우기"
         cancelLabel="취소"
         onConfirm={async () => {
-          await onDeleteRecords();
-          setAsking(false);
+          setDeleteFailed(false);
+          try {
+            await onDeleteRecords();
+          } catch {
+            setDeleteFailed(true);
+            return;
+          }
+          closeDialog();
         }}
-        onCancel={() => setAsking(false)}
+        onCancel={closeDialog}
       >
         {DELETE_NOTE}
+        {/* 영역은 늘 두고 글만 바꾼다. 실패하면 바로 읽힌다 */}
+        <p role="alert" className={styles.fail}>
+          {deleteFailed ? "지우지 못했습니다. 잠시 뒤 다시 눌러 주세요" : ""}
+        </p>
       </ConfirmDialog>
     </aside>
   );
