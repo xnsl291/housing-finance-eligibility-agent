@@ -7,6 +7,8 @@
  *
  * 초점: 질문이 바뀌면 질문 제목으로 옮긴다. 같은 화면이라도 내용이 바뀌므로, 옮기지 않으면
  * 화면 읽기 프로그램 사용자는 다음 질문이 나온 것을 모른다(시안 C0 1절).
+ * '질문이 바뀌었다'는 제목 글이 아니라 questionKey로 판단한다. 같은 항목을 값이 기준에 걸쳐
+ * 다시 물으면 제목이 같아 초점이 안 옮겨지고, 반대로 같은 질문의 글만 고쳐져도 초점이 튄다.
  *
  * 두 버튼은 카드 하나의 대기 상태를 같이 쓴다. '답하기'를 보내는 동안 '모르겠어요'가 눌리면
  * 한 질문에 답과 모름이 둘 다 서버로 간다. 버튼마다 따로 잠그면 이 경우를 못 막는다.
@@ -21,6 +23,8 @@ import styles from "./QuestionCard.module.css";
 const WAIT_REASON = "보내는 중이라 잠시 누를 수 없습니다";
 
 interface QuestionCardProps {
+  /** 질문 식별자. 부르는 쪽이 필드명+순번(예: `household_head_status:2`)을 넘긴다. 바뀌면 초점을 옮긴다 */
+  questionKey: string;
   /** 항목 이름표(서버 question.label) */
   title: string;
   /** 왜 묻는지(서버 question.why) */
@@ -37,6 +41,7 @@ interface QuestionCardProps {
 }
 
 export function QuestionCard({
+  questionKey,
   title,
   why,
   known,
@@ -71,7 +76,7 @@ export function QuestionCard({
     // 처음 그릴 때는 화면을 끌어내리지 않고 초점만 옮긴다
     titleRef.current?.focus({ preventScroll: firstShow.current });
     firstShow.current = false;
-  }, [title]);
+  }, [questionKey]);
 
   return (
     <section className={styles.card} aria-labelledby={titleId}>

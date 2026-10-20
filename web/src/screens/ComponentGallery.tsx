@@ -258,6 +258,7 @@ function QuestionDemo() {
   const [choice, setChoice] = useState<string | null>(null);
   return (
     <QuestionCard
+      questionKey="household_head_status:1"
       title="세대주 여부"
       why="남은 상품 2개 모두 이 값이 있어야 판정할 수 있습니다"
       known="지금은 4,500만~5,000만원으로 알고 있습니다. 기준에 걸쳐 정확한 값이 필요합니다."

@@ -50,14 +50,19 @@ describe("질문 카드", () => {
     ready,
     onAnswer = () => {},
     onDecline = () => {},
+    title = "세대주 여부",
+    questionKey = "household_head_status:1",
   }: {
     ready: boolean;
     onAnswer?: () => void | Promise<unknown>;
     onDecline?: () => void | Promise<unknown>;
+    title?: string;
+    questionKey?: string;
   }) {
     return (
       <QuestionCard
-        title="세대주 여부"
+        questionKey={questionKey}
+        title={title}
         why="남은 상품 2개 모두 이 값이 있어야 판정할 수 있습니다"
         answerReady={ready}
         onAnswer={onAnswer}
@@ -81,6 +86,22 @@ describe("질문 카드", () => {
   it("나타나면 초점이 질문 제목으로 간다", () => {
     render(<Card ready={false} />);
     expect(screen.getByRole("heading", { name: "세대주 여부" })).toHaveFocus();
+  });
+
+  it("같은 항목을 다시 물으면(제목 같음, 순번 다름) 초점이 다시 제목으로 간다", () => {
+    const { rerender } = render(<Card ready={false} questionKey="household_head_status:1" />);
+    act(() => (document.activeElement as HTMLElement).blur());
+
+    rerender(<Card ready={false} questionKey="household_head_status:2" />);
+    expect(screen.getByRole("heading", { name: "세대주 여부" })).toHaveFocus();
+  });
+
+  it("같은 질문에서 제목 글만 바뀌면 초점을 옮기지 않는다", () => {
+    const { rerender } = render(<Card ready={false} questionKey="household_head_status:1" />);
+    act(() => (document.activeElement as HTMLElement).blur());
+
+    rerender(<Card ready={false} questionKey="household_head_status:1" title="세대주 여부(다시 확인)" />);
+    expect(document.activeElement).toBe(document.body);
   });
 
   it("답을 고르기 전에는 답하기가 잠기고, 모르겠어요는 늘 누를 수 있다", async () => {
