@@ -106,7 +106,6 @@ export function RangeField({ label, defaultValue, onChange, error }: RangeFieldP
           aria-invalid={Boolean(shown) || undefined}
           value={which === "low" ? lowText : highText}
           onChange={(e) => (which === "low" ? update(e.target.value, highText) : update(lowText, e.target.value))}
-          onBlur={() => setLeft(true)}
         />
         <span className={styles.unit}>만원</span>
       </span>
@@ -114,7 +113,15 @@ export function RangeField({ label, defaultValue, onChange, error }: RangeFieldP
   );
 
   return (
-    <fieldset className={styles.field}>
+    <fieldset
+      className={styles.field}
+      onBlur={(e) => {
+        // 최소 칸을 채우고 최대 칸으로 가는 중에 "모두 적어 주세요"를 띄우면 아직 적는 사람을
+        // 나무라는 꼴이다. 초점이 두 칸 묶음 밖으로 나갔을 때만 떠난 것으로 본다
+        // (React onBlur는 focusout처럼 올라오고, relatedTarget이 새로 초점을 받은 곳이다)
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setLeft(true);
+      }}
+    >
       <legend className={styles.label}>{label}</legend>
       <div className={styles.pair}>
         {cell("low")}

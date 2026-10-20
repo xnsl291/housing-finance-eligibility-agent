@@ -69,6 +69,28 @@ describe("범위 칸 (G6)", () => {
     expect(screen.getByText("4,500만~5,000만원")).toBeInTheDocument();
   });
 
+  it("최소 칸만 떠나 최대 칸으로 가면 오류를 띄우지 않고, 묶음 전체를 떠나면 보인다", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <RangeField label="소득" onChange={() => {}} />
+        <button type="button">다음</button>
+      </>,
+    );
+    const low = screen.getByLabelText("소득 최소");
+
+    await user.type(low, "4500");
+    await user.tab();
+    expect(screen.getByLabelText("소득 최대")).toHaveFocus();
+    expect(screen.queryByText("최소와 최대를 모두 적어 주세요")).not.toBeInTheDocument();
+    expect(low).not.toHaveAttribute("aria-invalid");
+
+    await user.tab();
+    expect(screen.getByRole("button", { name: "다음" })).toHaveFocus();
+    expect(screen.getByText("최소와 최대를 모두 적어 주세요")).toBeInTheDocument();
+    expect(low).toHaveAttribute("aria-invalid", "true");
+  });
+
   it("최소가 최대보다 크면 오류", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
@@ -77,6 +99,8 @@ describe("범위 칸 (G6)", () => {
     const low = screen.getByLabelText("소득 최소");
     await user.clear(low);
     await user.type(low, "6000");
+    // 오류는 묶음(fieldset) 전체를 떠날 때 보인다. 최소 → 최대 → 밖
+    await user.tab();
     await user.tab();
 
     expect(onChange).toHaveBeenLastCalledWith(null, "최소가 최대보다 큽니다");
