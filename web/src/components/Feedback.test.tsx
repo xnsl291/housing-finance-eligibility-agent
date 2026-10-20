@@ -26,14 +26,17 @@ describe("로딩 문장", () => {
 });
 
 describe("오류 모양 (G13)", () => {
-  it("시스템 오류는 바로 읽히는 알림이고 초점이 제목으로 간다", () => {
+  it("시스템 오류는 초점을 제목으로 옮겨 알리고, role=alert를 겹쳐 두 번 읽히게 하지 않는다", () => {
     render(
       <SystemError title="지금 판정 서버에 연결할 수 없습니다" onRetry={() => {}}>
         조건의 문제가 아닙니다.
       </SystemError>,
     );
-    expect(screen.getByRole("alert")).toHaveTextContent("조건의 문제가 아닙니다.");
     expect(screen.getByRole("heading", { name: "지금 판정 서버에 연결할 수 없습니다" })).toHaveFocus();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "지금 판정 서버에 연결할 수 없습니다" })).toHaveTextContent(
+      "조건의 문제가 아닙니다.",
+    );
     expect(screen.getByRole("button", { name: "다시 시도" })).toBeInTheDocument();
   });
 

@@ -6,7 +6,7 @@
  * 단다(설계서 11.3). live 영역은 늘 두고 안의 글만 바꾼다 — 글과 영역이 함께 새로 생기면
  * 읽지 않는 프로그램이 있다.
  */
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "./Button";
 import { Icon } from "./Icon";
@@ -64,16 +64,22 @@ interface SystemErrorProps {
  * '조건 불충족' 판정과 섞이면 "서버가 안 됨"이 "당신은 안 됨"으로 읽힌다(G13). 그래서 빨강을
  * 쓰지 않고 먹색 굵은 테두리로, 판정 배지·입력 오류와 모양이 다르게 그린다.
  * 뜨면 초점을 제목으로 옮긴다(시안 C0 1절).
+ *
+ * role="alert"는 달지 않는다. 초점을 제목으로 옮기면 화면 읽기 프로그램이 제목을 읽는데,
+ * alert까지 있으면 같은 오류를 두 번 읽거나 서로 끊는다. 둘 중 초점 이동을 남긴 이유:
+ * 키보드 사용자의 자리도 '다시 시도' 바로 앞으로 옮겨 주고, 다른 화면 바뀜(질문 카드 등)과
+ * 같은 방식이다. 묶음은 제목을 이름으로 단 영역(region)으로 둔다.
  */
 export function SystemError({ title, children, onRetry }: SystemErrorProps) {
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const titleId = useId();
   useEffect(() => {
     titleRef.current?.focus({ preventScroll: true });
   }, []);
 
   return (
-    <section className={styles.system} role="alert">
-      <h2 ref={titleRef} tabIndex={-1} className={styles.systemTitle}>
+    <section className={styles.system} aria-labelledby={titleId}>
+      <h2 id={titleId} ref={titleRef} tabIndex={-1} className={styles.systemTitle}>
         <Icon name="serverOff" size={18} />
         {title}
       </h2>
