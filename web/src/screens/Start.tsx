@@ -1,0 +1,135 @@
+/*
+ * S0 첫 화면. 설계서 6절 S0, 시안 S0(e49DYK)·S0-b(QWTJO).
+ *
+ * 무슨 도구인지, 무엇을 준비하면 좋은지를 먼저 보여 준다. 짧게 쓰면 읽히는 항목이 줄어 '정보 부족'으로
+ * 끝나기 때문이다.
+ *
+ * 대상 상품 묶음은 서버 응답(/v1/programs)으로만 그린다. 상품 이름을 화면에 박으면 상품이 늘 때 두 곳을
+ * 고쳐야 한다. 받지 못하면 묶음을 통째로 빼고 그린다(시안 S0-b '서버 준비 전 모양'). 상품 수를 말하는
+ * 대략 안내도 쓰지 않는다 — 상품 수가 바뀌면 틀린 말이 된다.
+ *
+ * 시작 버튼 두 개
+ * - 문장으로 적기 → S1
+ * - 항목을 직접 고르기 → 세션을 열고 바로 S3. 읽은 값이 없으니 확인할 것도 없어 S2를 건너뛴다(Q8)
+ */
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+import { api } from "../api/client";
+import { Button } from "../components/Button";
+import { Skeleton, SystemError } from "../components/Feedback";
+import { Icon } from "../components/Icon";
+import { useAppState } from "./AppState";
+import { describeFailure } from "./failure";
+import { sessionPath } from "./routes";
+import styles from "./Start.module.css";
+
+const TENURE = { JEONSE: "전세", PURCHASE: "매매" } as const;
+
+// 설계서 S0 '준비하면 좋은 것'(7절 항목에서 고름). 판정 규칙이 아니라 안내 문구라 화면이 든다
+const PREPARE = ["나이", "부부합산 연소득", "순자산", "무주택 여부", "지역", "보증금 또는 집값", "(전세라면) 잔금일·전입일"];
+
+const NOT_DONE = [
+  "승인·심사가 아닙니다. 실제 심사는 기관(주택도시기금·은행)이 합니다",
+  "금리와 월 상환액은 계산하지 않습니다",
+  "신청서를 접수하지 않습니다",
+];
+
+export function Start() {
+  const navigate = useNavigate();
+  const { programs } = useAppState();
+  const [failure, setFailure] = useState<{ id: number; error: unknown } | null>(null);
+
+  async function startDirect() {
+    try {
+      const { session_id } = await api.startSession();
+      navigate(sessionPath(session_id, "questions"));
+    } catch (error) {
+      setFailure((f) => ({ id: (f?.id ?? 0) + 1, error }));
+    }
+  }
+
+  const text = failure && describeFailure(failure.error, "start");
+
+  return (
+    <>
+      <section className={styles.hero}>
+        <h1 className={styles.title}>내 조건으로 될 것 같은지, 신청 전에 가늠해 보세요</h1>
+        <p className={styles.lead}>
+          상황을 적어 주시면 상품들의 신청 조건과 대조해 가늠해 드립니다. 판정마다 어떤 조건에서 그렇게 봤는지 공식
+          자료 원문을 함께 보여 드립니다.
+        </p>
+      </section>
+
+      {programs === "loading" && <Skeleton />}
+      {Array.isArray(programs) && programs.length > 0 && (
+        <section className={styles.block} aria-labelledby="s0-programs">
+          <h2 id="s0-programs" className={styles.label}>
+            이 도구가 보는 상품
+          </h2>
+          <ul className={styles.programs}>
+            {programs.map((p) => (
+              <li key={p.program_id} className={styles.program}>
+                {p.tenure && <span className={styles.chip}>{TENURE[p.tenure]}</span>}
+                <span className={styles.programName}>{p.program_name}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <div className={styles.pair}>
+        <section className={styles.card} aria-labelledby="s0-prepare">
+          <h2 id="s0-prepare" className={styles.label}>
+            준비해 두시면 좋은 것
+          </h2>
+          <ul className={styles.chips}>
+            {PREPARE.map((name) => (
+              <li key={name} className={styles.prepare}>
+                {name}
+              </li>
+            ))}
+          </ul>
+          <p className={styles.small}>모르는 것이 있어도 시작할 수 있습니다. 모르는 항목은 모른 채로 두고 판정합니다.</p>
+        </section>
+        <section className={styles.card} aria-labelledby="s0-not">
+          <h2 id="s0-not" className={styles.label}>
+            이 도구가 하지 않는 것
+          </h2>
+          <ul className={styles.notDone}>
+            {NOT_DONE.map((line) => (
+              <li key={line}>
+                <Icon name="minus" size={15} />
+                {line}
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+
+      <p className={styles.process}>
+        <Icon name="listChecks" size={17} />
+        문장을 읽은 뒤, 판정에 필요한 것만 몇 가지 더 여쭙니다. 남은 질문 수는 답에 따라 달라집니다. 언제든 멈추고
+        결과를 볼 수 있습니다.
+      </p>
+
+      <section className={styles.start} aria-label="시작하기">
+        <div className={styles.buttons}>
+          <Button onClick={() => navigate("/write")}>문장으로 적기</Button>
+          <Button variant="secondary" busyLabel="여는 중" onClick={startDirect}>
+            항목을 직접 고르기
+          </Button>
+        </div>
+        {failure && text && (
+          <SystemError key={failure.id} title={text.title} icon={text.icon} onRetry={startDirect}>
+            {text.body}
+          </SystemError>
+        )}
+        <p className={styles.privacy}>
+          <Icon name="lock" size={14} />
+          입력한 문장 전체는 저장하지 않습니다. 읽어 낸 값과 답은 서버에 남습니다.
+        </p>
+      </section>
+    </>
+  );
+}

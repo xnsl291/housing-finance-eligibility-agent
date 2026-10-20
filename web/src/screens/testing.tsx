@@ -11,7 +11,7 @@ import type { Program } from "../api/types";
 export const PROGRAMS: Program[] = [
   {
     program_id: "p-youth",
-    program_name: "가상 청년 전세 상품",
+    program_name: "가상 청년 상품 가",
     organization: null,
     tenure: "JEONSE",
     source_url: "https://example.invalid/1",
@@ -19,7 +19,7 @@ export const PROGRAMS: Program[] = [
   },
   {
     program_id: "p-buy",
-    program_name: "가상 매매 상품",
+    program_name: "가상 상품 나",
     organization: null,
     tenure: "PURCHASE",
     source_url: "https://example.invalid/2",

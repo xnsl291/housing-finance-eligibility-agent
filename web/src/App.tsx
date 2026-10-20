@@ -15,6 +15,7 @@ import { Route, Routes } from "react-router-dom";
 
 import { Layout } from "./screens/Layout";
 import { Pending } from "./screens/Pending";
+import { Start } from "./screens/Start";
 
 // 개발용 부품 모음. 개발 서버에서만 등록한다. 완성본에서는 import.meta.env.DEV가 false로
 // 바뀌어 아래 import가 통째로 빠지므로 부품 모음 파일(ComponentGallery-*.js)이 만들어지지 않는다
@@ -26,8 +27,8 @@ export function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route path="/" element={<h1>주거금융 지원가능성 판정</h1>} />
-        <Route path="/write" element={<h1>조건 입력</h1>} />
+        <Route path="/" element={<Start />} />
+        <Route path="/write" element={<h1>상황을 문장으로 적어 주세요</h1>} />
         <Route path="/s/:sessionId/confirm" element={<Pending step={1} />} />
         <Route path="/s/:sessionId/questions" element={<Pending step={2} />} />
         <Route path="/s/:sessionId/result" element={<Pending step={3} />} />
