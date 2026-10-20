@@ -5,6 +5,7 @@
 // 있게 된다. 그래서 개발 때는 여기서 넘기고, 완성본은 FastAPI가 화면 파일을 직접 낸다
 // (`serve.py`). 어느 쪽이든 브라우저에는 주소가 하나다.
 import react from "@vitejs/plugin-react";
+import { searchForWorkspaceRoot } from "vite";
 import { defineConfig } from "vitest/config";
 
 const api = process.env.HFA_API_URL ?? "http://127.0.0.1:8000";
@@ -14,10 +15,18 @@ export default defineConfig({
   server: {
     host: "127.0.0.1",
     proxy: { "/v1": api, "/health": api },
+    // 테스트에서만 서버 쪽 화면 상수 파일(파이썬)을 글로 읽는다. 고지 문구가 저쪽과 같은지
+    // 대조하려고(components/Feedback.test.tsx). 개발 서버는 web 밖 파일을 내주지 않게 그대로 둔다
+    fs: process.env.VITEST
+      ? { allow: [searchForWorkspaceRoot(process.cwd()), "../src/housing_finance_agent/ui"] }
+      : undefined,
   },
   test: {
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test-setup.ts"],
+    // vitest는 기본으로 CSS를 빈 글로 바꾼다(?raw 포함). 색 대비 테스트(styles/tokens.test.ts)가
+    // tokens.css 글을 읽어야 해서 이 파일만 그대로 둔다
+    css: { include: [/tokens\.css/] },
   },
 });

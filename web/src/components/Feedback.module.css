@@ -1,0 +1,132 @@
+/* 로딩 문장 */
+.sentence {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 22px 20px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  font-size: 14.5px;
+}
+
+.slow {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.dots {
+  display: inline-flex;
+  gap: 7px;
+}
+
+/* 점 세 개가 차례로 진해진다. 시안의 세 색(ink·ink-4·off-bg)이 한 바퀴 도는 모양 */
+.dots span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--off-bg);
+  animation: dot 1.2s infinite;
+}
+
+.dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes dot {
+  0%,
+  100% {
+    background: var(--off-bg);
+  }
+  30% {
+    background: var(--ink);
+  }
+  60% {
+    background: var(--ink-4);
+  }
+}
+
+/* 움직임 줄이기: 점을 멈추고 글자만 남긴다(시안 C0 5절) */
+@media (prefers-reduced-motion: reduce) {
+  .dots span {
+    animation: none;
+  }
+
+  .dots span:first-child {
+    background: var(--ink);
+  }
+
+  .dots span:nth-child(2) {
+    background: var(--ink-4);
+  }
+}
+
+/* 뼈대 */
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+
+.bone {
+  display: block;
+  max-width: 100%;
+  height: 13px;
+  background: var(--chip-bg);
+  border-radius: var(--r-chip);
+}
+
+/* 시스템 오류: 빨강이 아니라 먹색 굵은 테두리 */
+.system {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1.5px solid var(--ink);
+  border-radius: var(--r-sm);
+}
+
+.systemTitle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.systemBody {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+/* 완료 알림 */
+.toastArea {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 16px;
+  background: var(--ink);
+  color: var(--surface);
+  border-radius: var(--r-sm);
+  font-size: 13.5px;
+}

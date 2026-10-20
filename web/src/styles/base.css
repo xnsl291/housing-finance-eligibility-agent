@@ -37,3 +37,9 @@ body {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
+
+/* 화면이 초점을 옮겨 주는 제목(tabindex="-1")에는 테두리를 그리지 않는다.
+   사용자가 탭으로 가는 자리가 아니라, 화면 읽기 프로그램에 바뀐 자리를 알리려는 초점이다 */
+[tabindex="-1"]:focus-visible {
+  outline: none;
+}

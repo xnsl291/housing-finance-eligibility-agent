@@ -1,0 +1,203 @@
+/* 시안 B0 묶음 3·4. 칸 종류가 달라도 이름표·도움말·오류 줄의 자리와 크기는 같다 */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.label {
+  padding: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.help {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/* 칸 테두리 상자. 안의 input은 테두리 없이 상자를 채운다(단위 글자를 같은 상자에 두려고) */
+.box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 13px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+}
+
+.box:focus-within {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.box[data-invalid="true"] {
+  border: 1.5px solid var(--err-fg);
+  padding: 10.5px 12.5px;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.input:focus {
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--ink-4);
+}
+
+/* 금액은 오른쪽 정렬 + 자릿수가 맞는 숫자(설계서 11.5) */
+.amount {
+  font-size: 15px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.unit {
+  font-size: 12.5px;
+  color: var(--ink-4);
+  white-space: nowrap;
+}
+
+.select {
+  appearance: none;
+  cursor: pointer;
+}
+
+.select:has(option[value=""]:checked) {
+  color: var(--ink-3);
+}
+
+/* 입력 오류는 칸 바로 아래 한 줄. 배지 모양을 쓰지 않아 '조건 불충족' 판정과 구분된다(G13) */
+.error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--err-fg);
+}
+
+/* 오류 줄도 aria-live 영역이라 비어 있어도 남겨 둔다(display:none이면 읽기 트리에서 빠져
+   처음 뜨는 오류를 놓칠 수 있음). 빈 줄이 간격을 한 번 더 만들지 않게 gap만큼 당긴다 */
+.error:empty {
+  margin-top: -6px;
+}
+
+/* 억·만 표기 */
+.koreanAmount {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.koreanEmpty {
+  font-size: 13px;
+  color: var(--ink-4);
+}
+
+/* 억·만 표기 live 영역은 글이 없어도 남겨 둔다(display:none이면 읽기 트리에서 빠짐).
+   빈 영역이 칸 사이 간격(gap 6px)을 한 번 더 만들지 않게 그만큼 당긴다 */
+.koreanAmount:empty,
+.koreanEmpty:empty {
+  margin-top: -6px;
+}
+
+/* 예·아니오·모름 라디오. 체크박스를 쓰지 않는다(G4) */
+.radios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.radioInput {
+  appearance: none;
+  flex-shrink: 0;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.radioInput:checked {
+  border: 5px solid var(--ink);
+}
+
+/* 질문 카드의 선택지. 줄 전체를 눌러 고른다 */
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  font-size: 14.5px;
+  cursor: pointer;
+}
+
+.choice:has(:checked) {
+  border: 1.5px solid var(--ink);
+  padding: 11.5px 13.5px;
+}
+
+.choice:has(:focus-visible) {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.pairItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pairLabel {
+  font-size: 11.5px;
+  color: var(--ink-4);
+}
+
+/* 좁은 화면에서는 범위 두 칸을 세로로(설계서 11.4) */
+@media (max-width: 599px) {
+  .pair {
+    grid-template-columns: 1fr;
+  }
+}
