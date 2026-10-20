@@ -107,19 +107,25 @@ def problem_of(name: str, value: object) -> str | None:
     이름만 보고 값을 안 보면 `"jeonse"` 같은 값이 들어와, 판정은 전세 상품을 보는데
     질문 루프는 후보가 없다고 하는 식으로 두 경로가 반대로 말한다(2026-09-24 검토).
 
+    **이유는 화면에 그대로 나가는 문장이다.** 2026-10-20까지 `허용값이 아님: 'X'
+    (가능: HEAD, ...)`처럼 코드 이름과 자료형을 말해서, 사용자가 무엇을 고치라는지
+    읽을 수 없었다(화면 설계서 결함 D10). 코드 이름(HEAD, YYYY-MM-DD, low/high)을
+    쓰지 않고 무엇을 넣으면 되는지를 말한다. 선택지 이름표는 이 모듈이 모르므로
+    API가 덧붙인다.
+
     `None`은 값을 지운다는 뜻이라 늘 받는다.
     """
     if value is None:
         return None
     spec = SPEC[name]
     if isinstance(spec, list):
-        return None if value in spec else f"허용값이 아님: {value!r} (가능: {', '.join(spec)})"
+        return None if value in spec else "정해진 선택지 가운데서 골라 주세요"
     if spec is bool:
-        return None if isinstance(value, bool) else "참/거짓이어야 함"
+        return None if isinstance(value, bool) else "예 또는 아니오로 골라 주세요"
     if spec is int:
-        return None if _is_int(value) else "정수여야 함"
+        return None if _is_int(value) else "소수점 없는 숫자로 넣어 주세요"
     if spec is float:
-        return None if _is_number(value) else "숫자여야 함"
+        return None if _is_number(value) else "숫자로 넣어 주세요"
     if spec is AMOUNT:
         if _is_int(value) and value >= 0:
             return None
@@ -128,15 +134,16 @@ def problem_of(name: str, value: object) -> str | None:
             low, high = value["low"], value["high"]
             if _is_int(low) and _is_int(high) and 0 <= low <= high:
                 return None
-        return "0 이상의 원 단위 정수 또는 {low, high} 범위여야 함"
+            return "범위는 0원 이상이고, 최소가 최대보다 크지 않게 넣어 주세요"
+        return "0원 이상의 금액으로 넣어 주세요"
     # 나머지는 문자열 항목이다.
     if not isinstance(value, str) or not value.strip():
-        return "비어 있지 않은 문자열이어야 함"
+        return "비어 있습니다. 값을 넣어 주세요"
     if name in DATE_FIELDS:
         try:
             date.fromisoformat(value)
         except ValueError:
-            return "YYYY-MM-DD 형식이어야 함"
+            return "달력에서 날짜를 골라 주세요"
     return None
 
 

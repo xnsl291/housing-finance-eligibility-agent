@@ -244,6 +244,23 @@ def test_항목_정의에_안_맞는_값은_422다(client, values: dict) -> None
 
     assert 응답.status_code == 422
     assert client.get(f"/v1/sessions/{session_id}").json()["values"] == {}
+    # 사유는 화면에 그대로 나간다. 코드 이름과 자료형으로 말하면 사용자가 못 읽는다(D10).
+    사유 = 응답.json()["detail"]
+    for 개발자_말 in ("허용값", "JEONSE", "YYYY", "low", "high", "정수", "문자열", "참/거짓"):
+        assert 개발자_말 not in 사유, f"사유에 개발자 말이 섞였다: {사유}"
+    이름표 = client.get("/v1/fields").json()["fields"]
+    (항목,) = values
+    assert 이름표[항목]["label"] in 사유
+
+
+def test_선택지를_잘못_넣으면_고를_수_있는_것을_이름으로_알린다(client) -> None:
+    session_id = _세션(client)
+
+    응답 = client.put(
+        f"/v1/sessions/{session_id}/fields", json={"values": {"intended_tenure": "jeonse"}}
+    )
+
+    assert "전세를 구한다, 집을 산다" in 응답.json()["detail"]
 
 
 def test_값을_지우는_것만으로는_모른다는_기록이_풀리지_않는다(client) -> None:
