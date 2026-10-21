@@ -128,7 +128,7 @@ describe("S1 조건 읽기", () => {
     const server = fakeServer({
       "POST /v1/sessions": sessions(),
       "POST /v1/sessions/s-1/messages": () => extracted("s-1"),
-    });
+    }, { emptySession: true });
     renderApp("/write");
     await user.type(box(), SENTENCE);
     await user.click(readButton());
@@ -141,7 +141,7 @@ describe("S1 조건 읽기", () => {
       unreadable: { exclusive_area: "25평" },
     });
     // 초점은 화면이 그려진 뒤의 효과(effect)에서 옮겨지므로 기다린다
-    await vi.waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "읽은 내용 확인" })).toHaveFocus());
+    await vi.waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "이렇게 읽었습니다" })).toHaveFocus());
   });
 
   it("기다리는 동안 '문장을 읽고 있습니다'를 보이고 칸을 고칠 수 없다", async () => {
@@ -150,7 +150,7 @@ describe("S1 조건 읽기", () => {
     fakeServer({
       "POST /v1/sessions": sessions(),
       "POST /v1/sessions/s-1/messages": () => new Promise<Response>((resolve) => (answer = resolve)),
-    });
+    }, { emptySession: true });
     renderApp("/write");
     await user.type(box(), SENTENCE);
     await user.click(readButton());
@@ -202,7 +202,7 @@ describe("S1 조건 읽기", () => {
     const server = fakeServer({
       "POST /v1/sessions": sessions(),
       "POST /v1/sessions/s-1/messages": () => extracted("s-1"),
-    });
+    }, { emptySession: true });
     renderApp("/write");
     await user.type(box(), SENTENCE);
 
@@ -223,7 +223,7 @@ describe("S1 조건 읽기", () => {
     fakeServer({
       "POST /v1/sessions": sessions(),
       "POST /v1/sessions/s-1/messages": () => extracted("s-1"),
-    });
+    }, { emptySession: true });
     renderApp("/write");
     await user.type(box(), SENTENCE);
     await user.click(readButton());
@@ -231,6 +231,29 @@ describe("S1 조건 읽기", () => {
 
     expect(screen.getByTestId("location")).toHaveTextContent("/write");
     expect(box()).toHaveValue(SENTENCE);
+  });
+});
+
+describe("S1 ← S2 확인 창(M1)을 거쳐 돌아옴", () => {
+  it("S2에서 값을 고친 뒤 '처음부터'로 돌아와도 적은 문장은 남는다 (확인 창 문구가 약속한 대로)", async () => {
+    const user = userEvent.setup();
+    const server = fakeServer({
+      "POST /v1/sessions": sessions(),
+      "POST /v1/sessions/s-1/messages": () => extracted("s-1"),
+    }, { emptySession: true });
+    renderApp("/write");
+    await user.type(box(), SENTENCE);
+    await user.click(readButton());
+    await user.click(await screen.findByRole("button", { name: /^비어 있는 항목/ }));
+    await user.type(screen.getByRole("textbox", { name: "나이" }), "31");
+
+    await user.click(screen.getByRole("button", { name: "문장 다시 쓰기" }));
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("적어 두신 문장은 남습니다.");
+    await user.click(screen.getByRole("button", { name: "처음부터" }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/write");
+    expect(box()).toHaveValue(SENTENCE);
+    expect(callsTo(server, "PUT /v1/sessions/s-1/fields")).toHaveLength(0);
   });
 });
 
@@ -464,7 +487,7 @@ describe("S1 실패 — 종류마다 다르게 말하고, 적은 문장은 그�
       "POST /v1/sessions": sessions(),
       "POST /v1/sessions/s-1/messages": () => json({ detail: "조건을 읽지 못했습니다: 형식 오류" }, 503),
       "POST /v1/sessions/s-2/messages": () => extracted("s-2"),
-    });
+    }, { emptySession: true });
     renderApp("/write");
     await user.type(box(), SENTENCE);
     await user.click(readButton());

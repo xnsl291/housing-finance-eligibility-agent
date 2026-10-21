@@ -1,6 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { AmountField } from "./AmountFields";
 import { ChoiceList } from "./ChoiceFields";
 import { TextField } from "./Field";
 import { Provenance } from "./Provenance";
@@ -23,7 +24,59 @@ describe("근거 한 줄", () => {
   });
 });
 
+describe("근거 한 줄의 빈 자리", () => {
+  it("근거 구절이 없으면 지어내지 않고 '문장에서 읽음'만 쓴다", () => {
+    const { container } = render(<Provenance kind="edited" phrase={null} readValue="29" />);
+    expect(container).toHaveTextContent("고친 값 (읽은 값: 29) ← 문장에서 읽음");
+    expect(container).not.toHaveTextContent("“");
+  });
+
+  it("앞서 직접 넣은 값을 비우면 '읽은 값'이라 하지 않는다", () => {
+    const { container } = render(<Provenance kind="cleared" was="direct" />);
+    expect(container).toHaveTextContent("넣은 값을 비웠습니다 — 모름으로 봅니다");
+  });
+});
+
 describe("읽은 항목 줄", () => {
+  it("닫았다 다시 열어도 칸에 적던 글이 남는다", async () => {
+    const user = userEvent.setup();
+    render(
+      <ReadItemRow
+        label="임차보증금"
+        value="1억 8,000만원"
+        provenance={null}
+        editor={<AmountField label="임차보증금" defaultWon={180_000_000} onChange={() => {}} />}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "임차보증금 고치기" }));
+    await user.type(screen.getByRole("textbox", { name: "임차보증금" }), "억");
+    await user.click(screen.getByRole("button", { name: "닫기" }));
+    expect(screen.queryByRole("textbox", { name: "임차보증금" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "임차보증금 고치기" }));
+    expect(screen.getByRole("textbox", { name: "임차보증금" })).toHaveValue("18000억");
+  });
+
+  it("고칠 것이 생기면 닫힌 줄이 스스로 열리고, 그동안 닫기를 감춘다. 초점은 옮기지 않는다", () => {
+    const row = (problem: boolean) => (
+      <ReadItemRow
+        label="나이"
+        value="29"
+        problem={problem}
+        provenance={null}
+        editor={<TextField label="나이" value="29" onChange={() => {}} />}
+      />
+    );
+    const { rerender } = render(row(false));
+    rerender(row(true));
+    expect(screen.getByRole("textbox", { name: "나이" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "나이" })).not.toHaveFocus();
+    expect(screen.queryByRole("button", { name: "닫기" })).not.toBeInTheDocument();
+
+    rerender(row(false));
+    expect(screen.getByRole("button", { name: "닫기" })).toBeInTheDocument();
+  });
+
   it("고치기를 누르면 칸이 열리고 초점이 칸으로, 닫으면 고치기로 돌아온다", async () => {
     const user = userEvent.setup();
     render(
@@ -57,6 +110,20 @@ describe("읽은 항목 줄의 빈 값", () => {
     );
     expect(screen.getByText("모름", { selector: "span" })).toBeInTheDocument();
     expect(container).not.toHaveTextContent("(비어 있음)");
+  });
+
+  it("빈 값 글을 따로 주면(못 쓴 원문 줄) 그 글로 보인다", () => {
+    render(
+      <ReadItemRow
+        label="전용면적"
+        value={null}
+        emptyLabel="(비어 있음)"
+        provenance={null}
+        editor={<TextField label="전용면적" value={null} onChange={() => {}} />}
+      />,
+    );
+    expect(screen.getByText("(비어 있음)", { selector: "span" })).toBeInTheDocument();
+    expect(screen.queryByText("모름", { selector: "span" })).not.toBeInTheDocument();
   });
 });
 

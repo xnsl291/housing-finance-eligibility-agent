@@ -8,17 +8,21 @@
 import { Icon, type IconName } from "./Icon";
 import styles from "./Provenance.module.css";
 
+// phrase가 null이면 서버가 근거 구절을 주지 않은 것이다(LLM이 구절을 빠뜨린 경우). 지어내지 않고 "문장에서 읽음"만 쓴다
 type ProvenanceProps =
   /** 문장에서 읽은 값 그대로 */
-  | { kind: "read"; phrase: string }
+  | { kind: "read"; phrase: string | null }
   /** 범위로 읽음. range는 formatRange로 만든 글 */
-  | { kind: "range"; phrase: string; range: string }
+  | { kind: "range"; phrase: string | null; range: string }
   /** 읽은 값을 사용자가 고침. readValue는 고치기 전 값(억·만 표기 등 보여 줄 글) */
-  | { kind: "edited"; phrase: string; readValue: string }
+  | { kind: "edited"; phrase: string | null; readValue: string }
   /** 문장에 없던 값을 사용자가 넣음 */
   | { kind: "direct" }
-  /** 읽은 값을 비움 → 모름 */
-  | { kind: "cleared" };
+  /**
+   * 값을 비움 → 모름. 비운 것이 읽은 값인지, 앞서 직접 넣은 값인지(확인 화면에 다시 들어온 경우).
+   * 직접 넣은 값을 비우고 "읽은 값을 비웠습니다"라고 하면 사실과 다르다
+   */
+  | { kind: "cleared"; was?: "read" | "direct" };
 
 const ICON: Record<ProvenanceProps["kind"], IconName> = {
   read: "quote",
@@ -39,17 +43,21 @@ export function Provenance(props: ProvenanceProps) {
   );
 }
 
+function readFrom(phrase: string | null): string {
+  return phrase === null ? "문장에서 읽음" : `“${phrase}”에서 읽음`;
+}
+
 function text(p: ProvenanceProps): string {
   switch (p.kind) {
     case "read":
-      return `“${p.phrase}”에서 읽음`;
+      return readFrom(p.phrase);
     case "range":
-      return `“${p.phrase}”에서 읽음 · ${p.range}으로 읽었습니다. 다르면 고쳐주세요`;
+      return `${readFrom(p.phrase)} · ${p.range}으로 읽었습니다. 다르면 고쳐주세요`;
     case "edited":
-      return `고친 값 (읽은 값: ${p.readValue}) ← “${p.phrase}”에서 읽음`;
+      return `고친 값 (읽은 값: ${p.readValue}) ← ${readFrom(p.phrase)}`;
     case "direct":
       return "직접 넣은 값";
     case "cleared":
-      return "읽은 값을 비웠습니다 — 모름으로 봅니다";
+      return p.was === "direct" ? "넣은 값을 비웠습니다 — 모름으로 봅니다" : "읽은 값을 비웠습니다 — 모름으로 봅니다";
   }
 }

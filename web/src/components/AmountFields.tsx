@@ -2,12 +2,13 @@
  * 금액 칸과 범위 칸. 시안 B0 묶음 4.
  *
  * 사용자는 만원·억 단위로 적고(`3억 2천`) 칸 아래에 억·만 표기를 늘 같이 보여 준다(G11).
- * 서버에는 원 단위 정수, 범위는 {low, high}로 넘긴다. 바꾸는 규칙은 amount.ts.
+ * 서버에는 원 단위 정수, 범위는 {low, high}로 넘긴다(두 끝이 같으면 정수 하나). 바꾸는 규칙은 amount.ts.
  * 빈칸은 null이다. 0을 채우지 않는다 — 소득 0과 소득 모름은 판정이 다르다(G5).
  */
 import { useId, useState } from "react";
 
 import type { AmountRange } from "../api/types";
+import { afterPress } from "./afterPress";
 import { formatRange, formatWon, parseAmount, wonToInput } from "./amount";
 import { FieldError, FieldFrame } from "./Field";
 import styles from "./Field.module.css";
@@ -48,7 +49,8 @@ export function AmountField({ label, defaultWon, onChange, help, error }: Amount
               const p = parseAmount(e.target.value);
               onChange("won" in p ? p.won : null, "error" in p ? p.error : null);
             }}
-            onBlur={() => setLeft(true)}
+            // 마우스를 누르는 중이면 뗀 뒤에 오류를 그린다 — 누르는 사이 아래 버튼이 밀려 클릭이 빗나가지 않게(afterPress.ts)
+            onBlur={() => afterPress(() => setLeft(true))}
           />
           <span className={styles.unit}>만원</span>
         </div>
@@ -71,27 +73,34 @@ function KoreanAmount({ won }: { won: number | null | undefined }) {
 interface RangeFieldProps {
   label: string;
   defaultValue?: AmountRange | null;
-  onChange: (range: AmountRange | null, problem: string | null) => void;
+  /** 범위면 {low, high}, 두 칸이 같은 값이면 그 값 하나(원), 둘 다 비면 null */
+  onChange: (value: AmountRange | number | null, problem: string | null) => void;
   error?: string | null;
 }
 
 /**
  * 범위로 읽은 값은 범위로 둔다(G6). `4천 후반대`를 한 숫자로 접으면 5천만원 기준을 근거 없이
  * 통과한다. 두 칸 아래에도 억·만 표기를 붙인다(결함 D12).
+ *
+ * 두 칸이 같은 값이면 범위가 아니라 정확한 값이다. 그래서 {low:x, high:x}가 아니라 정수 x로 넘긴다.
+ * 서버는 정수만 정확한 값으로 본다 — 대출 한도는 기준 금액이 정수가 아니면 계산하지 않는다
+ * (`limits.py` BASE_IMPRECISE). {x, x}로 넘기면 아래 안내대로 같은 값을 넣은 사람이 '정확하지 않음'을 받는다.
+ * 화면(S2)이 아니라 이 부품에서 접는 이유: "두 칸에 같은 값을 넣어 주세요"라는 약속을 이 부품이 안내하므로
+ * 약속을 지키는 일도 이 부품이 해야, 범위 칸을 쓰는 화면마다 같은 처리를 따로 기억하지 않아도 된다.
  */
 export function RangeField({ label, defaultValue, onChange, error }: RangeFieldProps) {
   const id = useId();
   const [lowText, setLowText] = useState(wonToInput(defaultValue?.low));
   const [highText, setHighText] = useState(wonToInput(defaultValue?.high));
   const [left, setLeft] = useState(false);
-  const { range, problem } = readRange(lowText, highText);
+  const { value, problem } = readRange(lowText, highText);
   const shown = error ?? (left ? problem : null);
 
   function update(nextLow: string, nextHigh: string) {
     setLowText(nextLow);
     setHighText(nextHigh);
     const r = readRange(nextLow, nextHigh);
-    onChange(r.range, r.problem);
+    onChange(r.value, r.problem);
   }
 
   const cell = (which: "low" | "high") => (
@@ -115,10 +124,11 @@ export function RangeField({ label, defaultValue, onChange, error }: RangeFieldP
     <fieldset
       className={styles.field}
       onBlur={(e) => {
-        // 최소 칸을 채우고 최대 칸으로 가는 중에 "모두 적어 주세요"를 띄우면 아직 적는 사람을
+        // 최소 칸을 채우고 최대 칸으로 가는 중에 "모두 채우거나 모두 비워 주세요"를 띄우면 아직 적는 사람을
         // 나무라는 꼴이다. 초점이 두 칸 묶음 밖으로 나갔을 때만 떠난 것으로 본다
         // (React onBlur는 focusout처럼 올라오고, relatedTarget이 새로 초점을 받은 곳이다)
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setLeft(true);
+        // 마우스로 묶음 밖을 누르는 중이면 뗀 뒤에 오류를 그린다(afterPress.ts — 버튼이 밀려 클릭이 빗나가는 것을 막음)
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) afterPress(() => setLeft(true));
       }}
     >
       <legend className={styles.label}>{label}</legend>
@@ -129,7 +139,7 @@ export function RangeField({ label, defaultValue, onChange, error }: RangeFieldP
       <FieldError id={`${id}-error`} message={shown} />
       {/* 영역은 늘 두고 글만 바꾼다(KoreanAmount와 같은 이유) */}
       <span aria-live="polite" className={styles.koreanAmount}>
-        {range ? formatRange(range.low, range.high) : ""}
+        {value === null ? "" : typeof value === "number" ? formatWon(value) : formatRange(value.low, value.high)}
       </span>
       <span id={`${id}-help`} className={styles.help}>
         정확한 값을 아시면 두 칸에 같은 값을 넣어 주세요
@@ -138,14 +148,16 @@ export function RangeField({ label, defaultValue, onChange, error }: RangeFieldP
   );
 }
 
-function readRange(lowText: string, highText: string): { range: AmountRange | null; problem: string | null } {
+function readRange(lowText: string, highText: string): { value: AmountRange | number | null; problem: string | null } {
   const low = parseAmount(lowText);
   const high = parseAmount(highText);
-  if ("error" in low) return { range: null, problem: `최소: ${low.error}` };
-  if ("error" in high) return { range: null, problem: `최대: ${high.error}` };
-  if (low.won === null && high.won === null) return { range: null, problem: null };
+  if ("error" in low) return { value: null, problem: `최소: ${low.error}` };
+  if ("error" in high) return { value: null, problem: `최대: ${high.error}` };
+  if (low.won === null && high.won === null) return { value: null, problem: null };
   // 한 칸만 채우면 범위가 아니다. 빈 칸을 0이나 다른 칸 값으로 채우지 않는다(G5)
-  if (low.won === null || high.won === null) return { range: null, problem: "최소와 최대를 모두 적어 주세요" };
-  if (low.won > high.won) return { range: null, problem: "최소가 최대보다 큽니다" };
-  return { range: { low: low.won, high: high.won }, problem: null };
+  if (low.won === null || high.won === null) return { value: null, problem: "범위는 두 칸을 모두 채우거나 모두 비워 주세요" };
+  if (low.won > high.won) return { value: null, problem: "최소가 최대보다 큽니다" };
+  // 같은 값이면 정확한 값(위 RangeField 설명)
+  if (low.won === high.won) return { value: low.won, problem: null };
+  return { value: { low: low.won, high: high.won }, problem: null };
 }

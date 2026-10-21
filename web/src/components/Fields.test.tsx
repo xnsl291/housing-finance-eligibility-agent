@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { AmountField, RangeField } from "./AmountFields";
@@ -93,11 +93,23 @@ describe("범위 칸 (G6)", () => {
     render(<RangeField label="부부합산 총소득" onChange={onChange} />);
 
     await user.type(screen.getByLabelText("부부합산 총소득 최소"), "4500");
-    expect(onChange).toHaveBeenLastCalledWith(null, "최소와 최대를 모두 적어 주세요");
+    expect(onChange).toHaveBeenLastCalledWith(null, "범위는 두 칸을 모두 채우거나 모두 비워 주세요");
 
     await user.type(screen.getByLabelText("부부합산 총소득 최대"), "5천");
     expect(onChange).toHaveBeenLastCalledWith({ low: 45_000_000, high: 50_000_000 }, null);
     expect(screen.getByText("4,500만~5,000만원")).toBeInTheDocument();
+  });
+
+  it("두 칸에 같은 값을 넣으면 범위가 아니라 정확한 값(정수 하나)으로 넘기고, 표기도 한 값으로 보인다", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<RangeField label="소득" onChange={onChange} />);
+
+    await user.type(screen.getByLabelText("소득 최소"), "4800");
+    await user.type(screen.getByLabelText("소득 최대"), "4800");
+    expect(onChange).toHaveBeenLastCalledWith(48_000_000, null);
+    expect(screen.getByText("4,800만원")).toBeInTheDocument();
+    expect(screen.queryByText("4,800만~4,800만원")).not.toBeInTheDocument();
   });
 
   it("최소 칸만 떠나 최대 칸으로 가면 오류를 띄우지 않고, 묶음 전체를 떠나면 보인다", async () => {
@@ -113,12 +125,12 @@ describe("범위 칸 (G6)", () => {
     await user.type(low, "4500");
     await user.tab();
     expect(screen.getByLabelText("소득 최대")).toHaveFocus();
-    expect(screen.queryByText("최소와 최대를 모두 적어 주세요")).not.toBeInTheDocument();
+    expect(screen.queryByText("범위는 두 칸을 모두 채우거나 모두 비워 주세요")).not.toBeInTheDocument();
     expect(low).not.toHaveAttribute("aria-invalid");
 
     await user.tab();
     expect(screen.getByRole("button", { name: "다음" })).toHaveFocus();
-    expect(screen.getByText("최소와 최대를 모두 적어 주세요")).toBeInTheDocument();
+    expect(screen.getByText("범위는 두 칸을 모두 채우거나 모두 비워 주세요")).toBeInTheDocument();
     expect(low).toHaveAttribute("aria-invalid", "true");
   });
 
@@ -136,6 +148,54 @@ describe("범위 칸 (G6)", () => {
 
     expect(onChange).toHaveBeenLastCalledWith(null, "최소가 최대보다 큽니다");
     expect(screen.getByText("최소가 최대보다 큽니다")).toBeInTheDocument();
+  });
+});
+
+describe("칸을 떠날 때 생기는 오류 줄은 마우스를 뗀 뒤에 그린다", () => {
+  // 마우스로 아래 버튼을 누르면 누르는 순간(pointerdown) 칸이 blur된다. 그때 오류 줄이 새로 생기면 버튼이
+  // 밀려 손을 뗄 때 버튼이 다른 자리에 있고, 클릭이 빗나간다(브라우저에서 관찰). jsdom은 자리를 계산하지 않아
+  // 빗나감 자체는 재현할 수 없으므로, 누르는 동안에는 줄을 그리지 않고 뗀 뒤에 그리는지를 본다
+  async function pressOutside(input: HTMLElement) {
+    const button = screen.getByRole("button", { name: "다음" });
+    fireEvent.pointerDown(button);
+    act(() => button.focus());
+    expect(input).not.toHaveFocus();
+    return button;
+  }
+
+  it.each([
+    ["범위", <RangeField key="r" label="소득" onChange={() => {}} />, "소득 최소", "4500", "범위는 두 칸을 모두 채우거나 모두 비워 주세요"],
+    ["금액", <AmountField key="a" label="소득" onChange={() => {}} />, "소득", "억억", "금액을 알아볼 수 없습니다. 예: 3억 2천, 4500"],
+    ["숫자", <NumberField key="n" label="나이" integer onChange={() => {}} />, "나이", "abc", "숫자로 적어 주세요"],
+  ])("%s 칸", async (_kind, field, label, text, message) => {
+    const user = userEvent.setup();
+    render(
+      <>
+        {field}
+        <button type="button">다음</button>
+      </>,
+    );
+    const input = screen.getByLabelText(label);
+    await user.type(input, text);
+
+    const button = await pressOutside(input);
+    expect(screen.queryByText(message)).not.toBeInTheDocument();
+
+    fireEvent.pointerUp(button);
+    expect(await screen.findByText(message)).toBeInTheDocument();
+  });
+
+  it("키보드로 떠나면(누르는 중이 아님) 바로 그린다", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <AmountField label="소득" onChange={() => {}} />
+        <button type="button">다음</button>
+      </>,
+    );
+    await user.type(screen.getByLabelText("소득"), "억억");
+    await user.tab();
+    expect(screen.getByText("금액을 알아볼 수 없습니다. 예: 3억 2천, 4500")).toBeInTheDocument();
   });
 });
 
