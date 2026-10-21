@@ -157,7 +157,8 @@ export function ConfirmForm({ sessionId, catalog, held, warnings, unreadable, of
                   provenance={provenanceOf(catalog[name], held[name], current(name), Boolean(edits[name]?.problem))}
                 />
               }
-              editor={field(name)}
+              // 줄 머리에 이름표가 이미 있어 칸의 이름표는 눈에서만 감춘다(화면 읽기 프로그램은 그대로 읽음)
+              editor={<div className={styles.editor}>{field(name)}</div>}
             />
           ))}
         </section>
@@ -184,9 +185,11 @@ export function ConfirmForm({ sessionId, catalog, held, warnings, unreadable, of
           <Button lockedReason={lockedReason} onClick={submit}>
             확인했습니다 — 다음
           </Button>
-          <Button variant="text" icon="arrowLeft" onClick={() => (dirty ? setAskBack(true) : navigate("/write"))}>
-            문장 다시 쓰기
-          </Button>
+          <span className={styles.back}>
+            <Button variant="text" icon="arrowLeft" onClick={() => (dirty ? setAskBack(true) : navigate("/write"))}>
+              문장 다시 쓰기
+            </Button>
+          </span>
         </div>
         <p className={styles.hint}>
           바뀐 값만 서버에 보냅니다. 그대로 둔 값을 다시 보내면 출처가 '문장에서 읽음'에서 '직접 넣음'으로 바뀌어
