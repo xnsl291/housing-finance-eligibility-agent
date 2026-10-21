@@ -50,7 +50,13 @@ export function Start() {
     };
   }, []);
 
+  // '항목을 직접 고르기'와 실패 뒤 '다시 시도'는 같은 일을 한다. 버튼마다 따로 잠기므로 둘을 잇달아 누르면
+  // 세션이 둘 열린다. 화면 단위로 한 번에 하나만 열게 막는다(ref는 다시 그리기를 기다리지 않고 바로 바뀐다)
+  const busy = useRef(false);
+
   async function startDirect() {
+    if (busy.current) return;
+    busy.current = true;
     try {
       const { session_id } = await api.startSession();
       rememberSession(session_id);
@@ -59,6 +65,8 @@ export function Start() {
       // 연결 안 됨이면 머리·사이드바의 연결 표시도 맞춘다. 안내는 이 화면의 상자가 한다
       if (error instanceof ApiError && error.kind === "network") lostConnection();
       if (alive.current) setFailure((f) => ({ id: (f?.id ?? 0) + 1, error }));
+    } finally {
+      busy.current = false;
     }
   }
 

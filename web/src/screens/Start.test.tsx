@@ -103,6 +103,30 @@ describe("S0 첫 화면 — 시작 버튼", () => {
     await vi.waitFor(() => expect(callsTo(server, "DELETE /v1/sessions/s-1")).toHaveLength(1));
   });
 
+  it("같은 일을 하는 '다시 시도'와 '항목을 직접 고르기'를 같은 순간 눌러도 세션은 하나만 연다", async () => {
+    const user = userEvent.setup();
+    let calls = 0;
+    const server = fakeServer({
+      "POST /v1/sessions": () => {
+        calls += 1;
+        if (calls === 1) throw new TypeError("Failed to fetch");
+        return new Promise<Response>(() => {});
+      },
+    });
+    renderApp("/");
+    await user.click(screen.getByRole("button", { name: "항목을 직접 고르기" }));
+    const region = await screen.findByRole("region", { name: "지금 판정 서버에 연결할 수 없습니다" });
+
+    const retry = within(region).getByRole("button", { name: "다시 시도" });
+    const direct = screen.getByRole("button", { name: "항목을 직접 고르기" });
+    // 한 act 안에서 눌러야 그 사이에 화면이 다시 그려지지 않는다(= 같은 순간)
+    act(() => {
+      retry.click();
+      direct.click();
+    });
+    expect(callsTo(server, "POST /v1/sessions")).toHaveLength(2);
+  });
+
   it("직접 고르기에서 서버에 연결되지 않으면 조건 문제가 아니라고 알리고 다시 시도할 수 있다", async () => {
     const user = userEvent.setup();
     let fail = true;
