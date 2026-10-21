@@ -6,7 +6,7 @@ import { render } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
 import { App } from "../App";
-import type { Program } from "../api/types";
+import type { FieldCatalog, Program } from "../api/types";
 
 export const PROGRAMS: Program[] = [
   {
@@ -27,6 +27,27 @@ export const PROGRAMS: Program[] = [
   },
 ];
 
+/** 항목 목록의 일부. 이름표·종류·선택지는 서버(`GET /v1/fields`)가 실제로 내는 것과 같게 */
+export const FIELDS: FieldCatalog = {
+  age: { label: "나이", kind: "INT" },
+  household_head_status: {
+    label: "세대주 여부",
+    kind: "CHOICE",
+    choices: ["HEAD", "PROSPECTIVE_HEAD"],
+    choice_labels: { HEAD: "세대주임", PROSPECTIVE_HEAD: "세대주 예정" },
+  },
+  is_first_time_buyer: { label: "생애최초 주택구입", kind: "BOOL" },
+  region_name: { label: "주택 소재지", kind: "TEXT" },
+  housing_area_m2: {
+    label: "전용면적",
+    kind: "FLOAT",
+    how_to_check: "평이 아니라 제곱미터로 넣어 주세요. 등기부등본이나 매물 정보의 전용면적입니다",
+  },
+  combined_annual_income_krw: { label: "부부합산 총소득", kind: "AMOUNT" },
+  lease_deposit_krw: { label: "임차보증금", kind: "AMOUNT" },
+  move_in_date: { label: "전입일", kind: "DATE" },
+};
+
 export function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }
@@ -35,16 +56,22 @@ type Handler = (init: RequestInit | undefined) => Response | Promise<Response>;
 
 /**
  * "메서드 주소" → 응답. 처리기가 던지면 fetch가 던진 것으로 본다(TypeError = 연결 안 됨).
- * 상품 목록과 연결 상태는 기본으로 정상 응답한다. 등록하지 않은 주소는 404.
+ * 상품 목록, 연결 상태, 항목 목록(FIELDS)은 기본으로 정상 응답한다. 세션 상태(GET /v1/sessions/:id)는
+ * 등록하지 않으면 값이 하나도 없는 세션으로 답한다 — S1 테스트가 S2를 거쳐 가도 화면이 그려지게.
+ * 그 밖에 등록하지 않은 주소는 404.
  */
 export function fakeServer(routes: Record<string, Handler> = {}) {
   const all: Record<string, Handler> = {
     "GET /health": () => json({ status: "ok", programs: PROGRAMS.map((p) => p.program_id) }),
     "GET /v1/programs": () => json({ programs: PROGRAMS }),
+    "GET /v1/fields": () => json({ fields: FIELDS }),
     ...routes,
   };
   return vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
-    const handler = all[`${init?.method ?? "GET"} ${String(url)}`];
+    const key = `${init?.method ?? "GET"} ${String(url)}`;
+    const handler = all[key];
+    const session = /^GET \/v1\/sessions\/([^/]+)$/.exec(key);
+    if (!handler && session) return json({ session_id: decodeURIComponent(session[1]), values: {} });
     if (!handler) return json({ detail: "없는 경로" }, 404);
     return handler(init);
   });
@@ -65,7 +92,8 @@ function LocationProbe() {
   );
 }
 
-export function renderApp(path = "/") {
+/** path에 state를 실으면 그 화면에 라우터 state를 들고 들어간 것과 같다(S1 → S2) */
+export function renderApp(path: string | { pathname: string; state: unknown } = "/") {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <App />
