@@ -417,11 +417,32 @@ describe("S2 들어오는 길", () => {
 
     expect(await screen.findByRole("heading", { name: "항목 목록을 받지 못했습니다" })).toBeInTheDocument();
     expect(screen.getByText("사유: 고장")).toBeInTheDocument();
+    // 세션은 받았으므로 읽은 값이 서버에 있다고 말할 수 있다
+    expect(screen.getByText(/읽은 값은 서버에 그대로 있습니다/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "확인했습니다 — 다음" })).not.toBeInTheDocument();
 
     broken = false;
     await user.click(screen.getByRole("button", { name: "다시 시도" }));
     expect(await screen.findByRole("heading", { name: /문장에서 읽은 항목/ })).toBeInTheDocument();
+  });
+});
+
+describe("S2 세션 조회 실패", () => {
+  it("세션 상태를 못 받으면(500) 읽은 값이 서버에 있다고 말하지 않는다 — 확인하지 않은 말이다 (G12)", async () => {
+    server({ [SESSION]: () => json({ detail: "고장" }, 500) });
+    renderApp(PATH);
+
+    expect(await screen.findByRole("heading", { name: "읽은 내용을 불러오지 못했습니다" })).toBeInTheDocument();
+    expect(screen.getByText("사유: 고장")).toBeInTheDocument();
+    expect(screen.queryByText(/서버에 그대로 있습니다/)).not.toBeInTheDocument();
+  });
+
+  it("항목 목록과 세션 상태를 둘 다 못 받아도 그 말을 하지 않는다", async () => {
+    server({ [SESSION]: () => json({ detail: "고장" }, 500), "GET /v1/fields": () => json({ detail: "고장" }, 500) });
+    renderApp(PATH);
+
+    expect(await screen.findByRole("heading", { name: "항목 목록을 받지 못했습니다" })).toBeInTheDocument();
+    expect(screen.queryByText(/서버에 그대로 있습니다/)).not.toBeInTheDocument();
   });
 });
 

@@ -41,7 +41,8 @@ type Load =
   | { kind: "missing" }
   /** 받다가 서버에 연결되지 않음 — 맨 위 E1 상자 하나로 알린다 */
   | { kind: "offline" }
-  | { kind: "failed"; what: "fields" | "session"; error: unknown };
+  /** heldKnown: 세션 상태는 받았는가. 받았을 때만 "읽은 값은 서버에 있다"고 말할 수 있다 */
+  | { kind: "failed"; what: "fields" | "session"; error: unknown; heldKnown: boolean };
 
 const isNotFound = (e: unknown) => e instanceof ApiError && e.status === 404;
 const isNetwork = (e: unknown) => e instanceof ApiError && e.kind === "network";
@@ -66,9 +67,11 @@ export function Confirm() {
     else if (errors.some(isNetwork)) {
       lostConnection();
       setLoad({ kind: "offline" });
-    } else if (fields.status === "rejected") setLoad({ kind: "failed", what: "fields", error: fields.reason });
-    else if (session.status === "rejected") setLoad({ kind: "failed", what: "session", error: session.reason });
-    else setLoad({ kind: "ready", catalog: fields.value.fields, held: session.value.values });
+    } else if (fields.status === "rejected") {
+      setLoad({ kind: "failed", what: "fields", error: fields.reason, heldKnown: session.status === "fulfilled" });
+    } else if (session.status === "rejected") {
+      setLoad({ kind: "failed", what: "session", error: session.reason, heldKnown: false });
+    } else setLoad({ kind: "ready", catalog: fields.value.fields, held: session.value.values });
   }, [sessionId, alive, lostConnection]);
 
   useEffect(() => {
@@ -100,7 +103,9 @@ export function Confirm() {
         </p>
       </section>
       {load.kind === "loading" && <Skeleton />}
-      {load.kind === "failed" && <LoadFailed what={load.what} error={load.error} onRetry={fetchAll} />}
+      {load.kind === "failed" && (
+        <LoadFailed what={load.what} error={load.error} heldKnown={load.heldKnown} onRetry={fetchAll} />
+      )}
       {load.kind === "ready" && (
         <ConfirmForm
           sessionId={sessionId}
@@ -117,14 +122,26 @@ export function Confirm() {
 }
 
 /** 항목 목록이나 세션 상태를 못 받음(시안 S2-e). 칸 없이 그리면 사용자가 채운 것이 어디로 가는지 알 수 없어 화면을 그리지 않는다 */
-function LoadFailed({ what, error, onRetry }: { what: "fields" | "session"; error: unknown; onRetry: () => Promise<void> }) {
+function LoadFailed({
+  what,
+  error,
+  heldKnown,
+  onRetry,
+}: {
+  what: "fields" | "session";
+  error: unknown;
+  heldKnown: boolean;
+  onRetry: () => Promise<void>;
+}) {
   return (
     <SystemError
       title={what === "fields" ? "항목 목록을 받지 못했습니다" : "읽은 내용을 불러오지 못했습니다"}
       icon="alertCircle"
       onRetry={onRetry}
     >
-      <span className={styles.line}>조건의 문제가 아닙니다. 잠시 뒤 다시 시도해 주세요. 읽은 값은 서버에 그대로 있습니다.</span>
+      <span className={styles.line}>조건의 문제가 아닙니다. 잠시 뒤 다시 시도해 주세요.</span>
+      {/* 세션 조회가 실패했으면(500 등) 서버에 값이 남아 있는지 이 화면은 모른다. 확인하지 않은 말은 하지 않는다(G12) */}
+      {heldKnown && <span className={styles.line}>읽은 값은 서버에 그대로 있습니다.</span>}
       {/* 서버가 준 사유는 그대로(설계서 상태 표 '(사유)'). 시간 초과는 위 문장으로 충분하다 */}
       {error instanceof ApiError && error.kind === "http" && <span className={styles.line}>사유: {error.message}</span>}
     </SystemError>
