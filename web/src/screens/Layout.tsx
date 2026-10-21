@@ -72,13 +72,14 @@ export function Layout() {
     };
   }, [pathname]);
 
-  // 처음 그릴 때는 옮기지 않는다. 막 연 페이지에서 초점을 빼앗으면 주소창·첫 링크부터 읽는 흐름이 깨진다
-  const firstPath = useRef(true);
+  // 처음 그릴 때는 옮기지 않는다. 막 연 페이지에서 초점을 빼앗으면 주소창·첫 링크부터 읽는 흐름이 깨진다.
+  // '처음인가'를 불리언으로 두면 StrictMode가 효과를 두 번 돌릴 때 두 번째에 이미 '처음 아님'이 되어 첫 화면에서도
+  // 초점을 옮긴다. 그래서 처음 연 주소를 기억해 두고, 주소가 그와 달라진 뒤부터 옮긴다. 한 번 달라지면 null로
+  // 지워, 나중에 처음 주소로 돌아왔을 때는 옮긴다
+  const firstPath = useRef<string | null>(pathname);
   useEffect(() => {
-    if (firstPath.current) {
-      firstPath.current = false;
-      return;
-    }
+    if (pathname === firstPath.current) return;
+    firstPath.current = null;
     const heading = document.querySelector<HTMLElement>("main h1");
     if (!heading) return;
     heading.setAttribute("tabindex", "-1");

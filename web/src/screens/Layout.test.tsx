@@ -1,6 +1,9 @@
-import { screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
+import { MemoryRouter } from "react-router-dom";
 
+import { App } from "../App";
 import { callsTo, fakeServer, json, renderApp } from "./testing";
 
 afterEach(() => vi.restoreAllMocks());
@@ -29,6 +32,29 @@ describe("단계 표시는 주소로 정한다", () => {
     renderApp("/s/abc/result");
     expect(screen.getByRole("heading", { level: 1, name: "판정 결과" })).toBeInTheDocument();
     expect(screen.getByText("이 화면은 다음 단계에서 만듭니다.")).toBeInTheDocument();
+  });
+});
+
+describe("화면이 바뀔 때 초점", () => {
+  // 실제 앱(main.tsx)은 StrictMode로 감싸 있어 개발 중에는 효과(effect)가 두 번 돈다
+  it("StrictMode에서도 처음 연 화면에서는 초점을 옮기지 않고, 화면이 바뀌면 새 제목으로 옮긴다", async () => {
+    const user = userEvent.setup();
+    fakeServer();
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={["/"]}>
+          <App />
+        </MemoryRouter>
+      </StrictMode>,
+    );
+    await screen.findByText("판정 서버에 연결됨");
+    expect(screen.getByRole("heading", { level: 1 })).not.toHaveFocus();
+    expect(document.activeElement).toBe(document.body);
+
+    await user.click(screen.getByRole("button", { name: "문장으로 적기" }));
+    await vi.waitFor(() =>
+      expect(screen.getByRole("heading", { level: 1, name: "상황을 문장으로 적어 주세요" })).toHaveFocus(),
+    );
   });
 });
 
