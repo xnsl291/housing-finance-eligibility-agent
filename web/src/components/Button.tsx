@@ -30,6 +30,11 @@ interface ButtonProps {
   type?: "button" | "submit";
   /** 있으면 잠긴다. 잠긴 이유를 버튼 바로 아래 한 줄로 적는다(색만 흐리게 하지 않음) */
   lockedReason?: string;
+  /**
+   * 잠긴 이유를 이미 다른 곳(버튼 여럿이 함께 보는 한 줄)에 적어 두었으면 그 줄의 id. 버튼 아래 줄을 따로 그리지 않고
+   * 그 줄을 설명으로 가리킨다. 같은 이유가 버튼마다 거듭 보이고 읽히지 않게(예: 질문 카드의 연결 끊김)
+   */
+  reasonId?: string;
   /** 로딩 중 버튼 안 글자 */
   busyLabel?: string;
   onClick?: () => void | Promise<unknown>;
@@ -41,12 +46,13 @@ export function Button({
   icon,
   type = "button",
   lockedReason,
+  reasonId,
   busyLabel = "보내는 중",
   onClick,
 }: ButtonProps) {
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
-  const reasonId = useId();
+  const ownReasonId = useId();
   const locked = Boolean(lockedReason) || busy;
 
   async function handleClick(event: MouseEvent<HTMLButtonElement>) {
@@ -75,7 +81,7 @@ export function Button({
         className={`${styles.button} ${styles[variant]}`}
         aria-disabled={locked || undefined}
         aria-busy={busy || undefined}
-        aria-describedby={lockedReason ? reasonId : undefined}
+        aria-describedby={lockedReason ? (reasonId ?? ownReasonId) : undefined}
         onClick={handleClick}
       >
         {busy ? <span className={styles.spin}><Icon name="loader" /></span> : icon && <Icon name={icon} size={15} />}
@@ -85,8 +91,8 @@ export function Button({
       <span className="sr-only" aria-live="polite">
         {busy ? busyLabel : ""}
       </span>
-      {lockedReason && (
-        <span id={reasonId} className={styles.reason}>
+      {lockedReason && !reasonId && (
+        <span id={ownReasonId} className={styles.reason}>
           {lockedReason}
         </span>
       )}

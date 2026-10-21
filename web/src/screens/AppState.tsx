@@ -11,6 +11,11 @@
  * 한계: 이 목록도 메모리라서 새로 고치면 사라진다. 그 뒤에는 주소에 있는 세션만 지울 수 있다.
  * 세션 열기 자체가 시간 초과로 끊겨 번호를 받지 못한 경우도 모을 수 없다.
  * 브라우저 저장소에 두지 않은 것은 적은 문장과 같은 이유다(이 탭 밖에 흔적을 남기지 않음).
+ *
+ * 확인 수는 S3 진행 줄의 '지금까지 N개 확인'이다. 세션마다 S3에서 답하거나 모른다고 한 수를 센다.
+ * 화면(S3) 안이 아니라 여기 두는 것은 S4에서 '질문 이어서 하기'로 돌아와도 이어 세려고다.
+ * 서버에서 셀 수는 없다 — 확인 과정(trace)의 값 저장 기록에는 S2에서 고친 값도 섞여 있어 S3 답만 골라낼 수 없다.
+ * 그래서 새로 고치면 0부터 다시 센다.
  */
 import { createContext, useContext, useEffect, useRef, type RefObject } from "react";
 
@@ -31,6 +36,10 @@ export interface AppState {
   recheckConnection: () => Promise<void>;
   /** 화면이 부른 호출이 '연결 안 됨'(network)으로 실패했을 때. 머리·사이드바 표시와 E1을 맞춘다 */
   lostConnection: () => void;
+  /** 이 세션에서 S3가 답하거나 모른다고 한 수(위 머리말). 모르는 세션은 0 */
+  answeredCount: (id: string) => number;
+  /** S3에서 답 저장이나 모름 기록이 성공했을 때 부른다 */
+  countAnswer: (id: string) => void;
 }
 
 export const AppStateContext = createContext<AppState | null>(null);

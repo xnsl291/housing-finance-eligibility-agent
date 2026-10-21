@@ -247,6 +247,26 @@ describe("그 밖의 칸", () => {
     expect(onChange).toHaveBeenLastCalledWith(null, null);
   });
 
+  it("숫자 칸은 안전하게 셀 수 있는 범위(Number.MAX_SAFE_INTEGER)를 넘으면 값을 넘기지 않고 오류로 알린다", async () => {
+    const user = userEvent.setup();
+    const onInt = vi.fn();
+    const onFloat = vi.fn();
+    render(
+      <>
+        <NumberField label="나이" integer onChange={onInt} />
+        <NumberField label="전용면적" integer={false} onChange={onFloat} />
+      </>,
+    );
+
+    // 2^53 + 1. Number로 바꾸면 9007199254740992가 되어 적은 값과 다른 값이 간다
+    await user.type(screen.getByLabelText("나이"), "9007199254740993");
+    expect(onInt).toHaveBeenLastCalledWith(null, "너무 큰 숫자입니다. 다시 확인해 주세요");
+    // 소수 칸에서 자릿수가 너무 많으면 Infinity가 되고, JSON으로는 null로 바뀌어 서버에 '값 지움'으로 간다
+    await user.click(screen.getByLabelText("전용면적"));
+    await user.paste("9".repeat(400));
+    expect(onFloat).toHaveBeenLastCalledWith(null, "너무 큰 숫자입니다. 다시 확인해 주세요");
+  });
+
   it("드롭다운 첫 칸은 모름이고 고르면 null", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

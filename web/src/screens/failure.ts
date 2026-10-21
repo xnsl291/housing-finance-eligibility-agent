@@ -36,8 +36,9 @@ export function inputRejection(error: unknown): string | null {
   return error instanceof ApiError && error.status === 422 ? error.message : null;
 }
 
-function isTimeout(error: ApiError): boolean {
-  return error.kind === "timeout" || error.status === 504;
+/** 시간 초과인가(504 포함 — 머리말). 요청이 서버에 닿아 처리됐는지 모르는 실패라, 화면이 "못 했다"고 단정하지 않으려고 따로 묻는다 */
+export function isTimeout(error: unknown): boolean {
+  return error instanceof ApiError && (error.kind === "timeout" || error.status === 504);
 }
 
 export function describeFailure(error: unknown, stage: Stage): FailureText {
@@ -50,7 +51,7 @@ export function describeFailure(error: unknown, stage: Stage): FailureText {
       direct: null,
     };
   }
-  if (error instanceof ApiError && isTimeout(error)) {
+  if (isTimeout(error)) {
     if (stage === "read") {
       // 설계서 E3
       return {

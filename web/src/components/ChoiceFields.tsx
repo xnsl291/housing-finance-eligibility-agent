@@ -22,6 +22,8 @@ interface YesNoFieldProps {
   withUnknown: boolean;
   help?: string;
   error?: string | null;
+  /** 칸 밖에 있는 설명 줄의 id(Field.tsx 공통 약속) */
+  describedBy?: string;
 }
 
 const YES_NO: { value: Exclude<YesNo, null>; label: string }[] = [
@@ -30,11 +32,11 @@ const YES_NO: { value: Exclude<YesNo, null>; label: string }[] = [
   { value: "unknown", label: "모름" },
 ];
 
-export function YesNoField({ label, value, onChange, withUnknown, help, error }: YesNoFieldProps) {
+export function YesNoField({ label, value, onChange, withUnknown, help, error, describedBy }: YesNoFieldProps) {
   const name = useId();
   const options = withUnknown ? YES_NO : YES_NO.slice(0, 2);
   return (
-    <FieldFrame label={label} help={help} error={error} group>
+    <FieldFrame label={label} help={help} error={error} describedBy={describedBy} group>
       {() => (
         <div className={styles.radios}>
           {options.map((o) => (
@@ -58,6 +60,8 @@ export function YesNoField({ label, value, onChange, withUnknown, help, error }:
 interface ChoiceListProps {
   /** 묶음 이름이 될 질문 제목의 id */
   labelledBy: string;
+  /** 묶음 설명이 될 줄의 id(질문 카드의 서버 거절 사유) */
+  describedBy?: string;
   value: string | null;
   options: { value: string; label: string }[];
   onChange: (value: string) => void;
@@ -67,10 +71,10 @@ interface ChoiceListProps {
  * 질문 카드의 선택지(시안 '선택지 세대주임'). 아무것도 안 고른 채 시작한다(설계서 7.2).
  * 진짜 라디오라 탭으로 묶음에 들어가 방향키로 고른다(시안 C0 3절).
  */
-export function ChoiceList({ labelledBy, value, options, onChange }: ChoiceListProps) {
+export function ChoiceList({ labelledBy, describedBy, value, options, onChange }: ChoiceListProps) {
   const name = useId();
   return (
-    <div role="radiogroup" aria-labelledby={labelledBy} className={styles.choices}>
+    <div role="radiogroup" aria-labelledby={labelledBy} aria-describedby={describedBy} className={styles.choices}>
       {options.map((o) => (
         <label key={o.value} className={styles.choice}>
           <input

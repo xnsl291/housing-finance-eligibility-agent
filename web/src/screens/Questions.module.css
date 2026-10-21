@@ -1,0 +1,62 @@
+/* S3 하나씩 확인. 시안 S3(Zxcoj)·S3-a~f·S3-M1 */
+.line {
+  display: block;
+}
+
+/* 표제 아래 진행 줄 두 줄. 질문 총 개수는 쓰지 않는다(설계서 N3) */
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: -24px;
+}
+
+.progressLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+
+.progressNote {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+/* 카드와 카드 아래 상자는 시안 폭(약 700px)에 맞춘다. 넓은 화면에서 선택지가 끝까지 늘어나지 않게 */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 700px;
+}
+
+/* 칸 이름은 카드 제목과 같아 눈에는 숨긴다(QuestionInput.tsx 머리말). 화면 읽기 프로그램은 읽는다 */
+.input > * > label:first-child,
+.input > * > legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 32px;
+  border-top: 1px solid var(--line);
+}
+
+/* 글자 버튼을 보조 버튼 높이 가운데에 맞춘다(S2 .back과 같음) */
+.back {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+}

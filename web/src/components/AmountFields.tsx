@@ -20,9 +20,11 @@ interface AmountFieldProps {
   onChange: (won: number | null, problem: string | null) => void;
   help?: string;
   error?: string | null;
+  /** 칸 밖에 있는 설명 줄의 id(Field.tsx 공통 약속) */
+  describedBy?: string;
 }
 
-export function AmountField({ label, defaultWon, onChange, help, error }: AmountFieldProps) {
+export function AmountField({ label, defaultWon, onChange, help, error, describedBy }: AmountFieldProps) {
   const [text, setText] = useState(wonToInput(defaultWon));
   const [left, setLeft] = useState(false);
   const parsed = parseAmount(text);
@@ -33,6 +35,7 @@ export function AmountField({ label, defaultWon, onChange, help, error }: Amount
       label={label}
       help={help}
       error={error ?? (left ? problem : null)}
+      describedBy={describedBy}
       below={<KoreanAmount won={"won" in parsed ? parsed.won : undefined} />}
     >
       {(a) => (
