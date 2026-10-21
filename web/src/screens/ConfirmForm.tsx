@@ -63,8 +63,11 @@ export function ConfirmForm({ sessionId, catalog, held, warnings, unreadable, of
   const busy = useRef(false);
 
   const names = Object.keys(catalog);
-  const readNames = names.filter((n) => n in held || n in unreadable);
-  const emptyNames = names.filter((n) => !readNames.includes(n));
+  // 앞서 직접 넣고 돌아온 값(USER)은 '문장에서 읽은 항목'에 세지 않고 따로 묶는다. 같이 세면 제목이 문장에서
+  // 읽은 수보다 큰 수를 말한다
+  const userNames = names.filter((n) => held[n]?.source === "USER");
+  const readNames = names.filter((n) => (n in held || n in unreadable) && !userNames.includes(n));
+  const emptyNames = names.filter((n) => !readNames.includes(n) && !userNames.includes(n));
   const base = (name: string): Value => held[name]?.value ?? null;
   const current = (name: string): Value => (name in edits ? edits[name].value : base(name));
 
@@ -132,6 +135,36 @@ export function ConfirmForm({ sessionId, catalog, held, warnings, unreadable, of
   const failText = failure && describeFailure(failure.error, "start");
   const hasProblem = (name: string) => Boolean(edits[name]?.problem || rejection?.byField[name]);
 
+  const row = (name: string) => (
+    <ReadItemRow
+      key={name}
+      label={catalog[name].label}
+      value={showValue(catalog[name], current(name))}
+      // 못 쓴 원문 줄의 빈 값은 사용자가 모른다고 한 것이 아니다
+      emptyLabel={name in unreadable && !held[name] ? "(비어 있음)" : undefined}
+      problem={hasProblem(name)}
+      provenance={
+        <RowNotes
+          label={catalog[name].label}
+          // S3에서 뒤로 오면 라우터 state(못 쓴 원문)가 남아 있다. 그 사이 직접 넣은 값이 있으면 경고는 지난 일이다
+          unreadable={held[name]?.source === "USER" ? undefined : unreadable[name]}
+          provenance={provenanceOf(catalog[name], held[name], current(name), Boolean(edits[name]?.problem))}
+        />
+      }
+      // 줄 머리에 이름표가 이미 있어 칸의 이름표는 눈에서만 감춘다(화면 읽기 프로그램은 그대로 읽음)
+      editor={<div className={styles.editor}>{field(name)}</div>}
+    />
+  );
+  const group = (id: string, title: string, list: string[]) =>
+    list.length > 0 && (
+      <section className={styles.read} aria-labelledby={id}>
+        <h2 id={id} className={styles.sectionLabel}>
+          {title} <span className={styles.count}>{list.length}개</span>
+        </h2>
+        {list.map(row)}
+      </section>
+    );
+
   return (
     <>
       {warnings.map((w) => (
@@ -141,33 +174,8 @@ export function ConfirmForm({ sessionId, catalog, held, warnings, unreadable, of
         </p>
       ))}
 
-      {readNames.length > 0 && (
-        <section className={styles.read} aria-labelledby="s2-read">
-          <h2 id="s2-read" className={styles.sectionLabel}>
-            문장에서 읽은 항목 <span className={styles.count}>{readNames.length}개</span>
-          </h2>
-          {readNames.map((name) => (
-            <ReadItemRow
-              key={name}
-              label={catalog[name].label}
-              value={showValue(catalog[name], current(name))}
-              // 못 쓴 원문 줄의 빈 값은 사용자가 모른다고 한 것이 아니다
-              emptyLabel={name in unreadable && !held[name] ? "(비어 있음)" : undefined}
-              problem={hasProblem(name)}
-              provenance={
-                <RowNotes
-                  label={catalog[name].label}
-                  // S3에서 뒤로 오면 라우터 state(못 쓴 원문)가 남아 있다. 그 사이 직접 넣은 값이 있으면 경고는 지난 일이다
-                  unreadable={held[name]?.source === "USER" ? undefined : unreadable[name]}
-                  provenance={provenanceOf(catalog[name], held[name], current(name), Boolean(edits[name]?.problem))}
-                />
-              }
-              // 줄 머리에 이름표가 이미 있어 칸의 이름표는 눈에서만 감춘다(화면 읽기 프로그램은 그대로 읽음)
-              editor={<div className={styles.editor}>{field(name)}</div>}
-            />
-          ))}
-        </section>
-      )}
+      {group("s2-read", "문장에서 읽은 항목", readNames)}
+      {group("s2-user", "직접 넣은 항목", userNames)}
 
       <EmptyFields
         count={emptyNames.length}

@@ -68,7 +68,11 @@ describe("S2 근거 한 줄 — 값이 어디서 왔는지", () => {
     server();
     await open();
 
-    expect(screen.getByRole("heading", { name: "문장에서 읽은 항목 7개" })).toBeInTheDocument();
+    // 앞서 직접 넣고 돌아온 값(지역)은 '문장에서 읽은' 수에 넣지 않고 따로 센다
+    expect(screen.getByRole("heading", { name: "문장에서 읽은 항목 6개" })).toBeInTheDocument();
+    const direct = screen.getByRole("region", { name: "직접 넣은 항목 1개" });
+    expect(within(direct).getByText("주택 소재지", { selector: "span" })).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "문장에서 읽은 항목 6개" })).queryByText("주택 소재지", { selector: "span" })).not.toBeInTheDocument();
     expect(row("나이")).toHaveTextContent("“만 29세 직장인”에서 읽음");
     expect(row("세대주 여부")).toHaveTextContent("세대주임");
     expect(row("부부합산 총소득")).toHaveTextContent(
@@ -482,7 +486,7 @@ describe("S2 들어오는 길", () => {
 
     expect(screen.queryByText(/저장하지 않았습니다/)).not.toBeInTheDocument();
     expect(screen.queryByText(/그대로 쓸 수 없습니다/)).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "문장에서 읽은 항목 6개" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "문장에서 읽은 항목 5개" })).toBeInTheDocument();
     // 못 쓴 원문이 없으니 전용면적은 비어 있는 항목으로 간다
     expect(screen.getByRole("button", { name: "비어 있는 항목 2개 — 아는 값이 있으면 미리 채워도 됩니다" })).toBeInTheDocument();
   });
