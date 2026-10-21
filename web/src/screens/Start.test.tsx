@@ -1,6 +1,7 @@
 import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { NOTICE } from "../components/Notice";
 import { callsTo, fakeServer, json, PROGRAMS, renderApp } from "./testing";
 
 afterEach(() => vi.restoreAllMocks());
@@ -26,6 +27,34 @@ describe("S0 첫 화면 — 대상 상품 묶음", () => {
     await vi.waitFor(() => expect(screen.queryByText("불러오는 중입니다")).not.toBeInTheDocument());
     expect(screen.queryByRole("region", { name: "이 도구가 보는 상품" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "문장으로 적기" })).toBeInTheDocument();
+  });
+});
+
+describe("S0 첫 화면 — 개인정보 한 줄 (G12, D9, C-COPY)", () => {
+  // 사이드바 개인정보 안내(PRIVACY_NOTE)가 말하는 것 중 이 한 줄이 빠뜨리면 안 되는 구절.
+  // 줄여 말하면 "그것만 남는다"로 읽힌다(C-COPY '…만처럼 줄여 말하지 말 것')
+  const MUST = [
+    "입력한 문장 전체는 저장하지 않",
+    "읽어 낸 값",
+    "근거가 된 문장 일부",
+    "답한 값",
+    "모른다고 한 항목",
+    "다시 켜도 남습니다",
+  ];
+
+  it("필수 구절을 모두 담고, 같은 구절이 사이드바 개인정보 안내에도 있다(사실과 어긋나지 않음)", () => {
+    fakeServer();
+    renderApp("/");
+    const start = screen.getByRole("region", { name: "시작하기" });
+    const line = within(start).getByText(/입력한 문장 전체는 저장하지 않/, { selector: "p" });
+    for (const phrase of MUST) {
+      expect(line).toHaveTextContent(phrase);
+      expect(NOTICE.privacy).toContain(phrase);
+    }
+    expect(line.textContent).not.toMatch(/만\s*(남|저장)/);
+    // 자세한 내용은 사이드바의 '개인정보 안내'를 가리킨다. 그 제목이 실제로 있어야 한다
+    expect(line).toHaveTextContent("왼쪽 '개인정보 안내'");
+    expect(screen.getByRole("heading", { name: "개인정보 안내" })).toBeInTheDocument();
   });
 });
 
