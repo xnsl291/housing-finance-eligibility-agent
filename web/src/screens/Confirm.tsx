@@ -103,7 +103,9 @@ export function Confirm() {
         </p>
       </section>
       {load.kind === "loading" && <Skeleton />}
-      {load.kind === "failed" && (
+      {/* 연결이 끊겼으면 위 상자 하나만. 두 상자가 함께 뜨면 둘 다 초점을 제목으로 끌어가 서로 다투고,
+          '다시 연결 확인'이 연결이 돌아온 뒤 목록도 다시 받으므로 아래 상자의 '다시 시도'는 같은 일을 두 번 권한다 */}
+      {load.kind === "failed" && !offline && (
         <LoadFailed what={load.what} error={load.error} heldKnown={load.heldKnown} onRetry={fetchAll} />
       )}
       {load.kind === "ready" && (

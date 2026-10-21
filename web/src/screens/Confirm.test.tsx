@@ -446,6 +446,29 @@ describe("S2 세션 조회 실패", () => {
   });
 });
 
+describe("S2 오류 상자는 하나만", () => {
+  it("연결이 끊긴 채 항목 목록도 못 받으면 '연결 안 됨' 상자 하나만 보인다 — 두 상자가 초점을 다투지 않게", async () => {
+    const user = userEvent.setup();
+    let up = false;
+    server({
+      "GET /health": () => (up ? json({ status: "ok", programs: [] }) : Promise.reject(new TypeError("down"))),
+      "GET /v1/fields": () => (up ? json({ fields: FIELDS }) : json({ detail: "고장" }, 500)),
+    });
+    renderApp(PATH);
+
+    expect(await screen.findByRole("heading", { name: "지금 판정 서버에 연결할 수 없습니다" })).toBeInTheDocument();
+    // 항목 목록 요청이 끝나 뼈대가 걷힐 때까지 기다린 뒤 본다
+    await vi.waitFor(() => expect(screen.queryByText("불러오는 중입니다")).not.toBeInTheDocument());
+    expect(screen.queryByRole("heading", { name: "항목 목록을 받지 못했습니다" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /다시/ })).toHaveLength(1);
+
+    // 연결이 돌아오면 '다시 연결 확인' 하나로 항목 목록까지 다시 받는다
+    up = true;
+    await user.click(screen.getByRole("button", { name: "다시 연결 확인" }));
+    expect(await screen.findByRole("heading", { name: /문장에서 읽은 항목/ })).toBeInTheDocument();
+  });
+});
+
 describe("S2 문장 다시 쓰기", () => {
   it("고친 값이 없으면 묻지 않고 S1로 간다", async () => {
     const user = userEvent.setup();
