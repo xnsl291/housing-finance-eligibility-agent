@@ -9,7 +9,13 @@
  * - 답을 서버가 거절함(422) → rejected. 같은 질문에 머물고 카드 안에 사유
  * - 그 밖(서버 오류·시간 초과) → 다음 질문이면 failed, 답 저장이면 saveFailure. 둘 다 다시 시도를 준다(결함 D15)
  *
- * 떠난 뒤 늦게 온 응답은 버린다(useAlive). 다시 시도를 거듭 누르면 마지막 요청의 답만 쓴다(seq).
+ * 떠난 뒤 늦게 온 응답은 버린다(useAlive).
+ *
+ * 한 번에 하나만 보낸다
+ * - 다음 질문 받기: 받는 중이면 새로 부르지 않는다(fetching). StrictMode가 효과를 두 번 돌리거나, 받는 중에
+ *   '다시 연결 확인'·'다시 시도'를 눌러도 GET /next가 겹쳐 나가지 않는다
+ * - 답 저장·모름 기록: 보내는 중이면 새로 보내지 않는다(sendingRef). 카드 버튼은 카드가 막지만 '다시 시도'는
+ *   카드 밖에 있어, 여기서 막지 않으면 한 질문에 답과 모름이 둘 다 갈 수 있다
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -18,16 +24,18 @@ import { api, ApiError } from "../api/client";
 import type { Question, SessionState } from "../api/types";
 import { formatRange, formatWon } from "../components/amount";
 import { useAlive, useAppState } from "./AppState";
-import { NO_ANSWER, type Answer } from "./QuestionInput";
+import { NO_ANSWER, valueToSend, type Answer } from "./QuestionInput";
 import { sessionPath } from "./routes";
 
-export type Load =
+type Load =
   | { kind: "loading" }
   /** key: 항목 + 이 화면에서 받은 질문 순번. 같은 항목을 다시 물어도 바뀌어 초점이 옮겨지고 칸이 비워진다 */
   | { kind: "ask"; question: Question; known: string | undefined; key: string }
   | { kind: "missing" }
   | { kind: "offline" }
   | { kind: "failed"; error: unknown };
+
+type Send = "answer" | "decline";
 
 export function useQuestionFlow(sessionId: string) {
   const navigate = useNavigate();
@@ -37,26 +45,31 @@ export function useQuestionFlow(sessionId: string) {
   const [answer, setAnswer] = useState<Answer>(NO_ANSWER);
   /** 서버가 답을 거절한 사유(422) */
   const [rejected, setRejected] = useState<string | null>(null);
-  /** 답 저장·모름 기록이 서버 오류·시간 초과로 실패함. retry는 같은 요청을 다시 보낸다 */
-  const [saveFailure, setSaveFailure] = useState<{ id: number; error: unknown; retry: () => Promise<void> } | null>(null);
+  /**
+   * 답 저장·모름 기록이 서버 오류·시간 초과로 실패함. which는 실패한 일(답 저장인지 모름 기록인지).
+   * 보낸 값은 들고 있지 않는다 — 다시 시도는 그때 화면에 있는 답을 보낸다(retry)
+   */
+  const [saveFailure, setSaveFailure] = useState<{ id: number; error: unknown; which: Send } | null>(null);
   const [sending, setSending] = useState(false);
   /** 세션에 값이 하나라도 있는가. null은 모름(세션 상태를 못 받음) */
   const [hasValues, setHasValues] = useState<boolean | null>(null);
-  const seq = useRef(0);
+  const fetching = useRef(false);
+  const sendingRef = useRef(false);
   const asked = useRef(0);
 
   // 세션 상태는 '지금 아는 값'과 '처음부터 다시' 확인 창을 띄울지에만 쓴다. 못 받아도 질문은 그린다
   const fetchNext = useCallback(
     async (skeleton: boolean) => {
-      const mine = ++seq.current;
+      if (fetching.current) return;
+      fetching.current = true;
       if (skeleton) setLoad({ kind: "loading" });
       try {
-        // 함께(Promise.all) 부르지 않고 차례로 부른다. 서버가 세션 저장소(SQLite) 연결 하나를 잠금 없이 여러 요청에
-        // 나눠 쓰고 있어, 같은 세션을 동시에 두 번 읽으면 한쪽이 500("bad parameter or other API misuse")이 되고 다른
-        // 쪽이 있는 세션을 404로 답한 일이 실제로 있었다(2026-10-21 브라우저 확인). 404는 E2(기록 없음)로 보이므로 치명적이다
+        // 차례로 부른다. 예전에는 서버가 같은 세션을 동시에 두 번 읽으면 500·404를 내서 꼭 차례로 불러야 했으나,
+        // 서버 쪽은 이슈 #36(PR #37, 세션 저장소에 잠금)에서 고쳐졌다. 지금 차례로 두는 것은 단순해서다 —
+        // next가 실패하면 세션 상태는 부를 필요가 없고, 함께 부르면 한쪽만 실패한 경우를 따로 다뤄야 한다
         const next = await api.next(sessionId);
         const held = await api.session(sessionId).catch(() => null);
-        if (!alive.current || mine !== seq.current) return;
+        if (!alive.current) return;
         setHasValues(held === null ? null : Object.keys(held.values).length > 0);
         if (next.action === "RESULT") {
           // replace: 뒤로 가기로 질문 없는 이 화면에 돌아오지 않게. 멈춘 이유는 넘기지 않는다(Questions.tsx 머리말)
@@ -75,12 +88,14 @@ export function useQuestionFlow(sessionId: string) {
           key: `${next.question.field}:${asked.current}`,
         });
       } catch (error) {
-        if (!alive.current || mine !== seq.current) return;
+        if (!alive.current) return;
         if (error instanceof ApiError && error.status === 404) setLoad({ kind: "missing" });
         else if (error instanceof ApiError && error.kind === "network") {
           lostConnection();
           setLoad({ kind: "offline" });
         } else setLoad({ kind: "failed", error });
+      } finally {
+        fetching.current = false;
       }
     },
     [sessionId, alive, navigate, lostConnection],
@@ -90,26 +105,48 @@ export function useQuestionFlow(sessionId: string) {
     void fetchNext(true);
   }, [fetchNext]);
 
-  /** 답 저장이나 모름 기록. 성공하면 확인 수 +1 → 다음 질문(칸은 그대로 둔 채 받아 온다) */
-  async function save(call: () => Promise<unknown>): Promise<void> {
+  /**
+   * 답 저장(answer)이나 모름 기록(decline). 성공하면 확인 수 +1 → 다음 질문(칸은 그대로 둔 채 받아 온다).
+   * 답 저장은 지금 화면의 답을 보낸다. 보낼 답이 없으면(비었거나 칸에 못 읽는 글) 보내지 않는다
+   */
+  async function save(which: Send): Promise<void> {
+    if (load.kind !== "ask" || sendingRef.current) return;
+    const field = load.question.field;
+    const value = valueToSend(answer);
+    if (which === "answer" && value === null) return;
+    sendingRef.current = true;
     setSending(true);
     setRejected(null);
     setSaveFailure(null);
     try {
-      await call();
+      await (which === "answer" ? api.setFields(sessionId, { [field]: value }) : api.decline(sessionId, field));
     } catch (error) {
       if (!alive.current) return;
       if (error instanceof ApiError && error.status === 422) setRejected(error.message);
       else if (error instanceof ApiError && error.status === 404) setLoad({ kind: "missing" });
       else if (error instanceof ApiError && error.kind === "network") lostConnection();
-      else setSaveFailure((f) => ({ id: (f?.id ?? 0) + 1, error, retry: () => save(call) }));
+      else setSaveFailure((f) => ({ id: (f?.id ?? 0) + 1, error, which }));
       return;
     } finally {
+      sendingRef.current = false;
       if (alive.current) setSending(false);
     }
     if (!alive.current) return;
     countAnswer(sessionId);
     await fetchNext(false);
+  }
+
+  /**
+   * 저장 실패 상자의 다시 시도. 실패한 일을 지금 화면의 답으로 다시 한다 — 실패 뒤 답을 바꿨으면 바꾼 값이 간다.
+   * 답을 지워 보낼 것이 없으면 상자를 걷는다. 그러면 카드의 '답하기' 아래 잠긴 이유가 무엇을 하라는지 말한다
+   */
+  function retry(): Promise<void> | undefined {
+    if (!saveFailure) return undefined;
+    if (saveFailure.which === "answer" && valueToSend(answer) === null) {
+      setSaveFailure(null);
+      return undefined;
+    }
+    return save(saveFailure.which);
   }
 
   function changeAnswer(next: Answer) {
@@ -118,7 +155,7 @@ export function useQuestionFlow(sessionId: string) {
     setRejected(null);
   }
 
-  return { load, answer, changeAnswer, rejected, saveFailure, sending, hasValues, fetchNext, save };
+  return { load, answer, changeAnswer, rejected, saveFailure, retry, sending, hasValues, fetchNext, save };
 }
 
 /** 기준에 걸쳐 다시 묻는 경우(IMPRECISE)만 지금 아는 값을 억·만으로(설계서 S3 질문 카드). 값을 못 받았으면 줄을 그리지 않는다 */

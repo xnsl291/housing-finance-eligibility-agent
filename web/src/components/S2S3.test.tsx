@@ -136,8 +136,10 @@ describe("질문 카드", () => {
     questionKey = "household_head_status:1",
     lockedReason,
     error,
+    sending,
   }: {
     ready: boolean;
+    sending?: boolean;
     onAnswer?: () => void | Promise<unknown>;
     onDecline?: () => void | Promise<unknown>;
     title?: string;
@@ -150,6 +152,7 @@ describe("질문 카드", () => {
         questionKey={questionKey}
         lockedReason={lockedReason}
         error={error}
+        sending={sending}
         title={title}
         why="남은 상품 2개 모두 이 값이 있어야 판정할 수 있습니다"
         answerReady={ready}
@@ -251,6 +254,20 @@ describe("질문 카드", () => {
     expect(onAnswer).not.toHaveBeenCalled();
     expect(onDecline).not.toHaveBeenCalled();
     expect(screen.getAllByText("서버에 연결되지 않아 지금은 보낼 수 없습니다")).toHaveLength(2);
+  });
+
+  it("부모가 보내는 중이면(다시 시도 등 카드 밖에서 보냄) 두 버튼이 함께 잠긴다", async () => {
+    const user = userEvent.setup();
+    const onAnswer = vi.fn();
+    const onDecline = vi.fn();
+    render(<Card ready sending onAnswer={onAnswer} onDecline={onDecline} />);
+
+    await user.click(screen.getByRole("button", { name: "답하기" }));
+    await user.click(screen.getByRole("button", { name: "모르겠어요" }));
+
+    expect(onAnswer).not.toHaveBeenCalled();
+    expect(onDecline).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "답하기" })).toHaveAccessibleDescription("보내는 중이라 잠시 누를 수 없습니다");
   });
 
   it("서버가 거절한 사유를 카드 안에 보인다 (시안 S3-c)", () => {

@@ -168,7 +168,10 @@ function numberProblem(text: string, integer: boolean): string | null {
   const s = text.trim().replace(/,/g, "");
   if (s === "") return null;
   const ok = integer ? /^\d+$/.test(s) : /^\d+(\.\d+)?$/.test(s);
-  return ok ? null : integer ? "숫자로 적어 주세요" : "숫자로 적어 주세요(소수점은 .)";
+  if (!ok) return integer ? "숫자로 적어 주세요" : "숫자로 적어 주세요(소수점은 .)";
+  // 이보다 크면 Number로 바꿀 때 적은 값과 다른 수가 되고(2^53 + 1 → 2^53), 아주 크면 Infinity가 되어
+  // JSON에서 null('값 지움')로 바뀐다. 이 칸의 항목(나이·자녀 수·복무 연수·면적·비율)에 이런 값은 없다
+  return Number(s) > Number.MAX_SAFE_INTEGER ? "너무 큰 숫자입니다. 다시 확인해 주세요" : null;
 }
 
 interface SelectFieldProps {

@@ -13,6 +13,7 @@
  * 두 버튼은 카드 하나의 대기 상태를 같이 쓴다. '답하기'를 보내는 동안 '모르겠어요'가 눌리면
  * 한 질문에 답과 모름이 둘 다 서버로 간다. 버튼마다 따로 잠그면 이 경우를 못 막는다.
  * 상태(useState)는 다시 그려진 뒤에야 바뀌므로 같은 순간 두 번 누름은 ref로 막는다.
+ * 카드 밖에서 보내는 중(저장 실패 상자의 '다시 시도')이면 부모가 sending으로 알려 두 버튼을 함께 잠근다.
  *
  * 서버가 답을 거절한 사유(422)는 카드 맨 아래에 둔다(시안 S3-c). 선택지 묶음에는 칸별 오류 자리가 없고,
  * 어느 칸 종류든 같은 자리에 보이는 편이 찾기 쉽다.
@@ -40,6 +41,8 @@ interface QuestionCardProps {
   children: (titleId: string) => ReactNode;
   /** 답을 고르거나 적었는가. 아니면 '답하기'가 잠긴다 */
   answerReady: boolean;
+  /** 부모가 카드 밖에서 보내는 중(다시 시도). 두 버튼을 함께 잠근다 */
+  sending?: boolean;
   onAnswer: () => void | Promise<unknown>;
   onDecline: () => void | Promise<unknown>;
   /** 있으면 두 버튼을 함께 잠그고 이 이유를 적는다(예: 서버에 연결되지 않음 — 설계서 E1) */
@@ -56,6 +59,7 @@ export function QuestionCard({
   howToCheck,
   children,
   answerReady,
+  sending,
   onAnswer,
   onDecline,
   lockedReason,
@@ -116,7 +120,7 @@ export function QuestionCard({
           onClick={send("answer", onAnswer)}
           lockedReason={
             lockedReason ??
-            (pending === "decline"
+            (pending === "decline" || (sending && pending === null)
               ? WAIT_REASON
               : answerReady
                 ? undefined
@@ -128,7 +132,7 @@ export function QuestionCard({
         <Button
           variant="secondary"
           onClick={send("decline", onDecline)}
-          lockedReason={lockedReason ?? (pending === "answer" ? WAIT_REASON : undefined)}
+          lockedReason={lockedReason ?? (pending === "answer" || (sending && pending === null) ? WAIT_REASON : undefined)}
         >
           모르겠어요
         </Button>

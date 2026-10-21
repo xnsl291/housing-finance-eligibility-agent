@@ -19,7 +19,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { api, ApiError } from "../api/client";
+import { ApiError } from "../api/client";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Skeleton, SystemError } from "../components/Feedback";
@@ -39,7 +39,7 @@ const OFFLINE_LOCK = "서버에 연결되지 않아 지금은 보낼 수 없습�
 export function Questions() {
   const { sessionId = "" } = useParams();
   const { connected, recheckConnection, answeredCount } = useAppState();
-  const { load, answer, changeAnswer, rejected, saveFailure, sending, hasValues, fetchNext, save } =
+  const { load, answer, changeAnswer, rejected, saveFailure, retry, sending, hasValues, fetchNext, save } =
     useQuestionFlow(sessionId);
   const count = answeredCount(sessionId);
 
@@ -86,13 +86,11 @@ export function Questions() {
             howToCheck={load.question.how_to_check}
             answerReady={valueToSend(answer) !== null}
             lockedReason={offline ? OFFLINE_LOCK : undefined}
+            // 다시 시도처럼 카드 밖에서 보내는 동안에도 카드 버튼을 잠근다
+            sending={sending}
             error={rejected}
-            onAnswer={() => {
-              const value = valueToSend(answer);
-              const field = load.question.field;
-              return value === null ? undefined : save(() => api.setFields(sessionId, { [field]: value }));
-            }}
-            onDecline={() => save(() => api.decline(sessionId, load.question.field))}
+            onAnswer={() => save("answer")}
+            onDecline={() => save("decline")}
           >
             {(titleId) => (
               <QuestionInput
@@ -106,7 +104,7 @@ export function Questions() {
           </QuestionCard>
         )}
         {saveFailure && !offline && (
-          <SaveFailed key={saveFailure.id} error={saveFailure.error} onRetry={saveFailure.retry} />
+          <SaveFailed key={saveFailure.id} error={saveFailure.error} onRetry={retry} />
         )}
       </div>
 
@@ -123,8 +121,14 @@ export function Questions() {
 /** 맨 아래 버튼 줄(그만 묻고 결과 보기 · 처음부터 다시)과 처음부터 다시 확인 창(M1, 시안 S3-M1) */
 function StopActions({ sessionId, stopLock, dirty }: { sessionId: string; stopLock: string | undefined; dirty: boolean }) {
   const navigate = useNavigate();
-  const { draft } = useAppState();
+  const { draft, rememberSession } = useAppState();
   const [askBack, setAskBack] = useState(false);
+  // 떠나면 주소에서 이 세션이 빠진다. 새로 고친 뒤라 이 탭의 연 세션 목록에 없으면 '내 기록 지우기'가 더는
+  // 이 세션을 못 지우므로, 떠나기 전에 목록에 넣는다(확인 창이 "'내 기록 지우기'로 지울 수 있습니다"라고 약속함)
+  function backToWrite() {
+    rememberSession(sessionId);
+    navigate("/write");
+  }
   return (
     <>
       <section className={styles.actions} aria-label="질문 멈추기">
@@ -133,7 +137,7 @@ function StopActions({ sessionId, stopLock, dirty }: { sessionId: string; stopLo
           그만 묻고 지금까지로 결과 보기
         </Button>
         <span className={styles.back}>
-          <Button variant="text" icon="arrowLeft" onClick={() => (dirty ? setAskBack(true) : navigate("/write"))}>
+          <Button variant="text" icon="arrowLeft" onClick={() => (dirty ? setAskBack(true) : backToWrite())}>
             처음부터 다시
           </Button>
         </span>
@@ -146,7 +150,7 @@ function StopActions({ sessionId, stopLock, dirty }: { sessionId: string; stopLo
         cancelLabel="계속하기"
         onConfirm={() => {
           setAskBack(false);
-          navigate("/write");
+          backToWrite();
         }}
         onCancel={() => setAskBack(false)}
       >
@@ -186,11 +190,12 @@ function NextFailed({ error, count, onRetry }: { error: unknown; count: number; 
 }
 
 /**
- * 답 저장이나 모름 기록이 서버 오류·시간 초과로 실패함. 다시 시도는 같은 요청을 다시 보낸다.
- * 시간 초과는 서버가 저장을 마쳤는지 모르므로 "저장하지 못했습니다"라고 단정하지 않는다. 같은 값을 다시 보내도
- * 결과가 같아 다시 시도는 안전하다(값은 덮어쓰고, 모름은 같은 항목을 한 번 더 기록할 뿐)
+ * 답 저장이나 모름 기록이 서버 오류·시간 초과로 실패함. 다시 시도는 실패한 일을 지금 화면의 답으로 다시 한다
+ * (useQuestionFlow.ts retry — 실패 뒤 답을 바꿨으면 바꾼 값이 간다).
+ * 시간 초과는 서버가 저장을 마쳤는지 모르므로 "저장하지 못했습니다"라고 단정하지 않는다. 다시 보내도
+ * 안전하다(값은 덮어쓰고, 모름은 같은 항목을 한 번 더 기록할 뿐)
  */
-function SaveFailed({ error, onRetry }: { error: unknown; onRetry: () => Promise<void> }) {
+function SaveFailed({ error, onRetry }: { error: unknown; onRetry: () => Promise<void> | undefined }) {
   const text = describeFailure(error, "start");
   return (
     <SystemError title={isTimeout(error) ? text.title : "답을 저장하지 못했습니다"} icon={text.icon} onRetry={onRetry}>

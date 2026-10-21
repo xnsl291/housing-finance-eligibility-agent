@@ -1,10 +1,13 @@
 /*
  * S3 하나씩 확인 — 실패(D15·E1·E2), 그만 묻고 결과 보기, 처음부터 다시(M1), 떠난 뒤 늦은 응답.
  */
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
+import { MemoryRouter } from "react-router-dom";
 
-import { ask, CHOICE_Q, NEXT, open, PUT, result, sentBodies, sequence, server, SESSION, start } from "./questionsTesting";
+import { App } from "../App";
+import { ask, CHOICE_Q, DECLINE, NEXT, open, PATH, PUT, result, sentBodies, sequence, server, SESSION, start } from "./questionsTesting";
 import { callsTo, json } from "./testing";
 
 afterEach(() => {
@@ -65,6 +68,76 @@ describe("S3 실패 — 화면이 거기서 끝나지 않는다 (결함 D15)", (
       { values: { household_head_status: "PROSPECTIVE_HEAD" } },
     ]);
     await waitFor(() => expect(location()).toHaveTextContent("/s/s-1/result"));
+  });
+
+  it("저장 실패 뒤 답을 바꾸고 다시 시도하면 지금 화면의 답을 보낸다 — 처음 누른 순간의 값이 아니라", async () => {
+    const user = userEvent.setup();
+    let fail = true;
+    const spy = server({
+      [NEXT]: sequence(ask(CHOICE_Q), result("COMPLETE")),
+      [PUT]: () => (fail ? json({ detail: "저장 실패" }, 500) : json({ session_id: "s-1", values: {} })),
+    });
+    await open();
+
+    await user.click(screen.getByRole("radio", { name: "세대주임" }));
+    await user.click(screen.getByRole("button", { name: "답하기" }));
+    const box = (await screen.findByRole("heading", { name: "답을 저장하지 못했습니다" })).closest("section")!;
+
+    await user.click(screen.getByRole("radio", { name: "세대주 예정" }));
+    fail = false;
+    await user.click(within(box).getByRole("button", { name: "다시 시도" }));
+
+    expect(sentBodies(spy, PUT)).toEqual([
+      { values: { household_head_status: "HEAD" } },
+      { values: { household_head_status: "PROSPECTIVE_HEAD" } },
+    ]);
+  });
+
+  it("모르겠어요 기록이 실패했으면 다시 시도는 모름을 다시 보낸다", async () => {
+    const user = userEvent.setup();
+    let fail = true;
+    const spy = server({
+      [NEXT]: sequence(ask(CHOICE_Q), result("COMPLETE")),
+      [DECLINE]: () => (fail ? json({ detail: "저장 실패" }, 500) : json({ session_id: "s-1", declined: [] })),
+    });
+    await open();
+
+    await user.click(screen.getByRole("button", { name: "모르겠어요" }));
+    const box = (await screen.findByRole("heading", { name: "답을 저장하지 못했습니다" })).closest("section")!;
+    // 칸에서 답을 골라도 다시 시도는 처음 한 일(모름)을 다시 한다
+    await user.click(screen.getByRole("radio", { name: "세대주임" }));
+    fail = false;
+    await user.click(within(box).getByRole("button", { name: "다시 시도" }));
+
+    expect(sentBodies(spy, DECLINE)).toEqual([{ field: "household_head_status" }, { field: "household_head_status" }]);
+    expect(callsTo(spy, PUT)).toHaveLength(0);
+  });
+
+  it("다시 시도로 보내는 동안 카드의 답하기·모르겠어요도 잠겨 한 질문에 답과 모름이 둘 다 가지 않는다", async () => {
+    const user = userEvent.setup();
+    let calls = 0;
+    let finish!: (r: Response) => void;
+    const spy = server({
+      [NEXT]: sequence(ask(CHOICE_Q), result("COMPLETE")),
+      [PUT]: () =>
+        ++calls === 1 ? json({ detail: "저장 실패" }, 500) : new Promise<Response>((resolve) => (finish = resolve)),
+    });
+    await open();
+
+    await user.click(screen.getByRole("radio", { name: "세대주임" }));
+    await user.click(screen.getByRole("button", { name: "답하기" }));
+    const box = (await screen.findByRole("heading", { name: "답을 저장하지 못했습니다" })).closest("section")!;
+    await user.click(within(box).getByRole("button", { name: "다시 시도" }));
+
+    const c = screen.getByRole("region", { name: CHOICE_Q.label });
+    for (const name of ["답하기", "모르겠어요"]) {
+      expect(within(c).getByRole("button", { name })).toHaveAttribute("aria-disabled", "true");
+    }
+    await user.click(within(c).getByRole("button", { name: "모르겠어요" }));
+    await user.click(within(c).getByRole("button", { name: "답하기" }));
+    expect(callsTo(spy, DECLINE)).toHaveLength(0);
+    expect(callsTo(spy, PUT)).toHaveLength(2);
+    await act(async () => finish(json({ session_id: "s-1", values: {} })));
   });
 
   it("답 저장이 시간 초과면 '저장하지 못했습니다'라고 단정하지 않는다 — 서버가 마쳤는지 모른다", async () => {
@@ -128,6 +201,33 @@ describe("S3 실패 — 화면이 거기서 끝나지 않는다 (결함 D15)", (
     await user.click(screen.getByRole("button", { name: "답하기" }));
     expect(callsTo(spy, PUT)).toHaveLength(1);
   });
+  it("다음 질문을 기다리는 동안 '다시 연결 확인'을 눌러도 다음 질문을 또 부르지 않는다", async () => {
+    const user = userEvent.setup();
+    let up = false;
+    const spy = server({
+      "GET /health": () => (up ? json({ status: "ok", programs: [] }) : Promise.reject(new TypeError("down"))),
+      [NEXT]: () => new Promise<Response>(() => {}),
+    });
+    start();
+
+    const box = (await screen.findByRole("heading", { name: "지금 판정 서버에 연결할 수 없습니다" })).closest("section")!;
+    up = true;
+    await user.click(within(box).getByRole("button", { name: "다시 연결 확인" }));
+    expect(callsTo(spy, NEXT)).toHaveLength(1);
+  });
+
+  it("StrictMode가 효과를 두 번 돌려도 다음 질문은 한 번만 부른다", async () => {
+    const spy = server({ [NEXT]: () => ask(CHOICE_Q) });
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={[PATH]}>
+          <App />
+        </MemoryRouter>
+      </StrictMode>,
+    );
+    expect(await screen.findByRole("region", { name: CHOICE_Q.label })).toBeInTheDocument();
+    expect(callsTo(spy, NEXT)).toHaveLength(1);
+  });
 });
 
 describe("S3 멈추기와 되돌아가기", () => {
@@ -161,6 +261,20 @@ describe("S3 멈추기와 되돌아가기", () => {
     await user.click(screen.getByRole("button", { name: "처음부터" }));
     expect(location()).toHaveTextContent("/write");
     expect(callsTo(spy, "DELETE /v1/sessions/s-1")).toHaveLength(0);
+  });
+
+  it("새로 고친 뒤(연 세션 목록이 빔)에 처음부터 다시로 떠나도 '내 기록 지우기'로 이 세션을 지울 수 있다 — 확인 창의 약속", async () => {
+    const user = userEvent.setup();
+    const spy = server({ [NEXT]: () => ask(CHOICE_Q), "DELETE /v1/sessions/s-1": () => json({ session_id: "s-1", deleted: true }) });
+    await open();
+
+    await user.click(screen.getByRole("button", { name: "처음부터 다시" }));
+    await user.click(screen.getByRole("button", { name: "처음부터" }));
+    expect(location()).toHaveTextContent("/write");
+
+    await user.click(screen.getByRole("button", { name: "내 기록 지우기" }));
+    await user.click(screen.getByRole("button", { name: "지우기" }));
+    expect(callsTo(spy, "DELETE /v1/sessions/s-1")).toHaveLength(1);
   });
 
   it("값이 하나도 없고 아직 답한 것도 없으면 묻지 않고 S1로 간다", async () => {
