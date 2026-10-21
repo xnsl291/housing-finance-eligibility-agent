@@ -36,6 +36,8 @@ export function Layout() {
   const [opened, setOpened] = useState<string[]>([]);
   // 이 탭에서 이미 지운 번호. 일부만 실패해 다시 누를 때 지운 것을 또 보내지 않으려고
   const [gone, setGone] = useState<ReadonlySet<string>>(new Set());
+  // 세션별 S3 확인 수(AppState.tsx 머리말)
+  const [answered, setAnswered] = useState<Record<string, number>>({});
 
   const rememberSession = useCallback((id: string) => {
     setOpened((list) => (list.includes(id) ? list : [...list, id]));
@@ -49,6 +51,10 @@ export function Layout() {
     }
   }, []);
   const lostConnection = useCallback(() => setConnected(false), []);
+  const countAnswer = useCallback((id: string) => {
+    setAnswered((counts) => ({ ...counts, [id]: (counts[id] ?? 0) + 1 }));
+  }, []);
+  const answeredCount = (id: string) => answered[id] ?? 0;
 
   useEffect(() => {
     let alive = true;
@@ -117,7 +123,17 @@ export function Layout() {
 
   return (
     <AppStateContext.Provider
-      value={{ draft, setDraft, programs, rememberSession, connected, recheckConnection, lostConnection }}
+      value={{
+        draft,
+        setDraft,
+        programs,
+        rememberSession,
+        connected,
+        recheckConnection,
+        lostConnection,
+        answeredCount,
+        countAnswer,
+      }}
     >
       <div className={styles.app}>
         <Sidebar

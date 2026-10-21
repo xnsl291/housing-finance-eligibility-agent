@@ -13,10 +13,14 @@
  * 두 버튼은 카드 하나의 대기 상태를 같이 쓴다. '답하기'를 보내는 동안 '모르겠어요'가 눌리면
  * 한 질문에 답과 모름이 둘 다 서버로 간다. 버튼마다 따로 잠그면 이 경우를 못 막는다.
  * 상태(useState)는 다시 그려진 뒤에야 바뀌므로 같은 순간 두 번 누름은 ref로 막는다.
+ *
+ * 서버가 답을 거절한 사유(422)는 카드 맨 아래에 둔다(시안 S3-c). 선택지 묶음에는 칸별 오류 자리가 없고,
+ * 어느 칸 종류든 같은 자리에 보이는 편이 찾기 쉽다.
  */
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "./Button";
+import { FieldError } from "./Field";
 import { Icon } from "./Icon";
 import styles from "./QuestionCard.module.css";
 
@@ -38,6 +42,10 @@ interface QuestionCardProps {
   answerReady: boolean;
   onAnswer: () => void | Promise<unknown>;
   onDecline: () => void | Promise<unknown>;
+  /** 있으면 두 버튼을 함께 잠그고 이 이유를 적는다(예: 서버에 연결되지 않음 — 설계서 E1) */
+  lockedReason?: string;
+  /** 서버가 답을 거절한 사유(422). 카드 맨 아래 한 줄 */
+  error?: string | null;
 }
 
 export function QuestionCard({
@@ -50,8 +58,11 @@ export function QuestionCard({
   answerReady,
   onAnswer,
   onDecline,
+  lockedReason,
+  error,
 }: QuestionCardProps) {
   const titleId = useId();
+  const errorId = useId();
   const titleRef = useRef<HTMLHeadingElement>(null);
   const firstShow = useRef(true);
   // 지금 기다리는 쪽. 다른 쪽 버튼을 잠그는 데 쓴다
@@ -104,11 +115,12 @@ export function QuestionCard({
         <Button
           onClick={send("answer", onAnswer)}
           lockedReason={
-            pending === "decline"
+            lockedReason ??
+            (pending === "decline"
               ? WAIT_REASON
               : answerReady
                 ? undefined
-                : "답을 고르거나 적으면 누를 수 있습니다"
+                : "답을 고르거나 적으면 누를 수 있습니다")
           }
         >
           답하기
@@ -116,7 +128,7 @@ export function QuestionCard({
         <Button
           variant="secondary"
           onClick={send("decline", onDecline)}
-          lockedReason={pending === "answer" ? WAIT_REASON : undefined}
+          lockedReason={lockedReason ?? (pending === "answer" ? WAIT_REASON : undefined)}
         >
           모르겠어요
         </Button>
@@ -125,6 +137,7 @@ export function QuestionCard({
         ‘모르겠어요’를 고르면 이 항목은 다시 묻지 않습니다. 나중에 결과 화면의 ‘이 조건으로
         판정했습니다’에서 값을 넣을 수 있습니다.
       </p>
+      <FieldError id={errorId} message={error} />
     </section>
   );
 }

@@ -150,8 +150,8 @@ function LoadFailed({
   );
 }
 
-/** 세션을 찾을 수 없음(E2). 다시 시도해도 같으므로 '처음부터'가 유일한 길이다. 적은 문장은 남긴다 */
-function Missing() {
+/** 세션을 찾을 수 없음(E2). 다시 시도해도 같으므로 '처음부터'가 유일한 길이다. 적은 문장은 남긴다. S3도 같이 쓴다 */
+export function Missing() {
   const navigate = useNavigate();
   const { draft } = useAppState();
   return (

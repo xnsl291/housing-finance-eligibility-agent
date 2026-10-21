@@ -134,16 +134,22 @@ describe("질문 카드", () => {
     onDecline = () => {},
     title = "세대주 여부",
     questionKey = "household_head_status:1",
+    lockedReason,
+    error,
   }: {
     ready: boolean;
     onAnswer?: () => void | Promise<unknown>;
     onDecline?: () => void | Promise<unknown>;
     title?: string;
     questionKey?: string;
+    lockedReason?: string;
+    error?: string | null;
   }) {
     return (
       <QuestionCard
         questionKey={questionKey}
+        lockedReason={lockedReason}
+        error={error}
         title={title}
         why="남은 상품 2개 모두 이 값이 있어야 판정할 수 있습니다"
         answerReady={ready}
@@ -231,6 +237,29 @@ describe("질문 카드", () => {
 
     expect(onAnswer).toHaveBeenCalledOnce();
     expect(onDecline).not.toHaveBeenCalled();
+  });
+
+  it("잠긴 이유를 받으면 답을 골랐어도 두 버튼이 함께 잠긴다 (E1)", async () => {
+    const user = userEvent.setup();
+    const onAnswer = vi.fn();
+    const onDecline = vi.fn();
+    render(<Card ready lockedReason="서버에 연결되지 않아 지금은 보낼 수 없습니다" onAnswer={onAnswer} onDecline={onDecline} />);
+
+    await user.click(screen.getByRole("button", { name: "답하기" }));
+    await user.click(screen.getByRole("button", { name: "모르겠어요" }));
+
+    expect(onAnswer).not.toHaveBeenCalled();
+    expect(onDecline).not.toHaveBeenCalled();
+    expect(screen.getAllByText("서버에 연결되지 않아 지금은 보낼 수 없습니다")).toHaveLength(2);
+  });
+
+  it("서버가 거절한 사유를 카드 안에 보인다 (시안 S3-c)", () => {
+    const { rerender } = render(<Card ready error="값이 맞지 않습니다 — 세대주 여부: 고를 수 없는 값" />);
+    const card = screen.getByRole("region", { name: "세대주 여부" });
+    expect(card).toHaveTextContent("값이 맞지 않습니다 — 세대주 여부: 고를 수 없는 값");
+
+    rerender(<Card ready error={null} />);
+    expect(card).not.toHaveTextContent("값이 맞지 않습니다");
   });
 
   it("선택지 묶음 이름이 질문 제목이고, 아무것도 안 고른 채 시작한다", () => {
