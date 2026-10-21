@@ -240,6 +240,30 @@ describe("S2 서버가 값을 거절함 (422)", () => {
   });
 });
 
+describe("S2 다시 보낼 때", () => {
+  it("다시 보내면 앞선 422 사유를 지운다 — 두 번째가 500이면 낡은 거절 목록이 남지 않는다", async () => {
+    const user = userEvent.setup();
+    let tries = 0;
+    server({
+      [PUT]: () =>
+        ++tries === 1
+          ? json({ detail: "값이 맞지 않습니다 — 나이: 값을 다시 확인해 주세요" }, 422)
+          : json({ detail: "고장" }, 500),
+    });
+    await open();
+
+    await user.click(screen.getByRole("button", { name: "나이 고치기" }));
+    await user.type(screen.getByRole("textbox", { name: "나이" }), "0");
+    await user.click(nextButton());
+    expect(await screen.findByText("서버가 받지 않은 값이 있습니다")).toBeInTheDocument();
+
+    await user.click(nextButton());
+    expect(await screen.findByRole("heading", { name: "요청을 처리하지 못했습니다" })).toBeInTheDocument();
+    expect(screen.queryByText("서버가 받지 않은 값이 있습니다")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "나이" })).not.toHaveAccessibleDescription(/값을 다시 확인해 주세요/);
+  });
+});
+
 describe("S2 입력 오류 — 버튼 잠김", () => {
   async function editIncome(user: ReturnType<typeof userEvent.setup>, low: string, high: string) {
     await user.click(screen.getByRole("button", { name: "부부합산 총소득 고치기" }));

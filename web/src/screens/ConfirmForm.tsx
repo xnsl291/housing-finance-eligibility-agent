@@ -102,6 +102,8 @@ export function ConfirmForm({ sessionId, catalog, held, warnings, unreadable, of
     }
     busy.current = true;
     setFailure(null);
+    // 앞선 거절 사유는 지난번에 보낸 값에 대한 것이다. 이번 답이 500 등이면 낡은 사유가 새 실패와 함께 남는다
+    setRejection(null);
     try {
       await api.setFields(sessionId, changes);
       if (alive.current) navigate(next);
