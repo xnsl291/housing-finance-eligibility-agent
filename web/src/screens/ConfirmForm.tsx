@@ -345,7 +345,11 @@ function BoolInput({
 /** 접힌 '비어 있는 항목 N개'. 접어도 칸은 지우지 않고 숨긴다 — 적던 글이 사라지지 않게(ReadItemRow와 같은 이유) */
 function EmptyFields({ count, forceOpen, fields }: { count: number; forceOpen: boolean; fields: ReactNode[] }) {
   const [open, setOpen] = useState(false);
-  // 서버가 이 안의 값을 거절했으면 펼쳐 둔다. 접힌 채면 어느 칸이 문제인지 안 보인다
+  // 이 안의 칸에 고칠 것(입력 오류·서버 거절)이 있는 동안은 접지 못한다. 접힌 채면 버튼은 잠겼는데 어느 칸이
+  // 문제인지 안 보인다(ReadItemRow가 '닫기'를 감추는 것과 같은 이유). open만 보고 그리면, 한 번 펼쳐진 뒤
+  // 사용자가 접은 상태에서 다음 오류가 와도 forceOpen이 이미 true라 다시 펼쳐지지 않았다
+  const shown = open || forceOpen;
+  // 문제가 풀린 뒤 갑자기 접히지 않게, 펼쳐진 상태를 그대로 남긴다
   useEffect(() => {
     if (forceOpen) setOpen(true);
   }, [forceOpen]);
@@ -353,12 +357,20 @@ function EmptyFields({ count, forceOpen, fields }: { count: number; forceOpen: b
   return (
     <section className={styles.empty}>
       <h2 className={styles.emptyTitle}>
-        <button type="button" className={styles.disclosure} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-          <Icon name={open ? "chevronDown" : "chevronRight"} size={16} />
+        <button
+          type="button"
+          className={styles.disclosure}
+          aria-expanded={shown}
+          aria-disabled={forceOpen || undefined}
+          onClick={() => {
+            if (!forceOpen) setOpen(!shown);
+          }}
+        >
+          <Icon name={shown ? "chevronDown" : "chevronRight"} size={16} />
           비어 있는 항목 {count}개 — 아는 값이 있으면 미리 채워도 됩니다
         </button>
       </h2>
-      <div hidden={!open}>
+      <div hidden={!shown}>
         <p className={styles.emptyLead}>
           비워 두면 판정에 필요한 것만 다음 단계에서 여쭙니다. 화면이 대신 채우지 않습니다.
         </p>

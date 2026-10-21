@@ -240,6 +240,37 @@ describe("S2 서버가 값을 거절함 (422)", () => {
   });
 });
 
+describe("S2 비어 있는 항목 — 고칠 것이 있는 동안", () => {
+  const toggle = () => screen.getByRole("button", { name: /^비어 있는 항목/ });
+
+  it("안의 칸에 입력 오류가 있으면 접어도 칸이 가려지지 않는다", async () => {
+    const user = userEvent.setup();
+    server();
+    await open(false);
+
+    await user.click(toggle());
+    await user.type(screen.getByRole("textbox", { name: "전용면적" }), "abc");
+    await user.click(toggle());
+    expect(screen.getByRole("textbox", { name: "전용면적" })).toBeVisible();
+    expect(toggle()).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("422로 펼쳐진 뒤 접었다가 다시 거절돼도 칸이 보인다", async () => {
+    const user = userEvent.setup();
+    const spy = server({ [PUT]: () => json({ detail: "값이 맞지 않습니다 — 전입일: 달력에서 골라 주세요" }, 422) });
+    await open(false);
+
+    await user.click(toggle());
+    await user.type(screen.getByLabelText("전입일"), "2026-11-01");
+    await user.click(nextButton());
+    expect(await screen.findByText("서버가 받지 않은 값이 있습니다")).toBeInTheDocument();
+    await user.click(toggle());
+    await user.click(nextButton());
+    await vi.waitFor(() => expect(callsTo(spy, PUT)).toHaveLength(2));
+    expect(screen.getByLabelText("전입일")).toBeVisible();
+  });
+});
+
 describe("S2 다시 보낼 때", () => {
   it("다시 보내면 앞선 422 사유를 지운다 — 두 번째가 500이면 낡은 거절 목록이 남지 않는다", async () => {
     const user = userEvent.setup();
