@@ -112,3 +112,119 @@ describe("사이드바 — 전체 초기화와 내 기록 지우기", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/s/s-7/confirm");
   });
 });
+
+describe("내 기록 지우기 — 이 탭에서 연 세션을 모두 지운다", () => {
+  const box = () => screen.getByRole("textbox", { name: "상황을 자유롭게 적어 주세요" });
+
+  /** 세션을 열 때마다 s-1, s-2 … 를 준다 */
+  function sessions() {
+    let n = 0;
+    return () => json({ session_id: `s-${++n}` }, 201);
+  }
+  const read = (id: string) => () => json({ session_id: id, values: {}, warnings: [], unreadable: {} });
+  const deleted = (id: string) => () => json({ session_id: id, deleted: true });
+
+  async function deleteAll(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("button", { name: "내 기록 지우기" }));
+    await user.click(screen.getByRole("button", { name: "지우기" }));
+  }
+
+  it("문장을 두 번 읽은 뒤(앞 한 번은 실패) 지우면 두 세션을 모두 지운다", async () => {
+    const user = userEvent.setup();
+    const server = fakeServer({
+      "POST /v1/sessions": sessions(),
+      "POST /v1/sessions/s-1/messages": () => json({ detail: "조건을 읽지 못했습니다" }, 503),
+      "POST /v1/sessions/s-2/messages": read("s-2"),
+      "DELETE /v1/sessions/s-1": deleted("s-1"),
+      "DELETE /v1/sessions/s-2": deleted("s-2"),
+    });
+    renderApp("/write");
+    await user.type(box(), SENTENCE);
+    await user.click(screen.getByRole("button", { name: "조건 읽기" }));
+    await user.click(await screen.findByRole("button", { name: "다시 시도" }));
+    await vi.waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/s/s-2/confirm"));
+
+    await deleteAll(user);
+    await vi.waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/));
+    expect(callsTo(server, "DELETE /v1/sessions/s-1")).toHaveLength(1);
+    expect(callsTo(server, "DELETE /v1/sessions/s-2")).toHaveLength(1);
+    expect(screen.getByText("내 기록을 서버에서 지웠습니다.")).toBeInTheDocument();
+  });
+
+  it("전체 초기화 뒤에도 앞서 연 세션을 지울 수 있다", async () => {
+    const user = userEvent.setup();
+    const server = fakeServer({
+      "POST /v1/sessions": sessions(),
+      "POST /v1/sessions/s-1/messages": read("s-1"),
+      "DELETE /v1/sessions/s-1": deleted("s-1"),
+    });
+    renderApp("/write");
+    await user.type(box(), SENTENCE);
+    await user.click(screen.getByRole("button", { name: "조건 읽기" }));
+    await vi.waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/s/s-1/confirm"));
+
+    await user.click(screen.getByRole("button", { name: "전체 초기화" }));
+    await user.click(screen.getByRole("button", { name: "처음으로" }));
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/);
+    // 초기화는 서버에 아무것도 보내지 않는다
+    expect(callsTo(server, "DELETE /v1/sessions/s-1")).toHaveLength(0);
+
+    await deleteAll(user);
+    await vi.waitFor(() => expect(callsTo(server, "DELETE /v1/sessions/s-1")).toHaveLength(1));
+    expect(await screen.findByText("내 기록을 서버에서 지웠습니다.")).toBeInTheDocument();
+  });
+
+  /** 문장을 두 번 읽어 세션 s-1, s-2를 연다. 끝나면 /s/s-2/confirm */
+  async function readTwice(user: ReturnType<typeof userEvent.setup>) {
+    renderApp("/write");
+    await user.type(box(), SENTENCE);
+    await user.click(screen.getByRole("button", { name: "조건 읽기" }));
+    await vi.waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/s/s-1/confirm"));
+    await user.click(screen.getByRole("button", { name: "문장 다시 쓰기" }));
+    await user.click(screen.getByRole("button", { name: "조건 읽기" }));
+    await vi.waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/s/s-2/confirm"));
+  }
+
+  it("이미 없는 세션(404)이 섞여 있어도 지운 것으로 본다", async () => {
+    const user = userEvent.setup();
+    const server = fakeServer({
+      "POST /v1/sessions": sessions(),
+      "POST /v1/sessions/s-1/messages": read("s-1"),
+      "POST /v1/sessions/s-2/messages": read("s-2"),
+      "DELETE /v1/sessions/s-1": () => json({ detail: "세션을 찾을 수 없습니다" }, 404),
+      "DELETE /v1/sessions/s-2": deleted("s-2"),
+    });
+    await readTwice(user);
+
+    await deleteAll(user);
+    await vi.waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/));
+    expect(callsTo(server, "DELETE /v1/sessions/s-1")).toHaveLength(1);
+    expect(callsTo(server, "DELETE /v1/sessions/s-2")).toHaveLength(1);
+    expect(screen.getByText("내 기록을 서버에서 지웠습니다.")).toBeInTheDocument();
+  });
+
+  it("일부만 실패하면 창 안에 알리고, 다시 누르면 실패한 것만 다시 지운다", async () => {
+    const user = userEvent.setup();
+    let broken = true;
+    const server = fakeServer({
+      "POST /v1/sessions": sessions(),
+      "POST /v1/sessions/s-1/messages": read("s-1"),
+      "POST /v1/sessions/s-2/messages": read("s-2"),
+      "DELETE /v1/sessions/s-1": () => (broken ? json({ detail: "고장" }, 500) : deleted("s-1")()),
+      "DELETE /v1/sessions/s-2": deleted("s-2"),
+    });
+    await readTwice(user);
+
+    await deleteAll(user);
+    expect(await screen.findByText("지우지 못했습니다. 잠시 뒤 다시 눌러 주세요")).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent("/s/s-2/confirm");
+
+    broken = false;
+    await user.click(screen.getByRole("button", { name: "지우기" }));
+    await vi.waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/));
+    expect(callsTo(server, "DELETE /v1/sessions/s-1")).toHaveLength(2);
+    // 처음에 지운 s-2는 주소에 남아 있어도 다시 보내지 않는다
+    expect(callsTo(server, "DELETE /v1/sessions/s-2")).toHaveLength(1);
+    expect(screen.getByText("내 기록을 서버에서 지웠습니다.")).toBeInTheDocument();
+  });
+});

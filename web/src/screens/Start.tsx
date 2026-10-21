@@ -37,12 +37,13 @@ const NOT_DONE = [
 
 export function Start() {
   const navigate = useNavigate();
-  const { programs } = useAppState();
+  const { programs, rememberSession } = useAppState();
   const [failure, setFailure] = useState<{ id: number; error: unknown } | null>(null);
 
   async function startDirect() {
     try {
       const { session_id } = await api.startSession();
+      rememberSession(session_id);
       navigate(sessionPath(session_id, "questions"));
     } catch (error) {
       setFailure((f) => ({ id: (f?.id ?? 0) + 1, error }));

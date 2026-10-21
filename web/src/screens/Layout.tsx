@@ -7,12 +7,13 @@
  * - 단계는 주소로 정한다(routes.ts). 단계가 바뀐 순간에만 본문이 위에서 내려온다(C-HEADER, 420ms)
  * - 주소가 바뀌면 초점을 새 화면 제목(h1)으로 옮긴다(시안 C0 1절). 화면 읽기 프로그램 사용자가
  *   화면이 바뀐 것을 알게 하려고
- * - 전체 초기화(앱 메모리만 비움)와 내 기록 지우기(서버 세션 삭제)
+ * - 전체 초기화(적은 문장만 비움, 서버 기록과 연 세션 목록은 그대로)와 내 기록 지우기(이 탭에서 연
+ *   세션과 주소의 세션을 서버에서 삭제)
  */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useMatch, useNavigate } from "react-router-dom";
 
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
 import { AppHeader } from "../components/AppHeader";
 import { Toast } from "../components/Feedback";
 import { Sidebar } from "../components/Sidebar";
@@ -30,6 +31,14 @@ export function Layout() {
   const [programs, setPrograms] = useState<ProgramsState>("loading");
   const [connected, setConnected] = useState<boolean | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  // 이 탭에서 연 세션 번호(AppState.tsx 머리말). 전체 초기화로 비우지 않는다 — 초기화 뒤에도 지울 수 있어야 한다
+  const [opened, setOpened] = useState<string[]>([]);
+  // 이 탭에서 이미 지운 번호. 일부만 실패해 다시 누를 때 지운 것을 또 보내지 않으려고
+  const [gone, setGone] = useState<ReadonlySet<string>>(new Set());
+
+  const rememberSession = useCallback((id: string) => {
+    setOpened((list) => (list.includes(id) ? list : [...list, id]));
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -71,15 +80,32 @@ export function Layout() {
     navigate("/");
   }
 
-  async function deleteRecords(id: string) {
-    await api.deleteSession(id);
+  // 지울 대상: 이 탭에서 연 세션 + 주소의 세션. 같은 번호는 한 번만, 이미 지운 것은 뺀다
+  const targets = [...new Set([...opened, ...(sessionId === undefined ? [] : [sessionId])])].filter(
+    (id) => !gone.has(id),
+  );
+
+  async function deleteRecords() {
+    const results = await Promise.allSettled(
+      targets.map((id) =>
+        api.deleteSession(id).catch((error) => {
+          // 404는 이미 없는 것이라 지운 것으로 친다
+          if (!(error instanceof ApiError && error.status === 404)) throw error;
+        }),
+      ),
+    );
+    const done = targets.filter((_, i) => results[i].status === "fulfilled");
+    setGone((set) => new Set([...set, ...done]));
+    setOpened((list) => list.filter((id) => !done.includes(id)));
+    // 하나라도 못 지웠으면 실패로 알린다(Sidebar가 창 안에 문구를 보임). 다시 누르면 남은 것만 지운다
+    if (done.length < targets.length) throw new Error("일부 기록을 지우지 못했습니다");
     setDraft("");
     navigate("/");
     setToast("내 기록을 서버에서 지웠습니다.");
   }
 
   return (
-    <AppStateContext.Provider value={{ draft, setDraft, programs }}>
+    <AppStateContext.Provider value={{ draft, setDraft, programs, rememberSession }}>
       <div className={styles.app}>
         <Sidebar
           programs={Array.isArray(programs) ? programs : []}
@@ -87,7 +113,7 @@ export function Layout() {
           connected={connected}
           onReset={reset}
           confirmReset={draft !== "" || sessionId !== undefined}
-          onDeleteRecords={sessionId === undefined ? undefined : () => deleteRecords(sessionId)}
+          onDeleteRecords={targets.length === 0 ? undefined : deleteRecords}
         />
         <main className={styles.main}>
           <div className={styles.inner}>

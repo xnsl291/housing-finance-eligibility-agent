@@ -9,8 +9,9 @@
  *
  * 조건 읽기
  * 1. 세션을 새로 연다. 문장을 읽을 때마다 새로 연다 — 앞 문장으로 모인 값과 '모르겠다'가 새 판정에
- *    섞이지 않게(설계서 S1). 실패한 뒤 다시 눌러도 새 세션이다. 앞서 열린 빈 세션은 지우지 않는다
- *    (남는 값이 없음)
+ *    섞이지 않게(설계서 S1). 실패한 뒤 다시 눌러도 새 세션이다. 앞서 연 세션을 여기서 지우지는 않는다.
+ *    비어 있다고 장담할 수 없어서다 — 시간 초과로 화면이 기다림을 끊어도 서버는 끝까지 읽어 값을 저장할
+ *    수 있다. 대신 번호를 받는 즉시 앱 메모리에 모아 '내 기록 지우기'가 함께 지우게 한다(AppState.tsx)
  * 2. 기다리는 동안 '문장을 읽고 있습니다'. 10초가 넘으면 한 줄 더(LoadingSentence)
  * 3. 문장을 보낸다
  * 4. 성공하면 S2로. 경고와 못 읽은 값은 서버에 남지 않는 값이라 라우터 state로 넘긴다
@@ -69,7 +70,7 @@ interface Failure {
 
 export function Write() {
   const navigate = useNavigate();
-  const { draft, setDraft } = useAppState();
+  const { draft, setDraft, rememberSession } = useAppState();
   const [reading, setReading] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [pendingExample, setPendingExample] = useState<string | null>(null);
@@ -97,6 +98,7 @@ export function Write() {
     let stage: Stage = "start";
     try {
       const { session_id } = await api.startSession();
+      rememberSession(session_id);
       stage = "read";
       const result = await api.sendMessage(session_id, draft);
       const state: ConfirmState = { warnings: result.warnings, unreadable: result.unreadable };
@@ -115,6 +117,7 @@ export function Write() {
     busy.current = true;
     try {
       const { session_id } = await api.startSession();
+      rememberSession(session_id);
       navigate(sessionPath(session_id, "questions"));
     } catch (error) {
       fail(error, "start", "direct");
