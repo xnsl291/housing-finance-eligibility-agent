@@ -323,6 +323,7 @@ describe("S2 입력 오류 — 버튼 잠김", () => {
     await open();
 
     await editIncome(user, "5000", "4500");
+    await user.tab(); // 범위 묶음을 떠나야 목록에 오른다
     expect(nextButton()).toHaveAttribute("aria-disabled", "true");
     expect(nextButton()).toHaveAccessibleDescription("위 입력 오류를 고치면 눌러집니다.");
     expect(screen.getByText("고쳐야 보낼 수 있습니다")).toBeInTheDocument();
@@ -341,6 +342,7 @@ describe("S2 입력 오류 — 버튼 잠김", () => {
     await open();
 
     await editIncome(user, "4500", "");
+    await user.tab();
     expect(nextButton()).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByText("부부합산 총소득: 범위는 두 칸을 모두 채우거나 모두 비워 주세요")).toBeInTheDocument();
   });
@@ -352,6 +354,7 @@ describe("S2 입력 오류 — 버튼 잠김", () => {
 
     await user.click(screen.getByRole("button", { name: "임차보증금 고치기" }));
     await user.type(screen.getByRole("textbox", { name: "임차보증금" }), "억억");
+    await user.tab();
     expect(nextButton()).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByText(/^임차보증금: 금액을 알아볼 수 없습니다/)).toBeInTheDocument();
   });
@@ -403,6 +406,44 @@ describe("S2 입력 오류 — 버튼 잠김", () => {
     await user.click(screen.getByRole("button", { name: "다시 연결 확인" }));
     await vi.waitFor(() => expect(nextButton()).not.toHaveAttribute("aria-disabled"));
     expect(screen.getByRole("textbox", { name: "나이" })).toHaveValue("290");
+  });
+});
+
+describe("S2 오류 목록 — 칸을 떠난 뒤에 갱신", () => {
+  it("치는 동안에는 목록에 올리지 않고 칸을 떠나면 올린다. 잠긴 이유도 그에 맞춘다", async () => {
+    const user = userEvent.setup();
+    server();
+    await open();
+
+    await user.click(screen.getByRole("button", { name: "임차보증금 고치기" }));
+    const input = screen.getByRole("textbox", { name: "임차보증금" });
+    await user.type(input, "억억");
+    // 버튼은 바로 잠그되, 아직 목록에 없는 오류를 '위 입력 오류'라고 부르지 않는다
+    expect(screen.queryByText("고쳐야 보낼 수 있습니다")).not.toBeInTheDocument();
+    expect(nextButton()).toHaveAttribute("aria-disabled", "true");
+    expect(nextButton()).toHaveAccessibleDescription("지금 적고 있는 칸에 고칠 것이 있습니다.");
+
+    await user.tab();
+    expect(screen.getByText(/^임차보증금: 금액을 알아볼 수 없습니다/)).toBeInTheDocument();
+    expect(nextButton()).toHaveAccessibleDescription("위 입력 오류를 고치면 눌러집니다.");
+
+    // 다시 들어가 고치면 목록에서 바로 걷는다 — 버튼이 풀렸는데 목록이 '고쳐야 보낼 수 있다'고 하지 않게
+    await user.clear(input);
+    await user.type(input, "2억");
+    expect(screen.queryByText("고쳐야 보낼 수 있습니다")).not.toBeInTheDocument();
+    expect(nextButton()).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("목록은 공손하게(polite) 읽힌다 — 칸 아래 오류 줄이 이미 바로 읽으므로 같은 말을 끊고 들어가 두 번 읽지 않게", async () => {
+    const user = userEvent.setup();
+    server();
+    await open();
+
+    await user.click(screen.getByRole("button", { name: "임차보증금 고치기" }));
+    await user.type(screen.getByRole("textbox", { name: "임차보증금" }), "억억");
+    await user.tab();
+    const list = screen.getByText("고쳐야 보낼 수 있습니다").closest("[aria-live]");
+    expect(list).toHaveAttribute("aria-live", "polite");
   });
 });
 

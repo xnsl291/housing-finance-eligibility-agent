@@ -8,12 +8,13 @@
  * 칸 종류(설계서 7.2 S2 열): 선택=드롭다운 첫 칸 `— 모름 —`, 예·아니오=라디오 `예/아니오/모름`(G4),
  * 금액=만원 칸 + 억·만, 범위로 읽혔으면 최소·최대 두 칸, 날짜=달력, 정수·소수·글=칸.
  */
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FocusEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
 import type { FieldCatalog, FieldInfo, HeldValue } from "../api/types";
 import { AmountField, RangeField } from "../components/AmountFields";
+import { afterPress } from "../components/afterPress";
 import { Button } from "../components/Button";
 import { YesNoField, type YesNo } from "../components/ChoiceFields";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -57,6 +58,8 @@ export function ConfirmForm({ sessionId, catalog, held, warnings, unreadable, of
   const alive = useAlive();
   const [edits, setEdits] = useState<Record<string, Edit>>({});
   const [rejection, setRejection] = useState<Rejection | null>(null);
+  /** 칸을 떠날 때 버튼 위 목록에 올린 입력 오류(이름 → 그때의 문구) */
+  const [listed, setListed] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<{ id: number; error: unknown } | null>(null);
   const [askBack, setAskBack] = useState(false);
   // 상태는 다시 그려진 뒤에야 바뀌므로 같은 순간 두 번 누름은 ref로 막는다
@@ -75,13 +78,36 @@ export function ConfirmForm({ sessionId, catalog, held, warnings, unreadable, of
     Object.fromEntries(names.map((n) => [n, base(n)])),
     Object.fromEntries(Object.entries(edits).map(([n, e]) => [n, e.value])),
   );
-  const problems = Object.entries(edits).flatMap(([n, e]) => (e.problem ? [`${catalog[n].label}: ${e.problem}`] : []));
-  const dirty = Object.keys(changes).length > 0 || problems.length > 0;
+  // 버튼 잠김은 지금 칸의 문제로 바로 정한다. 버튼 위 목록은 칸을 떠난 뒤의 문제(listed)만 싣는다 — 칸 아래 오류
+  // 줄과 같은 때에 바뀌어야, 치는 동안 글자마다 목록이 바뀌어 읽히지 않는다. 고쳐진 칸은 목록에서 바로 걷는다
+  // (걷는 것은 읽지 않으므로 시끄럽지 않고, 버튼이 풀렸는데 목록이 '고쳐야 한다'고 남지 않게)
+  const problemNames = names.filter((n) => edits[n]?.problem);
+  const problems = problemNames.flatMap((n) => (n in listed ? [`${catalog[n].label}: ${listed[n]}`] : []));
+  const dirty = Object.keys(changes).length > 0 || problemNames.length > 0;
   const lockedReason = offline
     ? "서버에 연결되지 않아 지금은 보낼 수 없습니다."
-    : problems.length > 0
-      ? "위 입력 오류를 고치면 눌러집니다."
-      : undefined;
+    : problemNames.length === 0
+      ? undefined
+      : problemNames.every((n) => n in listed)
+        ? "위 입력 오류를 고치면 눌러집니다."
+        : // 아직 목록에 없는 오류를 '위 입력 오류'라고 부르지 않는다
+          "지금 적고 있는 칸에 고칠 것이 있습니다.";
+
+  /** 칸(묶음)을 떠날 때 그 칸의 문제를 목록에 올리거나 걷는다. 마우스를 누르는 중이면 뗀 뒤에(afterPress.ts) */
+  function leave(name: string) {
+    return (e: FocusEvent<HTMLDivElement>) => {
+      if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+      const problem = edits[name]?.problem ?? null;
+      afterPress(() =>
+        setListed((all) => {
+          const next = { ...all };
+          if (problem) next[name] = problem;
+          else delete next[name];
+          return next;
+        }),
+      );
+    };
+  }
 
   function update(name: string) {
     return (value: Value, problem: string | null = null) => {
@@ -152,7 +178,11 @@ export function ConfirmForm({ sessionId, catalog, held, warnings, unreadable, of
         />
       }
       // 줄 머리에 이름표가 이미 있어 칸의 이름표는 눈에서만 감춘다(화면 읽기 프로그램은 그대로 읽음)
-      editor={<div className={styles.editor}>{field(name)}</div>}
+      editor={
+        <div className={styles.editor} onBlur={leave(name)}>
+          {field(name)}
+        </div>
+      }
     />
   );
   const group = (id: string, title: string, list: string[]) =>
@@ -181,7 +211,9 @@ export function ConfirmForm({ sessionId, catalog, held, warnings, unreadable, of
         count={emptyNames.length}
         forceOpen={emptyNames.some(hasProblem)}
         fields={emptyNames.map((name) => (
-          <div key={name}>{field(name)}</div>
+          <div key={name} onBlur={leave(name)}>
+            {field(name)}
+          </div>
         ))}
       />
 
@@ -428,7 +460,8 @@ function ErrorList({
     ? [...Object.entries(rejection.byField).map(([n, m]) => `${catalog[n].label}: ${m}`), ...rejection.rest]
     : [];
   return (
-    <div className={styles.errors} aria-live="assertive">
+    // polite: 칸 아래 오류 줄(FieldError)이 이미 바로(assertive) 읽는다. 목록까지 끊고 들어가면 같은 말을 두 번 읽는다
+    <div className={styles.errors} aria-live="polite">
       {problems.length > 0 && <Errors title="고쳐야 보낼 수 있습니다" items={problems} />}
       {rejected.length > 0 && <Errors title="서버가 받지 않은 값이 있습니다" items={rejected} />}
     </div>
