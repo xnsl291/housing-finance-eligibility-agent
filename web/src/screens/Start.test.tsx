@@ -30,6 +30,18 @@ describe("S0 첫 화면 — 대상 상품 묶음", () => {
   });
 });
 
+describe("S0 첫 화면 — 하지 않는 것", () => {
+  it("심사 주체를 특정 기관으로 좁히지 않고 머리 고지(C-HEADER)처럼 '기관이 합니다'로 말한다", () => {
+    fakeServer();
+    renderApp("/");
+    const group = screen.getByRole("region", { name: "이 도구가 하지 않는 것" });
+    expect(within(group).getAllByRole("listitem")[0]).toHaveTextContent(
+      /^승인·심사가 아닙니다\. 실제 심사는 기관이 합니다$/,
+    );
+    expect(group).not.toHaveTextContent("주택도시기금");
+  });
+});
+
 describe("S0 첫 화면 — 개인정보 한 줄 (G12, D9, C-COPY)", () => {
   // 사이드바 개인정보 안내(PRIVACY_NOTE)가 말하는 것 중 이 한 줄이 빠뜨리면 안 되는 구절.
   // 줄여 말하면 "그것만 남는다"로 읽힌다(C-COPY '…만처럼 줄여 말하지 말 것')
