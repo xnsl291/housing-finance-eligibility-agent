@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -85,6 +86,13 @@ class SessionStore:
 
     def __init__(self, db_path: str | Path = ":memory:") -> None:
         self._db = sqlite3.connect(str(db_path), check_same_thread=False)
+        # API는 요청마다 다른 스레드에서 이 연결 하나를 쓴다. 연결을 함께 쓰는 것만
+        # 허락하고(check_same_thread=False) 차례를 지키게 하지 않으면, 같은 세션을 동시에
+        # 부를 때 500(`bad parameter or other API misuse`)이나 있는 세션의 404가 난다.
+        # 순번을 읽고 쓰는 `_append`도 사이에 끼어들면 순번이 겹친다. 그래서 연결을 쓰는
+        # 곳은 모두 이 잠금 안에서만 쓴다. `start`가 `_append`를 부르므로 다시 들어갈 수
+        # 있는 잠금이다.
+        self._lock = threading.RLock()
         self._db.row_factory = sqlite3.Row
         # 지운 기록이 파일의 빈 자리에 남지 않게 덮어쓴다. 이 설정이 없으면 SQLite는
         # 지운 행을 "빈 자리"로 표시만 하고 내용은 그대로 둬서, 파일을 열어 보면 지웠다고
@@ -111,11 +119,12 @@ class SessionStore:
     # ── 쓰기 ──────────────────────────────────────────────────────────
     def start(self) -> str:
         session_id = uuid.uuid4().hex
-        self._db.execute(
-            "INSERT INTO sessions (id, created_at) VALUES (?, ?)", (session_id, _now())
-        )
-        self._db.commit()
-        self._append(session_id, SESSION_STARTED, {})
+        with self._lock:
+            self._db.execute(
+                "INSERT INTO sessions (id, created_at) VALUES (?, ?)", (session_id, _now())
+            )
+            self._db.commit()
+            self._append(session_id, SESSION_STARTED, {})
         return session_id
 
     def record_extraction(self, session_id: str, extracted: dict) -> None:
@@ -161,20 +170,25 @@ class SessionStore:
         기록이 정본이라 기록을 지우면 상태도, 판정의 근거도 함께 사라진다. 일부만
         지우는 방법은 두지 않는다 — 남긴 기록에서 지운 값을 짐작할 수 있다.
         """
-        self._db.execute("DELETE FROM events WHERE session_id = ?", (session_id,))
-        self._db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
-        self._db.commit()
+        with self._lock:
+            self._db.execute("DELETE FROM events WHERE session_id = ?", (session_id,))
+            self._db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+            self._db.commit()
 
     # ── 읽기 ──────────────────────────────────────────────────────────
     def exists(self, session_id: str) -> bool:
-        row = self._db.execute("SELECT 1 FROM sessions WHERE id = ?", (session_id,)).fetchone()
+        with self._lock:
+            row = self._db.execute(
+                "SELECT 1 FROM sessions WHERE id = ?", (session_id,)
+            ).fetchone()
         return row is not None
 
     def events(self, session_id: str) -> list[Event]:
-        rows = self._db.execute(
-            "SELECT seq, at, kind, payload FROM events WHERE session_id = ? ORDER BY seq",
-            (session_id,),
-        ).fetchall()
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT seq, at, kind, payload FROM events WHERE session_id = ? ORDER BY seq",
+                (session_id,),
+            ).fetchall()
         return [
             Event(seq=r["seq"], at=r["at"], kind=r["kind"], payload=json.loads(r["payload"]))
             for r in rows
@@ -189,14 +203,22 @@ class SessionStore:
 
     # ── 내부 ──────────────────────────────────────────────────────────
     def _append(self, session_id: str, kind: str, payload: dict) -> None:
-        row = self._db.execute(
-            "SELECT COALESCE(MAX(seq), 0) AS last FROM events WHERE session_id = ?", (session_id,)
-        ).fetchone()
-        self._db.execute(
-            "INSERT INTO events (session_id, seq, at, kind, payload) VALUES (?, ?, ?, ?, ?)",
-            (session_id, row["last"] + 1, _now(), kind, json.dumps(payload, ensure_ascii=False)),
-        )
-        self._db.commit()
+        with self._lock:
+            row = self._db.execute(
+                "SELECT COALESCE(MAX(seq), 0) AS last FROM events WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+            self._db.execute(
+                "INSERT INTO events (session_id, seq, at, kind, payload) VALUES (?, ?, ?, ?, ?)",
+                (
+                    session_id,
+                    row["last"] + 1,
+                    _now(),
+                    kind,
+                    json.dumps(payload, ensure_ascii=False),
+                ),
+            )
+            self._db.commit()
 
 
 def replay(events: list[Event]) -> dict[str, Held]:
