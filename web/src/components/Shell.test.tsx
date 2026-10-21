@@ -95,9 +95,14 @@ describe("사이드바", () => {
     expect(screen.queryByText("판정 서버에 연결됨")).not.toBeInTheDocument();
   });
 
-  it("지울 세션이 없으면(onDeleteRecords 없음) 내 기록 지우기 버튼을 그리지 않는다", () => {
+  it("지울 세션이 없으면(onDeleteRecords 없음) 내 기록 지우기를 숨기지 않고 잠근 채 이유를 보인다", async () => {
+    const user = userEvent.setup();
     render(<Sidebar programs={programs} apiBase="" connected onReset={() => {}} />);
-    expect(screen.queryByRole("button", { name: "내 기록 지우기" })).not.toBeInTheDocument();
+    const button = screen.getByRole("button", { name: "내 기록 지우기" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAccessibleDescription("아직 지울 기록이 없습니다");
+    await user.click(button);
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     // 개인정보 안내 문구는 그대로 둔다
     expect(screen.getByText(/'내 기록 지우기'로 서버에서 지울 수 있습니다/)).toBeInTheDocument();
   });

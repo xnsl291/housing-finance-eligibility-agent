@@ -68,13 +68,13 @@ describe("사이드바 — 전체 초기화와 내 기록 지우기", () => {
     expect(server.mock.calls.filter(([, init]) => (init?.method ?? "GET") !== "GET")).toHaveLength(0);
   });
 
-  it("주소에 세션이 없으면 내 기록 지우기 버튼이 없고, 있으면 있다", () => {
+  it("지울 세션이 없으면 내 기록 지우기가 잠겨 있고, 주소에 세션이 있으면 눌린다", () => {
     fakeServer();
     const { unmount } = renderApp("/write");
-    expect(screen.queryByRole("button", { name: "내 기록 지우기" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "내 기록 지우기" })).toHaveAttribute("aria-disabled", "true");
     unmount();
     renderApp("/s/s-7/questions");
-    expect(screen.getByRole("button", { name: "내 기록 지우기" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "내 기록 지우기" })).not.toHaveAttribute("aria-disabled");
   });
 
   it("내 기록 지우기는 확인(M2) 뒤 서버 세션을 지우고, 메모리를 비워 첫 화면으로 가며 완료를 알린다", async () => {

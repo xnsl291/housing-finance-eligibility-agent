@@ -136,6 +136,11 @@
   cursor: pointer;
 }
 
+.outline[aria-disabled="true"] {
+  color: var(--side-muted);
+  cursor: not-allowed;
+}
+
 .small {
   margin: 0;
   font-size: 10.5px;

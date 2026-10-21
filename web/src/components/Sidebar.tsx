@@ -8,8 +8,9 @@
  * '내 기록 지우기'는 시안에 없다. 시안 뒤에 서버에 삭제 경로가 생겼고(PR #29) 개인정보 안내도
  * "'내 기록 지우기'로 서버에서 지울 수 있습니다"로 바뀌어, 안내가 말하는 버튼을 같은 자리에 둔다.
  * 되돌릴 수 없으므로 항상 확인 창(M2)을 거친다(설계서 C-RESET).
- * 지울 세션이 없을 때(주소에 세션 번호가 없을 때)는 버튼을 그리지 않는다. 시안 S0·S1에 이 버튼이 없고,
- * C-RESET도 지울 수 없는 자리에는 버튼을 두지 않는다고 정했다. 그때는 onDeleteRecords를 넘기지 않는다.
+ * 지울 세션이 하나도 없으면(이 탭에서 연 세션도 주소의 세션도 없음) 버튼을 숨기지 않고 잠근 채
+ * "아직 지울 기록이 없습니다"를 보인다. 바로 위 안내 문구가 이 버튼을 가리키므로, 숨기면 안내가 없는
+ * 버튼을 말하게 된다. 그때 부모는 onDeleteRecords를 넘기지 않는다.
  *
  * '전체 초기화'는 적은 문장까지 지우므로 지울 것이 있으면 확인 창(M1)을 먼저 띄운다. 지울 것이 없으면
  * 물을 것도 없어 바로 처음으로 간다(설계서 M1 "지울 것이 있을 때만").
@@ -18,7 +19,7 @@
  *
  * 먹색 바탕 위 회색(side-muted)은 이 안에서만 쓴다. 흰 바탕에서는 대비가 모자란다(시안 C0 4절).
  */
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import type { Program } from "../api/types";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -36,7 +37,7 @@ interface SidebarProps {
   onReset: () => void;
   /** 지울 것(적은 문장·세션)이 있으면 true. 그때만 확인 창(M1)을 띄운다 */
   confirmReset?: boolean;
-  /** 서버의 세션과 기록을 지움(DELETE /v1/sessions/{id}). 지울 세션이 없으면 넘기지 않는다 — 버튼이 사라진다 */
+  /** 서버의 세션과 기록을 지움(DELETE /v1/sessions/{id}). 지울 세션이 없으면 넘기지 않는다 — 버튼이 잠긴다 */
   onDeleteRecords?: () => Promise<unknown>;
 }
 
@@ -46,6 +47,7 @@ export function Sidebar({ programs, apiBase, connected, onReset, confirmReset = 
   const [askingReset, setAskingReset] = useState(false);
   const [asking, setAsking] = useState(false);
   const [deleteFailed, setDeleteFailed] = useState(false);
+  const noRecordsId = useId();
 
   function closeDialog() {
     setAsking(false);
@@ -129,10 +131,20 @@ export function Sidebar({ programs, apiBase, connected, onReset, confirmReset = 
       <section className={styles.group}>
         <h2 className={styles.label}>개인정보 안내</h2>
         <p className={styles.small}>{NOTICE.privacy}</p>
-        {onDeleteRecords && (
-          <button type="button" className={styles.outline} onClick={() => setAsking(true)}>
-            내 기록 지우기
-          </button>
+        {/* 잠김은 disabled가 아니라 aria-disabled로. 초점이 머물러 잠긴 이유를 읽을 수 있다(Button.tsx와 같은 방식) */}
+        <button
+          type="button"
+          className={styles.outline}
+          aria-disabled={!onDeleteRecords || undefined}
+          aria-describedby={onDeleteRecords ? undefined : noRecordsId}
+          onClick={() => onDeleteRecords && setAsking(true)}
+        >
+          내 기록 지우기
+        </button>
+        {!onDeleteRecords && (
+          <p id={noRecordsId} className={styles.small}>
+            아직 지울 기록이 없습니다
+          </p>
         )}
       </section>
 
