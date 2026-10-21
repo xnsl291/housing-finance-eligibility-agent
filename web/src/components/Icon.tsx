@@ -65,6 +65,27 @@ const PATHS = {
     </>
   ),
   loader: <path d="M21 12a9 9 0 1 1-6.2-8.6" />,
+  cornerDownLeft: <path d="M20 4v7a4 4 0 0 1-4 4H4m5-5-5 5 5 5" />,
+  minus: <path d="M5 12h14" />,
+  lock: (
+    <>
+      <rect x="3" y="11" width="18" height="11" rx="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </>
+  ),
+  listChecks: <path d="m3 7 2 2 4-4M3 17l2 2 4-4M13 6h8M13 12h8M13 18h8" />,
+  fileX: (
+    <>
+      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+      <path d="M14 2v5h5m-9.5 4.5 5 5m0-5-5 5" />
+    </>
+  ),
+  timer: (
+    <>
+      <path d="M10 2h4M12 14l3-3" />
+      <circle cx="12" cy="14" r="8" />
+    </>
+  ),
 } as const;
 
 export type IconName = keyof typeof PATHS;

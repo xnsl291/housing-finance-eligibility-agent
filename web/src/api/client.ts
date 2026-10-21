@@ -3,7 +3,7 @@
  *
  * 실패를 셋으로 나눠 돌려준다. Streamlit 화면은 셋을 한 덩어리로 받아, 서버가 살아 있는데
  * 오래 걸렸을 뿐인 경우에도 "서버를 띄운 뒤 다시 눌러 주세요"를 보였다(설계서 결함 D14).
- * - network: 연결이 안 됨. 서버가 꺼졌을 때
+ * - network: 연결이 안 됨. 서버가 꺼졌을 때(중계가 502로 알려 온 경우 포함)
  * - timeout: 연결은 됐는데 제한 시간 안에 답이 없음
  * - http: 서버가 거절함. `detail`은 서버가 사람이 읽을 문장으로 준 사유(PR #28)
  */
@@ -62,6 +62,13 @@ async function call<T>(
     clearTimeout(timer);
   }
 
+  // 502를 '연결 안 됨'으로 보는 것은 "판정 서버(FastAPI)는 502를 내지 않는다"는 전제 위에 서 있다.
+  // 502는 사이에 선 중계(개발 서버의 프록시 등)가 판정 서버에 닿지 못했을 때 낸다. http로 두면 서버가
+  // 꺼졌는데 "요청이 거부됐습니다 (HTTP 502)"가 보인다. 판정 서버가 502를 내게 바뀌면 이 줄을 다시 볼 것.
+  // 504(중계의 시간 초과)는 연결은 된 것이라 여기서 바꾸지 않고 http로 두며, 화면 쪽(failure.ts)이 시간 초과로 묶는다
+  if (response.status === 502) {
+    throw new ApiError("network", "서버에 연결할 수 없습니다", 502);
+  }
   if (!response.ok) {
     throw new ApiError("http", await detailOf(response), response.status);
   }

@@ -1,0 +1,129 @@
+/* 시안 S1(vTRQ5)·S1-b·S1-c 값. 크기·색은 시안 HTML 내보내기에서 옮김 */
+.notice {
+  max-width: 800px;
+}
+
+.examples {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.examplesLabel {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.exampleRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.example {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  font: inherit;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.example:hover:not(:disabled) {
+  border-color: var(--ink-4);
+}
+
+.example:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.exampleName {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.exampleText {
+  font-size: 12.5px;
+  line-height: 20px;
+  color: var(--ink-3);
+}
+
+.inputArea {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  max-width: 860px;
+}
+
+.textarea {
+  width: 100%;
+  height: 170px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  font: inherit;
+  font-size: 14.5px;
+  line-height: 25px;
+  color: var(--ink);
+  resize: vertical;
+}
+
+.textarea::placeholder {
+  color: var(--ink-4);
+}
+
+.textarea[aria-invalid="true"] {
+  border: 1.5px solid var(--err-fg);
+}
+
+/* 읽는 동안은 고칠 수 없다(보낸 문장과 칸의 글이 달라지지 않게). 흐린 바탕으로 알린다(시안 S1-c) */
+.textarea:read-only {
+  background: var(--chip-bg);
+  color: var(--ink-3);
+}
+
+.count {
+  align-self: flex-end;
+  font-size: 12px;
+  color: var(--ink-4);
+}
+
+.count[data-over] {
+  font-weight: 700;
+  color: var(--err-fg);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 860px;
+}
+
+.actions > section,
+.actions > div[role="status"] {
+  align-self: stretch;
+}
+
+.hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.line {
+  display: block;
+}

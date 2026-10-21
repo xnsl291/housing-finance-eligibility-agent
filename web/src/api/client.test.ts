@@ -37,6 +37,12 @@ describe("실패를 셋으로 나눈다 (설계서 D14)", () => {
     expect(오류.message).not.toContain("연결할 수 없");
   });
 
+  it("중계(개발 서버 프록시)가 판정 서버에 닿지 못해 502를 주면 network", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 502 }));
+
+    await expect(api.startSession()).rejects.toMatchObject({ kind: "network", status: 502 });
+  });
+
   it("서버가 거절하면 http와 서버가 준 사유", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       응답(422, { detail: "나이: 소수점 없는 숫자로 넣어 주세요" }),

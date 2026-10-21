@@ -1,0 +1,29 @@
+/* 화면 표제(표지 + 큰 제목 + 설명). 시안 S1 '표제' — 화면마다 같은 모양이라 한 곳에 둔다 */
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.eyebrow {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: var(--ink-4);
+}
+
+.title {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  line-height: 43px;
+}
+
+.lead {
+  max-width: 720px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 24px;
+  color: var(--ink-2);
+}

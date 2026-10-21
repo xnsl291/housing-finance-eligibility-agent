@@ -9,7 +9,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "./Button";
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
 import styles from "./Feedback.module.css";
 
 const SLOW_MS = 10_000;
@@ -57,6 +57,10 @@ interface SystemErrorProps {
   /** "조건의 문제가 아닙니다"가 드러나는 본문. 화면마다 남아 있는 것이 달라 화면이 정한다 */
   children: ReactNode;
   onRetry: () => void | Promise<unknown>;
+  /** 제목 앞 아이콘. 기본은 서버 꺼짐. 서버는 살아 있는 오류(문장 해석 실패·시간 초과)는 다른 모양을 쓴다(시안 S1-d·S1-f) */
+  icon?: IconName;
+  /** 다시 시도 버튼 글. 같은 화면에 상자가 둘 뜰 수 있는 자리(E1)에서 무엇을 다시 하는지 구분하려고 */
+  retryLabel?: string;
 }
 
 /**
@@ -70,7 +74,7 @@ interface SystemErrorProps {
  * 키보드 사용자의 자리도 '다시 시도' 바로 앞으로 옮겨 주고, 다른 화면 바뀜(질문 카드 등)과
  * 같은 방식이다. 묶음은 제목을 이름으로 단 영역(region)으로 둔다.
  */
-export function SystemError({ title, children, onRetry }: SystemErrorProps) {
+export function SystemError({ title, children, onRetry, icon = "serverOff", retryLabel = "다시 시도" }: SystemErrorProps) {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const titleId = useId();
   useEffect(() => {
@@ -80,12 +84,12 @@ export function SystemError({ title, children, onRetry }: SystemErrorProps) {
   return (
     <section className={styles.system} aria-labelledby={titleId}>
       <h2 id={titleId} ref={titleRef} tabIndex={-1} className={styles.systemTitle}>
-        <Icon name="serverOff" size={18} />
+        <Icon name={icon} size={18} />
         {title}
       </h2>
       <div className={styles.systemBody}>{children}</div>
       <Button variant="secondary" onClick={onRetry}>
-        다시 시도
+        {retryLabel}
       </Button>
     </section>
   );
