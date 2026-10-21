@@ -97,18 +97,23 @@ export function Sidebar({ programs, apiBase, connected, onReset, confirmReset = 
           </ul>
         </section>
       )}
+      {/* 상품 목록을 받지 못하면 '상품 id' 항목도 뺀다. 빈 항목 제목만 남지 않게(위 묶음과 같은 규칙) */}
       <details className={styles.dev}>
         <summary>
           <Icon name="chevronRight" size={14} />
-          개발자 정보 (API 주소, 상품 id)
+          {programs.length > 0 ? "개발자 정보 (API 주소, 상품 id)" : "개발자 정보 (API 주소)"}
         </summary>
         <dl>
           <dt>API 주소</dt>
           <dd>{apiBase}</dd>
-          <dt>상품 id</dt>
-          {programs.map((p) => (
-            <dd key={p.program_id}>{p.program_id}</dd>
-          ))}
+          {programs.length > 0 && (
+            <>
+              <dt>상품 id</dt>
+              {programs.map((p) => (
+                <dd key={p.program_id}>{p.program_id}</dd>
+              ))}
+            </>
+          )}
         </dl>
       </details>
       <hr className={styles.rule} />

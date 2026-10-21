@@ -84,9 +84,11 @@ describe("사이드바", () => {
     expect(screen.queryByText("지우지 못했습니다. 잠시 뒤 다시 눌러 주세요")).not.toBeInTheDocument();
   });
 
-  it("상품 목록이 비어 있으면(받지 못함) 상품 묶음 제목도 그리지 않는다", () => {
-    render(<Sidebar programs={[]} apiBase="" connected={false} onReset={() => {}} />);
+  it("상품 목록이 비어 있으면(받지 못함) 상품 묶음 제목도, 개발자 정보의 '상품 id' 항목도 그리지 않는다", () => {
+    render(<Sidebar programs={[]} apiBase="http://127.0.0.1:8000" connected={false} onReset={() => {}} />);
     expect(screen.queryByText("판정에 쓰는 상품")).not.toBeInTheDocument();
+    const dev = screen.getByText("http://127.0.0.1:8000").closest("details")!;
+    expect(dev).not.toHaveTextContent("상품 id");
   });
 
   it("연결을 확인하기 전에는 연결됐다고 말하지 않는다", () => {
