@@ -624,4 +624,17 @@ describe("S2 계산", () => {
     });
     expect(splitRejection("없는 항목입니다: foo", ["foo"], FIELDS)).toEqual({ byField: {}, rest: ["없는 항목입니다: foo"] });
   });
+
+  it("서버가 실제로 내는 모양 — 선택지 이름표가 괄호로 붙은 사유(쉼표가 섞여도 한 칸의 사유로 남는다)", () => {
+    // api.py set_fields: 항목마다 `이름표: 사유`, 선택지 항목은 사유 뒤에 (이름표, 이름표), 항목 사이는 `; `
+    const message =
+      "값이 맞지 않습니다 — 생애최초 주택구입: 예·아니오로 골라 주세요; 세대주 여부: 정해진 선택지 가운데서 골라 주세요(세대주임, 세대주 예정)";
+    expect(splitRejection(message, ["household_head_status", "is_first_time_buyer"], FIELDS)).toEqual({
+      byField: {
+        household_head_status: "정해진 선택지 가운데서 골라 주세요(세대주임, 세대주 예정)",
+        is_first_time_buyer: "예·아니오로 골라 주세요",
+      },
+      rest: [],
+    });
+  });
 });
