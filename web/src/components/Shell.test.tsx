@@ -107,14 +107,17 @@ describe("사이드바", () => {
     expect(screen.getByText(/'내 기록 지우기'로 서버에서 지울 수 있습니다/)).toBeInTheDocument();
   });
 
-  it("전체 초기화는 지울 것이 있으면 확인 창(M1)을 거치고, 계속하기가 기본 초점이다", async () => {
+  it("전체 초기화는 지울 것이 있으면 초기화 확인 창을 거치고, 계속하기가 기본 초점이다", async () => {
     const user = userEvent.setup();
     const onReset = vi.fn();
     render(<Sidebar programs={programs} apiBase="" connected confirmReset onReset={onReset} />);
 
     await user.click(screen.getByRole("button", { name: "전체 초기화" }));
     const dialog = screen.getByRole("alertdialog", { name: "처음으로 돌아갈까요?" });
-    expect(dialog).toHaveTextContent("서버에 남은 기록은 지워지지 않습니다");
+    // 서버 기록은 지우지 않는다는 RESET_NOTE를 그대로 쓰고, 적은 문장도 지워진다는 말을 더한다
+    expect(dialog).toHaveTextContent(
+      "이 화면의 입력과 결과를 지우고 처음으로 돌아갑니다. 서버에 남은 기록은 지워지지 않습니다. 적어 두신 문장도 지워집니다.",
+    );
     expect(screen.getByRole("button", { name: "계속하기" })).toHaveFocus();
     await user.click(screen.getByRole("button", { name: "계속하기" }));
     expect(onReset).not.toHaveBeenCalled();

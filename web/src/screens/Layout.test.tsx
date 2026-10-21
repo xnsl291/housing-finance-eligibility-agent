@@ -53,7 +53,7 @@ describe("연결 상태", () => {
 const SENTENCE = "만 31세이고 연봉 5천입니다.";
 
 describe("사이드바 — 전체 초기화와 내 기록 지우기", () => {
-  it("전체 초기화는 확인(M1) 뒤 적은 문장을 비우고 첫 화면으로 간다. 서버에는 아무것도 보내지 않는다", async () => {
+  it("전체 초기화는 초기화 확인 뒤 적은 문장을 비우고 첫 화면으로 간다. 서버에는 아무것도 보내지 않는다", async () => {
     const user = userEvent.setup();
     const server = fakeServer();
     renderApp("/write");
