@@ -298,15 +298,38 @@ function FieldInput({ info, initial, value, error, onChange }: FieldInputProps) 
         />
       );
     default:
-      return (
-        <TextField
-          {...common}
-          value={value === null ? null : String(value)}
-          // 빈칸만 친 것은 빈칸이다. 서버는 빈 글을 거절한다
-          onChange={(v) => onChange(v === null || v.trim() === "" ? null : v)}
-        />
-      );
+      return <TextInput {...common} initial={initial === null ? null : String(initial)} onChange={onChange} />;
   }
+}
+
+/**
+ * 글 칸. 칸에는 친 그대로 두고, 값은 앞뒤 공백을 떼어 알린다 — 읽은 값 뒤에 공백만 붙인 것을 '고친 값'으로
+ * 보내지 않게. 칸의 글까지 떼면(제어 값을 다듬으면) 낱말 사이 공백을 칠 수 없어 칸이 글을 따로 든다.
+ * 빈칸만 친 것은 빈칸이다. 서버는 빈 글을 거절한다
+ */
+function TextInput({
+  initial,
+  onChange,
+  ...common
+}: {
+  label: string;
+  help?: string;
+  error: string | null;
+  initial: string | null;
+  onChange: (value: Value) => void;
+}) {
+  const [text, setText] = useState(initial);
+  return (
+    <TextField
+      {...common}
+      value={text}
+      onChange={(v) => {
+        setText(v);
+        const trimmed = v?.trim() ?? "";
+        onChange(trimmed === "" ? null : trimmed);
+      }}
+    />
+  );
 }
 
 /**

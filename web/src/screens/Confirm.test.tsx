@@ -439,6 +439,37 @@ describe("S2 칸 종류 (설계서 7.2 S2 열)", () => {
   });
 });
 
+describe("S2 글 칸 앞뒤 공백", () => {
+  it("읽은 값에 공백만 붙이면 바뀌지 않은 것으로 보고 보내지 않는다", async () => {
+    const user = userEvent.setup();
+    const spy = server();
+    await open();
+
+    await user.click(screen.getByRole("button", { name: "주택 소재지 고치기" }));
+    await user.type(screen.getByRole("textbox", { name: "주택 소재지" }), "  ");
+    await user.click(nextButton());
+
+    expect(location()).toHaveTextContent("/s/s-1/questions");
+    expect(callsTo(spy, PUT)).toHaveLength(0);
+  });
+
+  it("앞뒤 공백은 떼고 보내고, 낱말 사이 공백은 칠 수 있다", async () => {
+    const user = userEvent.setup();
+    const spy = server();
+    await open();
+
+    await user.click(screen.getByRole("button", { name: "주택 소재지 고치기" }));
+    const input = screen.getByRole("textbox", { name: "주택 소재지" });
+    await user.clear(input);
+    await user.type(input, " 부산 해운대 ");
+    expect(input).toHaveValue(" 부산 해운대 ");
+    await user.click(nextButton());
+
+    await vi.waitFor(() => expect(location()).toHaveTextContent("/s/s-1/questions"));
+    expect(sentBody(spy)).toEqual({ values: { region_name: "부산 해운대" } });
+  });
+});
+
 describe("S2 들어오는 길", () => {
   it("새로 고침 등으로 라우터 state가 없으면 경고 없이 그린다(오류 아님)", async () => {
     server();
