@@ -56,11 +56,13 @@ type Handler = (init: RequestInit | undefined) => Response | Promise<Response>;
 
 /**
  * "메서드 주소" → 응답. 처리기가 던지면 fetch가 던진 것으로 본다(TypeError = 연결 안 됨).
- * 상품 목록, 연결 상태, 항목 목록(FIELDS)은 기본으로 정상 응답한다. 세션 상태(GET /v1/sessions/:id)는
- * 등록하지 않으면 값이 하나도 없는 세션으로 답한다 — S1 테스트가 S2를 거쳐 가도 화면이 그려지게.
- * 그 밖에 등록하지 않은 주소는 404.
+ * 상품 목록, 연결 상태, 항목 목록(FIELDS)은 기본으로 정상 응답한다. 그 밖에 등록하지 않은 주소는
+ * 실제 서버처럼 404다 — 세션 상태(GET /v1/sessions/:id)도 등록하지 않으면 404(없는 세션)다.
+ * emptySession을 켜면 등록하지 않은 세션 상태를 값이 하나도 없는 세션으로 답한다. S1 테스트처럼
+ * S2로 넘어가는 것까지만 보고 S2의 내용은 보지 않는 테스트용이다. 기본으로 켜 두면 세션 상태를
+ * 등록하지 않은 테스트도 S2가 멀쩡히 그려져, 실제로는 '기록을 찾을 수 없습니다'가 뜰 자리를 놓친다.
  */
-export function fakeServer(routes: Record<string, Handler> = {}) {
+export function fakeServer(routes: Record<string, Handler> = {}, { emptySession = false } = {}) {
   const all: Record<string, Handler> = {
     "GET /health": () => json({ status: "ok", programs: PROGRAMS.map((p) => p.program_id) }),
     "GET /v1/programs": () => json({ programs: PROGRAMS }),
@@ -71,7 +73,7 @@ export function fakeServer(routes: Record<string, Handler> = {}) {
     const key = `${init?.method ?? "GET"} ${String(url)}`;
     const handler = all[key];
     const session = /^GET \/v1\/sessions\/([^/]+)$/.exec(key);
-    if (!handler && session) return json({ session_id: decodeURIComponent(session[1]), values: {} });
+    if (!handler && session && emptySession) return json({ session_id: decodeURIComponent(session[1]), values: {} });
     if (!handler) return json({ detail: "없는 경로" }, 404);
     return handler(init);
   });

@@ -128,7 +128,7 @@ describe("S1 조건 읽기", () => {
     const server = fakeServer({
       "POST /v1/sessions": sessions(),
       "POST /v1/sessions/s-1/messages": () => extracted("s-1"),
-    });
+    }, { emptySession: true });
     renderApp("/write");
     await user.type(box(), SENTENCE);
     await user.click(readButton());
@@ -150,7 +150,7 @@ describe("S1 조건 읽기", () => {
     fakeServer({
       "POST /v1/sessions": sessions(),
       "POST /v1/sessions/s-1/messages": () => new Promise<Response>((resolve) => (answer = resolve)),
-    });
+    }, { emptySession: true });
     renderApp("/write");
     await user.type(box(), SENTENCE);
     await user.click(readButton());
@@ -202,7 +202,7 @@ describe("S1 조건 읽기", () => {
     const server = fakeServer({
       "POST /v1/sessions": sessions(),
       "POST /v1/sessions/s-1/messages": () => extracted("s-1"),
-    });
+    }, { emptySession: true });
     renderApp("/write");
     await user.type(box(), SENTENCE);
 
@@ -223,7 +223,7 @@ describe("S1 조건 읽기", () => {
     fakeServer({
       "POST /v1/sessions": sessions(),
       "POST /v1/sessions/s-1/messages": () => extracted("s-1"),
-    });
+    }, { emptySession: true });
     renderApp("/write");
     await user.type(box(), SENTENCE);
     await user.click(readButton());
@@ -464,7 +464,7 @@ describe("S1 실패 — 종류마다 다르게 말하고, 적은 문장은 그�
       "POST /v1/sessions": sessions(),
       "POST /v1/sessions/s-1/messages": () => json({ detail: "조건을 읽지 못했습니다: 형식 오류" }, 503),
       "POST /v1/sessions/s-2/messages": () => extracted("s-2"),
-    });
+    }, { emptySession: true });
     renderApp("/write");
     await user.type(box(), SENTENCE);
     await user.click(readButton());

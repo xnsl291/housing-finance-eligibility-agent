@@ -109,7 +109,7 @@ describe("사이드바 — 전체 초기화와 내 기록 지우기", () => {
       "POST /v1/sessions": () => json({ session_id: "s-1" }, 201),
       "POST /v1/sessions/s-1/messages": () => json({ session_id: "s-1", values: {}, warnings: [], unreadable: {} }),
       "DELETE /v1/sessions/s-1": () => json({ session_id: "s-1", deleted: true }),
-    });
+    }, { emptySession: true });
     renderApp("/write");
     await user.type(screen.getByRole("textbox", { name: "상황을 자유롭게 적어 주세요" }), SENTENCE);
     await user.click(screen.getByRole("button", { name: "조건 읽기" }));
@@ -129,7 +129,7 @@ describe("사이드바 — 전체 초기화와 내 기록 지우기", () => {
 
   it("지우기가 실패하면 첫 화면으로 가지 않고 창 안에 다시 누르라고 알린다", async () => {
     const user = userEvent.setup();
-    fakeServer({ "DELETE /v1/sessions/s-7": () => json({ detail: "고장" }, 500) });
+    fakeServer({ "DELETE /v1/sessions/s-7": () => json({ detail: "고장" }, 500) }, { emptySession: true });
     renderApp("/s/s-7/confirm");
     await user.click(screen.getByRole("button", { name: "내 기록 지우기" }));
     await user.click(screen.getByRole("button", { name: "지우기" }));
@@ -163,7 +163,7 @@ describe("내 기록 지우기 — 이 탭에서 연 세션을 모두 지운다"
       "POST /v1/sessions/s-2/messages": read("s-2"),
       "DELETE /v1/sessions/s-1": deleted("s-1"),
       "DELETE /v1/sessions/s-2": deleted("s-2"),
-    });
+    }, { emptySession: true });
     renderApp("/write");
     await user.type(box(), SENTENCE);
     await user.click(screen.getByRole("button", { name: "조건 읽기" }));
@@ -183,7 +183,7 @@ describe("내 기록 지우기 — 이 탭에서 연 세션을 모두 지운다"
       "POST /v1/sessions": sessions(),
       "POST /v1/sessions/s-1/messages": read("s-1"),
       "DELETE /v1/sessions/s-1": deleted("s-1"),
-    });
+    }, { emptySession: true });
     renderApp("/write");
     await user.type(box(), SENTENCE);
     await user.click(screen.getByRole("button", { name: "조건 읽기" }));
@@ -220,7 +220,7 @@ describe("내 기록 지우기 — 이 탭에서 연 세션을 모두 지운다"
       "POST /v1/sessions/s-2/messages": read("s-2"),
       "DELETE /v1/sessions/s-1": () => json({ detail: "세션을 찾을 수 없습니다" }, 404),
       "DELETE /v1/sessions/s-2": deleted("s-2"),
-    });
+    }, { emptySession: true });
     await readTwice(user);
 
     await deleteAll(user);
@@ -239,7 +239,7 @@ describe("내 기록 지우기 — 이 탭에서 연 세션을 모두 지운다"
       "POST /v1/sessions/s-2/messages": read("s-2"),
       "DELETE /v1/sessions/s-1": () => (broken ? json({ detail: "고장" }, 500) : deleted("s-1")()),
       "DELETE /v1/sessions/s-2": deleted("s-2"),
-    });
+    }, { emptySession: true });
     await readTwice(user);
 
     await deleteAll(user);
