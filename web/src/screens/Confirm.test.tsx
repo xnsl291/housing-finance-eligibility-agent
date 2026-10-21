@@ -76,8 +76,9 @@ describe("S2 근거 한 줄 — 값이 어디서 왔는지", () => {
     );
     expect(row("임차보증금")).toHaveTextContent("1억 8,000만원");
     expect(row("주택 소재지")).toHaveTextContent("직접 넣은 값");
-    // 못 쓴 원문: 칸은 빈 채(모름) + 경고
-    expect(row("전용면적")).toHaveTextContent("모름");
+    // 못 쓴 원문: 칸은 빈 채 + 경고. 사용자가 모른다고 한 것이 아니므로 '모름'이 아니라 '(비어 있음)'
+    expect(row("전용면적")).toHaveTextContent("(비어 있음)");
+    expect(row("전용면적")).not.toHaveTextContent("모름");
     expect(row("전용면적")).toHaveTextContent("전용면적: “25평”은 그대로 쓸 수 없습니다. 직접 넣어 주세요");
     // 개인정보 경고
     expect(screen.getByText("주민등록번호로 보이는 내용이 있어 저장하지 않았습니다")).toBeInTheDocument();
@@ -97,6 +98,10 @@ describe("S2 근거 한 줄 — 값이 어디서 왔는지", () => {
     await user.clear(input);
     expect(row("임차보증금")).toHaveTextContent("읽은 값을 비웠습니다 — 모름으로 봅니다");
     expect(row("임차보증금")).not.toHaveTextContent("고친 값");
+    // 사용자가 비운 값은 닫힌 줄에서 '모름'으로 보인다(못 쓴 원문의 '(비어 있음)'과 다르다)
+    await user.click(within(row("임차보증금")).getByRole("button", { name: "닫기" }));
+    expect(within(row("임차보증금")).getByText("모름")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "임차보증금 고치기" }));
 
     // 처음 값으로 되돌리면 다시 '읽음'
     await user.type(input, "18000");

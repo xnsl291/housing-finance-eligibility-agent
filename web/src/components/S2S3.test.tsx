@@ -111,6 +111,20 @@ describe("읽은 항목 줄의 빈 값", () => {
     expect(screen.getByText("모름", { selector: "span" })).toBeInTheDocument();
     expect(container).not.toHaveTextContent("(비어 있음)");
   });
+
+  it("빈 값 글을 따로 주면(못 쓴 원문 줄) 그 글로 보인다", () => {
+    render(
+      <ReadItemRow
+        label="전용면적"
+        value={null}
+        emptyLabel="(비어 있음)"
+        provenance={null}
+        editor={<TextField label="전용면적" value={null} onChange={() => {}} />}
+      />,
+    );
+    expect(screen.getByText("(비어 있음)", { selector: "span" })).toBeInTheDocument();
+    expect(screen.queryByText("모름", { selector: "span" })).not.toBeInTheDocument();
+  });
 });
 
 describe("질문 카드", () => {

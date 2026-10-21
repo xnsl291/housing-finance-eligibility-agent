@@ -151,6 +151,8 @@ export function ConfirmForm({ sessionId, catalog, held, warnings, unreadable, of
               key={name}
               label={catalog[name].label}
               value={showValue(catalog[name], current(name))}
+              // 못 쓴 원문 줄의 빈 값은 사용자가 모른다고 한 것이 아니다
+              emptyLabel={name in unreadable && !held[name] ? "(비어 있음)" : undefined}
               problem={hasProblem(name)}
               provenance={
                 <RowNotes

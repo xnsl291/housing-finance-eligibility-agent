@@ -27,6 +27,11 @@ interface ReadItemRowProps {
    * 드롭다운 첫 칸("— 모름 —")이 같은 상태를 '모름'이라 부르므로 여기도 같은 말을 쓴다
    */
   value: string | null;
+  /**
+   * value가 null일 때 '모름' 대신 보일 글. 문장에서 읽었지만 쓸 수 없었던 항목(S2 못 쓴 원문)은 사용자가
+   * 모른다고 한 것이 아니라 비어 있을 뿐이라 '(비어 있음)'을 준다(시안 S2)
+   */
+  emptyLabel?: string;
   unit?: string;
   /** 근거 한 줄(<Provenance>) */
   provenance: ReactNode;
@@ -36,7 +41,7 @@ interface ReadItemRowProps {
   problem?: boolean;
 }
 
-export function ReadItemRow({ label, value, unit, provenance, editor, problem = false }: ReadItemRowProps) {
+export function ReadItemRow({ label, value, emptyLabel = "모름", unit, provenance, editor, problem = false }: ReadItemRowProps) {
   const [open, setOpen] = useState(false);
   const editRef = useRef<HTMLButtonElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -63,7 +68,7 @@ export function ReadItemRow({ label, value, unit, provenance, editor, problem = 
           <span className={styles.chip}>고치는 중</span>
         ) : (
           <>
-            <span className={`${styles.value} ${value === null ? styles.empty : ""} num`}>{value ?? "모름"}</span>
+            <span className={`${styles.value} ${value === null ? styles.empty : ""} num`}>{value ?? emptyLabel}</span>
             {unit && value !== null && <span className={styles.unit}>{unit}</span>}
           </>
         )}
