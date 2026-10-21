@@ -276,7 +276,7 @@ describe("S2 입력 오류 — 버튼 잠김", () => {
 
     await editIncome(user, "4500", "");
     expect(nextButton()).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByText("부부합산 총소득: 최소와 최대를 모두 적어 주세요")).toBeInTheDocument();
+    expect(screen.getByText("부부합산 총소득: 범위는 두 칸을 모두 채우거나 모두 비워 주세요")).toBeInTheDocument();
   });
 
   it("금액을 못 읽으면 잠긴다", async () => {

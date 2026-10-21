@@ -122,7 +122,7 @@ export function RangeField({ label, defaultValue, onChange, error }: RangeFieldP
     <fieldset
       className={styles.field}
       onBlur={(e) => {
-        // 최소 칸을 채우고 최대 칸으로 가는 중에 "모두 적어 주세요"를 띄우면 아직 적는 사람을
+        // 최소 칸을 채우고 최대 칸으로 가는 중에 "모두 채우거나 모두 비워 주세요"를 띄우면 아직 적는 사람을
         // 나무라는 꼴이다. 초점이 두 칸 묶음 밖으로 나갔을 때만 떠난 것으로 본다
         // (React onBlur는 focusout처럼 올라오고, relatedTarget이 새로 초점을 받은 곳이다)
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setLeft(true);
@@ -152,7 +152,7 @@ function readRange(lowText: string, highText: string): { value: AmountRange | nu
   if ("error" in high) return { value: null, problem: `최대: ${high.error}` };
   if (low.won === null && high.won === null) return { value: null, problem: null };
   // 한 칸만 채우면 범위가 아니다. 빈 칸을 0이나 다른 칸 값으로 채우지 않는다(G5)
-  if (low.won === null || high.won === null) return { value: null, problem: "최소와 최대를 모두 적어 주세요" };
+  if (low.won === null || high.won === null) return { value: null, problem: "범위는 두 칸을 모두 채우거나 모두 비워 주세요" };
   if (low.won > high.won) return { value: null, problem: "최소가 최대보다 큽니다" };
   // 같은 값이면 정확한 값(위 RangeField 설명)
   if (low.won === high.won) return { value: low.won, problem: null };

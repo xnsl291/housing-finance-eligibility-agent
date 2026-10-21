@@ -93,7 +93,7 @@ describe("범위 칸 (G6)", () => {
     render(<RangeField label="부부합산 총소득" onChange={onChange} />);
 
     await user.type(screen.getByLabelText("부부합산 총소득 최소"), "4500");
-    expect(onChange).toHaveBeenLastCalledWith(null, "최소와 최대를 모두 적어 주세요");
+    expect(onChange).toHaveBeenLastCalledWith(null, "범위는 두 칸을 모두 채우거나 모두 비워 주세요");
 
     await user.type(screen.getByLabelText("부부합산 총소득 최대"), "5천");
     expect(onChange).toHaveBeenLastCalledWith({ low: 45_000_000, high: 50_000_000 }, null);
@@ -125,12 +125,12 @@ describe("범위 칸 (G6)", () => {
     await user.type(low, "4500");
     await user.tab();
     expect(screen.getByLabelText("소득 최대")).toHaveFocus();
-    expect(screen.queryByText("최소와 최대를 모두 적어 주세요")).not.toBeInTheDocument();
+    expect(screen.queryByText("범위는 두 칸을 모두 채우거나 모두 비워 주세요")).not.toBeInTheDocument();
     expect(low).not.toHaveAttribute("aria-invalid");
 
     await user.tab();
     expect(screen.getByRole("button", { name: "다음" })).toHaveFocus();
-    expect(screen.getByText("최소와 최대를 모두 적어 주세요")).toBeInTheDocument();
+    expect(screen.getByText("범위는 두 칸을 모두 채우거나 모두 비워 주세요")).toBeInTheDocument();
     expect(low).toHaveAttribute("aria-invalid", "true");
   });
 
