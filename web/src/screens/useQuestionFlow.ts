@@ -51,7 +51,11 @@ export function useQuestionFlow(sessionId: string) {
       const mine = ++seq.current;
       if (skeleton) setLoad({ kind: "loading" });
       try {
-        const [next, held] = await Promise.all([api.next(sessionId), api.session(sessionId).catch(() => null)]);
+        // 함께(Promise.all) 부르지 않고 차례로 부른다. 서버가 세션 저장소(SQLite) 연결 하나를 잠금 없이 여러 요청에
+        // 나눠 쓰고 있어, 같은 세션을 동시에 두 번 읽으면 한쪽이 500("bad parameter or other API misuse")이 되고 다른
+        // 쪽이 있는 세션을 404로 답한 일이 실제로 있었다(2026-10-21 브라우저 확인). 404는 E2(기록 없음)로 보이므로 치명적이다
+        const next = await api.next(sessionId);
+        const held = await api.session(sessionId).catch(() => null);
         if (!alive.current || mine !== seq.current) return;
         setHasValues(held === null ? null : Object.keys(held.values).length > 0);
         if (next.action === "RESULT") {

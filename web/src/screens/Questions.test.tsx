@@ -169,7 +169,8 @@ describe("S3 모르겠어요와 확인 수", () => {
 
     expect(sentBodies(spy, DECLINE)).toEqual([{ field: "household_head_status" }]);
     expect(callsTo(spy, PUT)).toHaveLength(0);
-    expect(await screen.findByTestId("location")).toHaveTextContent("/s/s-1/result");
+    // 기록 → 다음 질문 → 세션 상태를 차례로 기다린 뒤 옮겨 가므로 바로 보지 않고 기다린다
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/s/s-1/result"));
   });
 
   it("답하거나 모른다고 할 때마다 확인 수가 1 늘고, 진행 줄에 질문 총 개수·남은 개수를 쓰지 않는다 (N3)", async () => {
