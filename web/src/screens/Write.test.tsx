@@ -141,7 +141,7 @@ describe("S1 조건 읽기", () => {
       unreadable: { exclusive_area: "25평" },
     });
     // 초점은 화면이 그려진 뒤의 효과(effect)에서 옮겨지므로 기다린다
-    await vi.waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "읽은 내용 확인" })).toHaveFocus());
+    await vi.waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "이렇게 읽었습니다" })).toHaveFocus());
   });
 
   it("기다리는 동안 '문장을 읽고 있습니다'를 보이고 칸을 고칠 수 없다", async () => {

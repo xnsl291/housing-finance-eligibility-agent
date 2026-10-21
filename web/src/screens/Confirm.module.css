@@ -1,0 +1,149 @@
+/* S2 읽은 내용 확인. 크기·색은 시안 S2(MfKqY)·S2-a·S2-b·S2-c 내보내기에서 옮김 */
+.line {
+  display: block;
+}
+
+/* 개인정보 경고(시안 S2-c). 회색 상자 + 자물쇠. 판정 색을 쓰지 않는다 */
+.warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 14px 18px;
+  background: var(--chip-bg);
+  border-radius: var(--r-sm);
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+
+.read {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sectionLabel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--ink-3);
+}
+
+.count {
+  padding: 2px 7px;
+  background: var(--chip-bg);
+  border-radius: var(--r-chip);
+  letter-spacing: 0;
+  color: var(--ink);
+}
+
+/* 쓸 수 없었던 원문 경고. 근거 줄과 같은 자리·크기 */
+.unreadable {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.emptyTitle {
+  margin: 0;
+}
+
+.disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.emptyLead {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+/* 비어 있는 항목은 3열(시안 S2-a). 한 열이면 '작성하는 화면'처럼 길어진다 */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px 14px;
+}
+
+.errors:empty {
+  display: none;
+}
+
+.errors {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.errorGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.errorTitle {
+  font-size: 13px;
+  color: var(--err-fg);
+}
+
+.errorItems {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--err-fg);
+}
+
+.errorItems li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.buttons {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}

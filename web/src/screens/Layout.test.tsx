@@ -206,7 +206,8 @@ describe("내 기록 지우기 — 이 탭에서 연 세션을 모두 지운다"
     await user.type(box(), SENTENCE);
     await user.click(screen.getByRole("button", { name: "조건 읽기" }));
     await vi.waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/s/s-1/confirm"));
-    await user.click(screen.getByRole("button", { name: "문장 다시 쓰기" }));
+    // S2는 항목 목록과 세션을 받은 뒤에 버튼을 그린다
+    await user.click(await screen.findByRole("button", { name: "문장 다시 쓰기" }));
     await user.click(screen.getByRole("button", { name: "조건 읽기" }));
     await vi.waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/s/s-2/confirm"));
   }
