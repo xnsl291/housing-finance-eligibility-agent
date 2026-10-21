@@ -195,7 +195,9 @@ describe("S2 보내기 — 바뀐 값만", () => {
     // 기다리는 동안 버튼 글이 '보내는 중'으로 바뀌므로 요소를 먼저 잡아 둔다
     const button = nextButton();
     await user.click(button);
+    // 보내는 중 표시(Button 부품의 busy): 글이 바뀌고 aria-busy가 붙는다
     expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button).toHaveTextContent("보내는 중");
     await user.click(button);
     expect(callsTo(spy, PUT)).toHaveLength(1);
 
