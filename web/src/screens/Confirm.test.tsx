@@ -290,20 +290,32 @@ describe("S2 입력 오류 — 버튼 잠김", () => {
     expect(screen.getByText(/^임차보증금: 금액을 알아볼 수 없습니다/)).toBeInTheDocument();
   });
 
-  it("범위 두 칸 아래에 억·만 범위 표기와 안내가 붙고(결함 D12), 같은 값을 넣으면 그 범위로 보낸다", async () => {
+  it("범위 두 칸 아래에 억·만 범위 표기와 안내가 붙는다 (결함 D12)", async () => {
+    const user = userEvent.setup();
+    server();
+    await open();
+
+    await editIncome(user, "4600", "4800");
+    const income = row("부부합산 총소득");
+    expect(income).toHaveTextContent("4,600만~4,800만원");
+    expect(income).toHaveTextContent("정확한 값을 아시면 두 칸에 같은 값을 넣어 주세요");
+    expect(income).toHaveTextContent("고친 값 (읽은 값: 4,500만~5,000만원)");
+  });
+
+  it("두 칸에 같은 값을 넣으면 범위가 아니라 정확한 값(정수)으로 보낸다 — 서버 한도 계산은 정수만 받는다", async () => {
     const user = userEvent.setup();
     const spy = server();
     await open();
 
     await editIncome(user, "4800", "4800");
     const income = row("부부합산 총소득");
-    expect(income).toHaveTextContent("4,800만~4,800만원");
-    expect(income).toHaveTextContent("정확한 값을 아시면 두 칸에 같은 값을 넣어 주세요");
+    expect(income).toHaveTextContent("4,800만원");
+    expect(income).not.toHaveTextContent("4,800만~4,800만원");
     expect(income).toHaveTextContent("고친 값 (읽은 값: 4,500만~5,000만원)");
 
     await user.click(nextButton());
     await vi.waitFor(() => expect(location()).toHaveTextContent("/s/s-1/questions"));
-    expect(sentBody(spy)).toEqual({ values: { combined_annual_income_krw: { low: 48_000_000, high: 48_000_000 } } });
+    expect(sentBody(spy)).toEqual({ values: { combined_annual_income_krw: 48_000_000 } });
   });
 
   it("서버에 연결되지 않으면 고친 값은 둔 채 버튼만 잠그고, 연결이 돌아오면 푼다 (E1)", async () => {

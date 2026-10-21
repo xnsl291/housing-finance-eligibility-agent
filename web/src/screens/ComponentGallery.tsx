@@ -235,7 +235,7 @@ function FieldsDemo() {
 function AmountDemo() {
   const [deposit, setDeposit] = useState<number | null>(180_000_000);
   const [income, setIncome] = useState<number | null>(null);
-  const [range, setRange] = useState<AmountRange | null>({ low: 45_000_000, high: 50_000_000 });
+  const [range, setRange] = useState<AmountRange | number | null>({ low: 45_000_000, high: 50_000_000 });
   return (
     <div className={styles.grid3}>
       <div>

@@ -100,6 +100,18 @@ describe("범위 칸 (G6)", () => {
     expect(screen.getByText("4,500만~5,000만원")).toBeInTheDocument();
   });
 
+  it("두 칸에 같은 값을 넣으면 범위가 아니라 정확한 값(정수 하나)으로 넘기고, 표기도 한 값으로 보인다", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<RangeField label="소득" onChange={onChange} />);
+
+    await user.type(screen.getByLabelText("소득 최소"), "4800");
+    await user.type(screen.getByLabelText("소득 최대"), "4800");
+    expect(onChange).toHaveBeenLastCalledWith(48_000_000, null);
+    expect(screen.getByText("4,800만원")).toBeInTheDocument();
+    expect(screen.queryByText("4,800만~4,800만원")).not.toBeInTheDocument();
+  });
+
   it("최소 칸만 떠나 최대 칸으로 가면 오류를 띄우지 않고, 묶음 전체를 떠나면 보인다", async () => {
     const user = userEvent.setup();
     render(
