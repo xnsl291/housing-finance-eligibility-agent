@@ -86,6 +86,12 @@ export function Write() {
   const [pendingExample, setPendingExample] = useState<string | null>(null);
   // 상태는 다시 그려진 뒤에야 바뀌므로, 같은 순간 두 번 누름은 ref로 막는다
   const busy = useRef(false);
+  // '조건 읽기'·'다시 시도'를 누르면 그 버튼이 기다림 표시로 바뀌며 사라진다. 그대로 두면 키보드 초점이
+  // 페이지 밖(body)으로 떨어져 다음 Tab이 맨 위부터 시작한다. 기다림 표시로 초점을 옮긴다
+  const loadingRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (reading) loadingRef.current?.focus({ preventScroll: true });
+  }, [reading]);
   // 이 화면이 떠 있는가. 떠난 뒤 온 답은 버린다(머리말)
   const alive = useRef(true);
   useEffect(() => {
@@ -240,7 +246,9 @@ export function Write() {
 
       <section className={styles.actions} aria-label="보내기">
         {reading ? (
-          <LoadingSentence label="문장을 읽고 있습니다" />
+          <div ref={loadingRef} tabIndex={-1}>
+            <LoadingSentence label="문장을 읽고 있습니다" />
+          </div>
         ) : failure && text && !offline ? (
           <>
             <SystemError key={failure.id} title={text.title} icon={text.icon} onRetry={failure.action === "read" ? read : startDirect}>

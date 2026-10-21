@@ -163,6 +163,40 @@ describe("S1 조건 읽기", () => {
     await vi.waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/s/s-1/confirm"));
   });
 
+  it("조건 읽기를 누르면 버튼이 기다림 표시로 바뀌어도 키보드 초점이 페이지 밖(body)으로 떨어지지 않는다", async () => {
+    const user = userEvent.setup();
+    fakeServer({
+      "POST /v1/sessions": sessions(),
+      "POST /v1/sessions/s-1/messages": () => new Promise<Response>(() => {}),
+    });
+    renderApp("/write");
+    await user.type(box(), SENTENCE);
+    readButton().focus();
+    await user.keyboard("{Enter}");
+
+    const loading = await screen.findByText("문장을 읽고 있습니다");
+    expect(document.activeElement).not.toBe(document.body);
+    expect(document.activeElement).toContainElement(loading);
+  });
+
+  it("실패 뒤 다시 시도를 누르면 상자가 사라져도 초점이 body로 떨어지지 않는다", async () => {
+    const user = userEvent.setup();
+    fakeServer({
+      "POST /v1/sessions": sessions(),
+      "POST /v1/sessions/s-1/messages": () => json({ detail: "조건을 읽지 못했습니다" }, 503),
+      "POST /v1/sessions/s-2/messages": () => new Promise<Response>(() => {}),
+    });
+    renderApp("/write");
+    await user.type(box(), SENTENCE);
+    await user.click(readButton());
+    const region = await screen.findByRole("region", { name: "조건을 읽지 못했습니다" });
+
+    within(region).getByRole("button", { name: "다시 시도" }).focus();
+    await user.keyboard("{Enter}");
+    await screen.findByText("문장을 읽고 있습니다");
+    expect(document.activeElement).not.toBe(document.body);
+  });
+
   it("같은 순간 두 번 눌러도 한 번만 보낸다", async () => {
     const user = userEvent.setup();
     const server = fakeServer({
