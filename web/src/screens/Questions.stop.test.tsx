@@ -41,7 +41,8 @@ describe("S3 실패 — 화면이 거기서 끝나지 않는다 (결함 D15)", (
     await user.click(screen.getByRole("button", { name: "답하기" }));
 
     const box = (await screen.findByRole("heading", { name: "다음 질문을 받지 못했습니다" })).closest("section")!;
-    expect(box).toHaveTextContent("지금까지 답하신 1개는 서버에 그대로 있습니다.");
+    // 모르겠어요도 세므로 '답하신'이 아니라 '확인하신'
+    expect(box).toHaveTextContent("지금까지 확인하신 1개는 서버에 그대로 있습니다.");
     expect(stopButton()).toBeInTheDocument();
   });
 
@@ -59,7 +60,7 @@ describe("S3 실패 — 화면이 거기서 끝나지 않는다 (결함 D15)", (
     const box = (await screen.findByRole("heading", { name: "답을 저장하지 못했습니다" })).closest("section")!;
     expect(box).toHaveTextContent("고르신 답은 화면에 그대로 있습니다.");
     expect(screen.getByRole("radio", { name: "세대주 예정" })).toBeChecked();
-    expect(screen.getByText(/지금까지 0개 확인/)).toBeInTheDocument();
+    expect(screen.queryByText(/개 확인/)).not.toBeInTheDocument();
 
     fail = false;
     await user.click(within(box).getByRole("button", { name: "다시 시도" }));
@@ -200,7 +201,15 @@ describe("S3 실패 — 화면이 거기서 끝나지 않는다 (결함 D15)", (
     }
     await user.click(screen.getByRole("button", { name: "답하기" }));
     expect(callsTo(spy, PUT)).toHaveLength(1);
+
+    // 잠긴 이유는 카드 안에 한 줄만. 두 버튼이 그 줄을 같이 가리킨다(버튼마다 줄을 달면 같은 말을 거듭 읽음)
+    const c = screen.getByRole("region", { name: CHOICE_Q.label });
+    expect(within(c).getAllByText("서버에 연결되지 않아 지금은 보낼 수 없습니다.")).toHaveLength(1);
+    for (const name of ["답하기", "모르겠어요"]) {
+      expect(within(c).getByRole("button", { name })).toHaveAccessibleDescription("서버에 연결되지 않아 지금은 보낼 수 없습니다.");
+    }
   });
+
   it("다음 질문을 기다리는 동안 '다시 연결 확인'을 눌러도 다음 질문을 또 부르지 않는다", async () => {
     const user = userEvent.setup();
     let up = false;
@@ -249,7 +258,11 @@ describe("S3 멈추기와 되돌아가기", () => {
 
     await user.click(screen.getByRole("button", { name: "처음부터 다시" }));
     const dialog = screen.getByRole("alertdialog", { name: "처음부터 다시 할까요?" });
-    expect(dialog).toHaveTextContent("지금까지 고치고 답한 내용이 사라집니다. 처음부터 다시 할까요?");
+    // 서버 세션은 지우지 않으므로 '사라집니다'라고 하지 않는다(G12). 사이드바 전체 초기화 창과 같은 말
+    expect(dialog).toHaveTextContent(
+      "처음부터 다시 시작합니다. 지금까지 고치고 답한 값은 새 판정에 쓰지 않습니다. 서버에 남은 기록은 지워지지 않으며, ‘내 기록 지우기’로 지울 수 있습니다.",
+    );
+    expect(dialog).not.toHaveTextContent("사라집니다");
     // 적은 문장이 없는 탭(주소로 바로 옴)에서는 '문장은 남습니다'를 말하지 않는다
     expect(dialog).not.toHaveTextContent("적어 두신 문장은 남습니다");
     expect(within(dialog).getByRole("button", { name: "계속하기" })).toHaveFocus();

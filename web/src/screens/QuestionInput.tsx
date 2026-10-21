@@ -37,11 +37,13 @@ interface QuestionInputProps {
   question: Question;
   /** 선택지 묶음 이름으로 쓸 카드 제목 id */
   titleId: string;
+  /** 칸의 설명에 더할 줄의 id(카드 맨 아래 서버 거절 사유). 없으면 undefined */
+  describedBy: string | undefined;
   answer: Answer;
   onChange: (answer: Answer) => void;
 }
 
-export function QuestionInput({ question, titleId, answer, onChange }: QuestionInputProps) {
+export function QuestionInput({ question, titleId, describedBy, answer, onChange }: QuestionInputProps) {
   const { kind, label } = question;
   const set = (value: FieldValue | null, problem: string | null = null) => onChange({ value, problem });
 
@@ -51,6 +53,7 @@ export function QuestionInput({ question, titleId, answer, onChange }: QuestionI
     return (
       <ChoiceList
         labelledBy={titleId}
+        describedBy={describedBy}
         value={typeof answer.value === "string" ? answer.value : null}
         options={choices.map((code) => ({ value: code, label: labels[code] ?? code }))}
         onChange={(code) => set(code)}
@@ -65,24 +68,38 @@ export function QuestionInput({ question, titleId, answer, onChange }: QuestionI
           label={label}
           value={typeof answer.value === "boolean" ? answer.value : null}
           withUnknown={false}
+          describedBy={describedBy}
           onChange={(v) => set(typeof v === "boolean" ? v : null)}
         />
       ) : kind === "AMOUNT" ? (
-        <AmountField label={label} help="만원 단위로 적어 주세요. 예: 4800, 3억 2천" onChange={(won, p) => set(won, p)} />
+        <AmountField
+          label={label}
+          help="만원 단위로 적어 주세요. 예: 4800, 3억 2천"
+          describedBy={describedBy}
+          onChange={(won, p) => set(won, p)}
+        />
       ) : kind === "DATE" ? (
         <DateField
           label={label}
           help="날짜를 골라 주세요"
+          describedBy={describedBy}
           value={typeof answer.value === "string" ? answer.value : null}
           onChange={(v) => set(v)}
         />
       ) : kind === "INT" || kind === "FLOAT" ? (
-        <NumberField label={label} help="숫자로 적어 주세요" integer={kind === "INT"} onChange={(n, p) => set(n, p)} />
+        <NumberField
+          label={label}
+          help="숫자로 적어 주세요"
+          integer={kind === "INT"}
+          describedBy={describedBy}
+          onChange={(n, p) => set(n, p)}
+        />
       ) : (
         // 글(TEXT). 서버가 모르는 종류를 보내도 글 칸으로 받는다 — 서버가 422로 사유를 알려 준다
         <TextField
           label={label}
           help="적어 주세요"
+          describedBy={describedBy}
           value={typeof answer.value === "string" ? answer.value : null}
           // 치는 중에는 공백을 그대로 둔다. 앞뒤 공백은 보낼 때 뗀다(valueToSend)
           onChange={(v) => set(v)}

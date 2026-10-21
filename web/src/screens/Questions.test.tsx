@@ -91,6 +91,8 @@ describe("S3 답하기 — 칸 종류별로 서버에 보내는 값", () => {
     await user.type(screen.getByRole("textbox", { name: "임차보증금" }), "180000000");
     await user.click(screen.getByRole("button", { name: "답하기" }));
     expect(callsTo(spy, PUT)).toHaveLength(0);
+    // 아무것도 안 고른 것과 구분한다 — 칸에 적은 것이 있는데 "답을 고르거나 적으면"이라고 하지 않는다
+    expect(screen.getByRole("button", { name: "답하기" })).toHaveAccessibleDescription("위 칸의 입력을 고쳐 주세요");
   });
 
   it("예·아니오는 모름 칸 없이 예/아니오 라디오이고 true/false로 보낸다 (G4)", async () => {
@@ -149,13 +151,35 @@ describe("S3 답하기 — 칸 종류별로 서버에 보내는 값", () => {
     await user.click(screen.getByRole("button", { name: "답하기" }));
 
     expect(await within(card()).findByText(/고를 수 없는 값/)).toBeInTheDocument();
+    // 사람이 읽을 한 줄이 먼저, 서버가 보낸 사유는 그 뒤에(시안 S3-c)
+    expect(card()).toHaveTextContent(
+      "이 값으로는 저장하지 못했습니다. (서버가 보낸 사유: 값이 맞지 않습니다 — 세대주 여부: 고를 수 없는 값)",
+    );
+    // 선택지 묶음이 사유를 설명으로 가리킨다 — 화면 읽기 프로그램이 묶음에 들어가며 사유를 같이 읽는다
+    expect(screen.getByRole("radiogroup", { name: "세대주 여부" })).toHaveAccessibleDescription(/이 값으로는 저장하지 못했습니다/);
     expect(screen.getByRole("radio", { name: "세대주임" })).toBeChecked();
     expect(callsTo(spy, NEXT)).toHaveLength(1);
-    expect(screen.getByText(/지금까지 0개 확인/)).toBeInTheDocument();
+    expect(screen.queryByText(/개 확인/)).not.toBeInTheDocument();
 
     // 답을 바꾸면 지난 사유는 걷는다
     await user.click(screen.getByRole("radio", { name: "세대주 예정" }));
     expect(card()).not.toHaveTextContent("고를 수 없는 값");
+    expect(screen.getByRole("radiogroup", { name: "세대주 여부" })).not.toHaveAccessibleDescription(/저장하지 못했습니다/);
+  });
+
+  it("글로 적는 칸도 서버가 거절한 사유를 칸의 설명으로 연결한다", async () => {
+    const user = userEvent.setup();
+    const q: Question = { ...CHOICE_Q, field: "lease_deposit_krw", label: "임차보증금", kind: "AMOUNT", choices: null, choice_labels: null };
+    server({ [NEXT]: () => ask(q), [PUT]: () => json({ detail: "0원 이상의 금액으로 넣어 주세요" }, 422) });
+    await open("임차보증금");
+
+    await user.type(screen.getByRole("textbox", { name: "임차보증금" }), "4800");
+    await user.click(screen.getByRole("button", { name: "답하기" }));
+
+    await within(screen.getByRole("region", { name: "임차보증금" })).findByText(/0원 이상의 금액/);
+    expect(screen.getByRole("textbox", { name: "임차보증금" })).toHaveAccessibleDescription(
+      /이 값으로는 저장하지 못했습니다\. \(서버가 보낸 사유: 0원 이상의 금액으로 넣어 주세요\)/,
+    );
   });
 });
 
@@ -176,7 +200,7 @@ describe("S3 모르겠어요와 확인 수", () => {
   it("답하거나 모른다고 할 때마다 확인 수가 1 늘고, 진행 줄에 질문 총 개수·남은 개수를 쓰지 않는다 (N3)", async () => {
     const user = userEvent.setup();
     const age: Question = { ...CHOICE_Q, field: "age", label: "나이", kind: "INT", choices: null, choice_labels: null };
-    server({ [NEXT]: sequence(ask(CHOICE_Q), ask(age), ask(CHOICE_Q)) });
+    server({ [NEXT]: sequence(ask(CHOICE_Q), ask(age), ask(CHOICE_Q)) }, {});
     await open();
     expect(screen.getByText("판정에 필요한 것만 하나씩 여쭙니다 · 지금까지 0개 확인")).toBeInTheDocument();
 
@@ -191,6 +215,19 @@ describe("S3 모르겠어요와 확인 수", () => {
     expect(progress).not.toHaveTextContent(/\d+\s*개\s*중/);
     expect(progress).not.toHaveTextContent(/\d+\s*\/\s*\d+/);
     expect(progress).not.toHaveTextContent(/\d+\s*개\s*남/);
+  });
+
+  it("세션에 값이 있는데 이 화면에서 센 수가 0이면(새로 고친 뒤 등) '0개 확인'을 쓰지 않는다", async () => {
+    server({ [NEXT]: () => ask(CHOICE_Q) }, { age: 29 });
+    await open();
+    await waitFor(() => expect(screen.getByText(/판정에 필요한 것만 하나씩 여쭙니다/)).toHaveTextContent(/^판정에 필요한 것만 하나씩 여쭙니다$/));
+  });
+
+  it("모르겠어요 안내는 아직 없는 기능(결과 화면에서 값 넣기)을 약속하지 않는다", async () => {
+    server({ [NEXT]: () => ask(CHOICE_Q) });
+    await open();
+    expect(card()).toHaveTextContent("‘모르겠어요’를 고르면 이 항목은 다시 묻지 않습니다.");
+    expect(card()).not.toHaveTextContent("이 조건으로 판정했습니다");
   });
 
   it("같은 항목을 다시 물으면 초점이 다시 질문 제목으로 가고 칸이 비워진다", async () => {

@@ -6,6 +6,7 @@
  * - 빈칸은 null이다. 화면이 0이나 기본값을 채우지 않는다(G5)
  * - 오류는 칸 바로 아래 한 줄이고 칸과 연결한다(aria-describedby). 어느 칸의 오류인지
  *   화면 읽기 프로그램이 같이 읽는다(설계서 11.3)
+ * - 칸 밖에 있는 설명(질문 카드 맨 아래 서버 거절 사유 등)은 describedBy로 받아 칸의 설명에 더한다
  * - 글을 숫자로 바꾸는 칸(숫자·금액·범위)은 onChange(값, 오류)로 알린다. 못 알아본 글을
  *   빈칸으로 바꿔 넘기면 사용자가 적은 값이 조용히 사라지므로, 부모가 보내기를 막을 수 있게
  *   오류를 같이 넘긴다. 칸 스스로는 칸을 떠난 뒤에만 오류를 보인다(치는 중에 빨갛게 하지 않음).
@@ -32,13 +33,16 @@ interface FrameProps {
   children: (a11y: A11y) => ReactNode;
   /** 칸과 도움말 사이에 끼울 것(금액의 억·만 표기) */
   below?: ReactNode;
+  /** 칸 밖에 있는 설명 줄의 id(위 공통 약속) */
+  describedBy?: string;
 }
 
-export function FieldFrame({ label, help, error, group, children, below }: FrameProps) {
+export function FieldFrame({ label, help, error, group, children, below, describedBy: outside }: FrameProps) {
   const id = useId();
   const helpId = `${id}-help`;
   const errorId = `${id}-error`;
-  const describedBy = [error ? errorId : null, help ? helpId : null].filter(Boolean).join(" ") || undefined;
+  const describedBy =
+    [error ? errorId : null, outside ?? null, help ? helpId : null].filter(Boolean).join(" ") || undefined;
   const a11y = { id, describedBy, invalid: Boolean(error) };
 
   const body = (
@@ -96,11 +100,12 @@ interface TextFieldProps {
   onChange: (value: string | null) => void;
   help?: string;
   error?: string | null;
+  describedBy?: string;
 }
 
-export function TextField({ label, value, onChange, help, error }: TextFieldProps) {
+export function TextField({ label, value, onChange, help, error, describedBy }: TextFieldProps) {
   return (
-    <FieldFrame label={label} help={help} error={error}>
+    <FieldFrame label={label} help={help} error={error} describedBy={describedBy}>
       {(a) => (
         <div className={styles.box} data-invalid={a.invalid}>
           <input
@@ -126,19 +131,20 @@ interface NumberFieldProps {
   unit?: string;
   help?: string;
   error?: string | null;
+  describedBy?: string;
 }
 
 /**
  * 정수·소수 칸. type="number"를 쓰지 않는 이유: 브라우저가 못 알아본 글을 조용히 ""로
  * 바꿔 넘겨서, 사용자가 적은 값과 빈칸이 구분되지 않는다.
  */
-export function NumberField({ label, defaultValue, integer, onChange, unit, help, error }: NumberFieldProps) {
+export function NumberField({ label, defaultValue, integer, onChange, unit, help, error, describedBy }: NumberFieldProps) {
   const [text, setText] = useState(defaultValue == null ? "" : String(defaultValue));
   const [left, setLeft] = useState(false);
   const problem = numberProblem(text, integer);
 
   return (
-    <FieldFrame label={label} help={help} error={error ?? (left ? problem : null)}>
+    <FieldFrame label={label} help={help} error={error ?? (left ? problem : null)} describedBy={describedBy}>
       {(a) => (
         <div className={styles.box} data-invalid={a.invalid}>
           <input
@@ -218,12 +224,13 @@ interface DateFieldProps {
   onChange: (value: string | null) => void;
   help?: string;
   error?: string | null;
+  describedBy?: string;
 }
 
 /** 날짜는 달력으로만 받는다(D-34). 자유 입력이면 형식을 못 맞혀 질문이 그 항목에서 멈춘다 */
-export function DateField({ label, value, onChange, help, error }: DateFieldProps) {
+export function DateField({ label, value, onChange, help, error, describedBy }: DateFieldProps) {
   return (
-    <FieldFrame label={label} help={help} error={error}>
+    <FieldFrame label={label} help={help} error={error} describedBy={describedBy}>
       {(a) => (
         <div className={styles.box} data-invalid={a.invalid}>
           <input

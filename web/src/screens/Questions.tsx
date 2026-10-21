@@ -42,6 +42,9 @@ export function Questions() {
   const { load, answer, changeAnswer, rejected, saveFailure, retry, sending, hasValues, fetchNext, save } =
     useQuestionFlow(sessionId);
   const count = answeredCount(sessionId);
+  // 확인 수는 앱 메모리라 새로 고치면 0부터 센다(AppState.tsx). 세션에 값이 있는데 0이라고 쓰면 사실과 다르므로,
+  // 이 화면에서 센 것이 있거나 세션이 비어 있다고 확인됐을 때만 수를 쓴다
+  const showCount = count > 0 || hasValues === false;
 
   if (load.kind === "missing") return <Missing />;
 
@@ -66,7 +69,7 @@ export function Questions() {
       <div className={styles.progress}>
         <p className={styles.progressLine}>
           <Icon name="check" size={15} />
-          판정에 필요한 것만 하나씩 여쭙니다 · 지금까지 {count}개 확인
+          판정에 필요한 것만 하나씩 여쭙니다{showCount && ` · 지금까지 ${count}개 확인`}
         </p>
         <p className={styles.progressNote}>남은 질문 수는 답에 따라 달라집니다. 언제든 멈추고 결과를 볼 수 있습니다.</p>
       </div>
@@ -85,6 +88,7 @@ export function Questions() {
             known={load.known}
             howToCheck={load.question.how_to_check}
             answerReady={valueToSend(answer) !== null}
+            inputProblem={answer.problem !== null}
             lockedReason={offline ? OFFLINE_LOCK : undefined}
             // 다시 시도처럼 카드 밖에서 보내는 동안에도 카드 버튼을 잠근다
             sending={sending}
@@ -92,11 +96,12 @@ export function Questions() {
             onAnswer={() => save("answer")}
             onDecline={() => save("decline")}
           >
-            {(titleId) => (
+            {(titleId, describedBy) => (
               <QuestionInput
                 key={load.key}
                 question={load.question}
                 titleId={titleId}
+                describedBy={describedBy}
                 answer={answer}
                 onChange={changeAnswer}
               />
@@ -154,10 +159,12 @@ function StopActions({ sessionId, stopLock, dirty }: { sessionId: string; stopLo
         }}
         onCancel={() => setAskBack(false)}
       >
-        {/* 설계서 M1 문구. '사라집니다'는 이 흐름에서 더는 쓰이지 않는다는 뜻이다 — 서버 세션은 지우지 않으며, 이 탭에서
-            연 세션 목록에 남아 '내 기록 지우기'로 지울 수 있다(D-39, AppState.tsx). 적은 문장은 앱 메모리에 있어 S1 칸에
-            그대로 남는다. 직접 입력으로 시작했거나 새로 고친 뒤라 문장이 없으면 '남습니다'를 말하지 않는다(G12) */}
-        지금까지 고치고 답한 내용이 사라집니다. 처음부터 다시 할까요?
+        {/* 설계서 M1의 "사라집니다"는 쓰지 않는다. 이 버튼은 화면만 S1로 옮기고 서버 세션은 지우지 않으므로
+            사실과 다른 약속이 된다(G12). 사이드바 전체 초기화 창(RESET_NOTE "서버에 남은 기록은 지워지지 않습니다")과
+            같은 말을 쓰고, 지우는 길(내 기록 지우기 — backToWrite가 지킴)을 덧붙인다. 적은 문장은 앱 메모리에 있어
+            S1 칸에 그대로 남는다. 직접 입력으로 시작했거나 새로 고친 뒤라 문장이 없으면 '남습니다'를 말하지 않는다 */}
+        처음부터 다시 시작합니다. 지금까지 고치고 답한 값은 새 판정에 쓰지 않습니다. 서버에 남은 기록은 지워지지
+        않으며, ‘내 기록 지우기’로 지울 수 있습니다.
         {draft.trim() !== "" && " 적어 두신 문장은 남습니다."}
       </ConfirmDialog>
     </>
@@ -182,8 +189,8 @@ function NextFailed({ error, count, onRetry }: { error: unknown; count: number; 
   return (
     <SystemError title="다음 질문을 받지 못했습니다" icon={describeFailure(error, "start").icon} onRetry={onRetry}>
       {reasonLines(error)}
-      {/* 확인 수는 저장이 성공했을 때만 늘므로, 센 것은 서버에 있다 */}
-      {count > 0 && <span className={styles.line}>지금까지 답하신 {count}개는 서버에 그대로 있습니다.</span>}
+      {/* 확인 수는 저장이 성공했을 때만 늘므로, 센 것은 서버에 있다. 모르겠어요도 세므로 '답하신'이 아니라 '확인하신' */}
+      {count > 0 && <span className={styles.line}>지금까지 확인하신 {count}개는 서버에 그대로 있습니다.</span>}
       <span className={styles.line}>다시 시도하거나, 지금까지로 결과를 볼 수 있습니다.</span>
     </SystemError>
   );

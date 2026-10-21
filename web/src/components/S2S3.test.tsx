@@ -136,9 +136,11 @@ describe("질문 카드", () => {
     questionKey = "household_head_status:1",
     lockedReason,
     error,
+    inputProblem,
     sending,
   }: {
     ready: boolean;
+    inputProblem?: boolean;
     sending?: boolean;
     onAnswer?: () => void | Promise<unknown>;
     onDecline?: () => void | Promise<unknown>;
@@ -152,6 +154,7 @@ describe("질문 카드", () => {
         questionKey={questionKey}
         lockedReason={lockedReason}
         error={error}
+        inputProblem={inputProblem}
         sending={sending}
         title={title}
         why="남은 상품 2개 모두 이 값이 있어야 판정할 수 있습니다"
@@ -159,9 +162,10 @@ describe("질문 카드", () => {
         onAnswer={onAnswer}
         onDecline={onDecline}
       >
-        {(titleId) => (
+        {(titleId, describedBy) => (
           <ChoiceList
             labelledBy={titleId}
+            describedBy={describedBy}
             value={null}
             options={[
               { value: "HEAD", label: "세대주임" },
@@ -253,7 +257,11 @@ describe("질문 카드", () => {
 
     expect(onAnswer).not.toHaveBeenCalled();
     expect(onDecline).not.toHaveBeenCalled();
-    expect(screen.getAllByText("서버에 연결되지 않아 지금은 보낼 수 없습니다")).toHaveLength(2);
+    // 같은 이유를 버튼마다 적지 않고 한 줄만. 두 버튼이 그 줄을 설명으로 가리킨다(E1 상자가 이미 위에 있음)
+    expect(screen.getAllByText("서버에 연결되지 않아 지금은 보낼 수 없습니다")).toHaveLength(1);
+    for (const name of ["답하기", "모르겠어요"]) {
+      expect(screen.getByRole("button", { name })).toHaveAccessibleDescription("서버에 연결되지 않아 지금은 보낼 수 없습니다");
+    }
   });
 
   it("부모가 보내는 중이면(다시 시도 등 카드 밖에서 보냄) 두 버튼이 함께 잠긴다", async () => {
@@ -270,13 +278,31 @@ describe("질문 카드", () => {
     expect(screen.getByRole("button", { name: "답하기" })).toHaveAccessibleDescription("보내는 중이라 잠시 누를 수 없습니다");
   });
 
-  it("서버가 거절한 사유를 카드 안에 보인다 (시안 S3-c)", () => {
+  it("칸에 못 읽는 글이 있으면 답하기 잠긴 이유가 '고르거나 적으면'이 아니라 '입력을 고쳐 주세요'다", () => {
+    const { rerender } = render(<Card ready={false} />);
+    expect(screen.getByRole("button", { name: "답하기" })).toHaveAccessibleDescription("답을 고르거나 적으면 누를 수 있습니다");
+    rerender(<Card ready={false} inputProblem />);
+    expect(screen.getByRole("button", { name: "답하기" })).toHaveAccessibleDescription("위 칸의 입력을 고쳐 주세요");
+  });
+
+  it("모르겠어요 안내는 아직 없는 기능을 약속하지 않는다", () => {
+    render(<Card ready={false} />);
+    const card = screen.getByRole("region", { name: "세대주 여부" });
+    expect(card).toHaveTextContent("‘모르겠어요’를 고르면 이 항목은 다시 묻지 않습니다.");
+    expect(card).not.toHaveTextContent("이 조건으로 판정했습니다");
+  });
+
+  it("서버가 거절한 사유를 사람이 읽을 한 줄 뒤에 붙여 카드 안에 보이고, 답 칸이 그 줄을 가리킨다 (시안 S3-c)", () => {
     const { rerender } = render(<Card ready error="값이 맞지 않습니다 — 세대주 여부: 고를 수 없는 값" />);
     const card = screen.getByRole("region", { name: "세대주 여부" });
-    expect(card).toHaveTextContent("값이 맞지 않습니다 — 세대주 여부: 고를 수 없는 값");
+    expect(card).toHaveTextContent(
+      "이 값으로는 저장하지 못했습니다. (서버가 보낸 사유: 값이 맞지 않습니다 — 세대주 여부: 고를 수 없는 값)",
+    );
+    expect(screen.getByRole("radiogroup")).toHaveAccessibleDescription(/^이 값으로는 저장하지 못했습니다\./);
 
     rerender(<Card ready error={null} />);
     expect(card).not.toHaveTextContent("값이 맞지 않습니다");
+    expect(screen.getByRole("radiogroup")).not.toHaveAttribute("aria-describedby");
   });
 
   it("선택지 묶음 이름이 질문 제목이고, 아무것도 안 고른 채 시작한다", () => {
