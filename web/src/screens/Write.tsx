@@ -18,6 +18,11 @@
  *
  * 실패는 종류별로 다르게 말한다(failure.ts). 어느 경우든 적어 둔 문장이 그대로 있다고 덧붙인다.
  *
+ * 서버에 연결되지 않음(E1, 시안 S1-e). 연결 확인이 실패했거나 이 화면의 호출이 '연결 안 됨'으로 실패하면
+ * 본문 맨 위에 시스템 오류 상자를 띄우고 '조건 읽기'만 잠근다. 입력 칸은 그대로 쓸 수 있다 — 적은 문장을
+ * 잃지 않게(설계서 E1 표 S1). '다시 연결 확인'은 연결 확인만 다시 부르고, 돌아오면 상자를 걷고 잠금을 푼다.
+ * 같은 화면에 그대로 머문다. 연결 안 됨은 이 상자 하나로만 알리고 아래 실패 안내 자리에는 다시 그리지 않는다.
+ *
  * 기다리는 동안 사용자가 전체 초기화·뒤로 가기로 이 화면을 떠날 수 있다. 그 뒤에 온 답으로 S2로 끌고
  * 가거나 상태를 바꾸지 않는다(alive). 요청을 끊지는 않는다 — 끊어도 서버는 끝까지 일하므로 얻는 것이 없다.
  * 열린 세션 번호는 떠났어도 이미 앱 메모리에 모였으므로 '내 기록 지우기'로 지울 수 있다.
@@ -25,7 +30,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { LoadingSentence, SystemError } from "../components/Feedback";
@@ -74,7 +79,8 @@ interface Failure {
 
 export function Write() {
   const navigate = useNavigate();
-  const { draft, setDraft, rememberSession } = useAppState();
+  const { draft, setDraft, rememberSession, connected, recheckConnection, lostConnection } = useAppState();
+  const offline = connected === false;
   const [reading, setReading] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [pendingExample, setPendingExample] = useState<string | null>(null);
@@ -92,13 +98,22 @@ export function Write() {
   const length = countChars(draft);
   const over = length - MAX_CHARS;
   const empty = draft.trim() === "";
-  const lockedReason = empty
-    ? "칸이 비어 있어 아직 보낼 수 없습니다. 한 문장이라도 적으면 눌러집니다."
-    : over > 0
-      ? `${n(MAX_CHARS)}자를 넘어 아직 보낼 수 없습니다.`
-      : undefined;
+  // 연결 안 됨이 먼저다. 칸을 채워도 보낼 수 없으므로 그 이유부터 말한다
+  const lockedReason = offline
+    ? "서버에 연결되지 않아 지금은 보낼 수 없습니다."
+    : empty
+      ? "칸이 비어 있어 아직 보낼 수 없습니다. 한 문장이라도 적으면 눌러집니다."
+      : over > 0
+        ? `${n(MAX_CHARS)}자를 넘어 아직 보낼 수 없습니다.`
+        : undefined;
 
   function fail(error: unknown, stage: Stage, action: Failure["action"]) {
+    // 연결 안 됨은 맨 위 E1 상자 하나로 알린다(머리말)
+    if (error instanceof ApiError && error.kind === "network") {
+      setFailure(null);
+      lostConnection();
+      return;
+    }
     setFailure((f) => ({ id: (f?.id ?? 0) + 1, error, stage, action }));
   }
 
@@ -156,6 +171,12 @@ export function Write() {
 
   return (
     <>
+      {offline && (
+        <SystemError title="지금 판정 서버에 연결할 수 없습니다" retryLabel="다시 연결 확인" onRetry={recheckConnection}>
+          <span className={styles.line}>조건의 문제가 아닙니다.</span>
+          {!empty && <span className={styles.line}>{KEEP_DRAFT}</span>}
+        </SystemError>
+      )}
       <section className={screen.heading}>
         <span className={screen.eyebrow}>조건 입력</span>
         <h1 className={screen.title}>상황을 문장으로 적어 주세요</h1>
@@ -220,7 +241,7 @@ export function Write() {
       <section className={styles.actions} aria-label="보내기">
         {reading ? (
           <LoadingSentence label="문장을 읽고 있습니다" />
-        ) : failure && text ? (
+        ) : failure && text && !offline ? (
           <>
             <SystemError key={failure.id} title={text.title} icon={text.icon} onRetry={failure.action === "read" ? read : startDirect}>
               {/* 서버가 준 문구는 마침표 없이 끝나기도 해서 한 줄로 이어 붙이지 않고 줄을 나눈다 */}

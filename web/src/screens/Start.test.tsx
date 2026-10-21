@@ -89,6 +89,8 @@ describe("S0 첫 화면 — 시작 버튼", () => {
     const region = await screen.findByRole("region", { name: "지금 판정 서버에 연결할 수 없습니다" });
     expect(region).toHaveTextContent("조건의 문제가 아닙니다.");
     expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/);
+    // 화면 쪽에서 연결 실패를 보면 머리·사이드바의 연결 표시도 끊김으로 맞춘다
+    expect(screen.getByText("판정 서버에 연결되지 않음")).toBeInTheDocument();
 
     fail = false;
     await user.click(within(region).getByRole("button", { name: "다시 시도" }));

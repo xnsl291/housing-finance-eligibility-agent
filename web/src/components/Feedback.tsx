@@ -59,6 +59,8 @@ interface SystemErrorProps {
   onRetry: () => void | Promise<unknown>;
   /** 제목 앞 아이콘. 기본은 서버 꺼짐. 서버는 살아 있는 오류(문장 해석 실패·시간 초과)는 다른 모양을 쓴다(시안 S1-d·S1-f) */
   icon?: IconName;
+  /** 다시 시도 버튼 글. 같은 화면에 상자가 둘 뜰 수 있는 자리(E1)에서 무엇을 다시 하는지 구분하려고 */
+  retryLabel?: string;
 }
 
 /**
@@ -72,7 +74,7 @@ interface SystemErrorProps {
  * 키보드 사용자의 자리도 '다시 시도' 바로 앞으로 옮겨 주고, 다른 화면 바뀜(질문 카드 등)과
  * 같은 방식이다. 묶음은 제목을 이름으로 단 영역(region)으로 둔다.
  */
-export function SystemError({ title, children, onRetry, icon = "serverOff" }: SystemErrorProps) {
+export function SystemError({ title, children, onRetry, icon = "serverOff", retryLabel = "다시 시도" }: SystemErrorProps) {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const titleId = useId();
   useEffect(() => {
@@ -87,7 +89,7 @@ export function SystemError({ title, children, onRetry, icon = "serverOff" }: Sy
       </h2>
       <div className={styles.systemBody}>{children}</div>
       <Button variant="secondary" onClick={onRetry}>
-        다시 시도
+        {retryLabel}
       </Button>
     </section>
   );

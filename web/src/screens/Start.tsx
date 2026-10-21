@@ -18,7 +18,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
 import { Button } from "../components/Button";
 import { Skeleton, SystemError } from "../components/Feedback";
 import { Icon } from "../components/Icon";
@@ -40,7 +40,7 @@ const NOT_DONE = [
 
 export function Start() {
   const navigate = useNavigate();
-  const { programs, rememberSession } = useAppState();
+  const { programs, rememberSession, lostConnection } = useAppState();
   const [failure, setFailure] = useState<{ id: number; error: unknown } | null>(null);
   const alive = useRef(true);
   useEffect(() => {
@@ -56,6 +56,8 @@ export function Start() {
       rememberSession(session_id);
       if (alive.current) navigate(sessionPath(session_id, "questions"));
     } catch (error) {
+      // 연결 안 됨이면 머리·사이드바의 연결 표시도 맞춘다. 안내는 이 화면의 상자가 한다
+      if (error instanceof ApiError && error.kind === "network") lostConnection();
       if (alive.current) setFailure((f) => ({ id: (f?.id ?? 0) + 1, error }));
     }
   }

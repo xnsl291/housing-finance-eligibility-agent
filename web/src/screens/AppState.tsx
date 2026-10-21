@@ -25,6 +25,12 @@ export interface AppState {
   programs: ProgramsState;
   /** 세션을 열어 번호를 받으면 곧바로 부른다. 같은 번호는 한 번만 모인다 */
   rememberSession: (id: string) => void;
+  /** 판정 서버 연결 상태. null은 아직 확인 전 */
+  connected: boolean | null;
+  /** 연결 확인(GET /health)을 다시 부른다. E1의 '다시 연결 확인' */
+  recheckConnection: () => Promise<void>;
+  /** 화면이 부른 호출이 '연결 안 됨'(network)으로 실패했을 때. 머리·사이드바 표시와 E1을 맞춘다 */
+  lostConnection: () => void;
 }
 
 export const AppStateContext = createContext<AppState | null>(null);

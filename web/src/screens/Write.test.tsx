@@ -200,6 +200,67 @@ describe("S1 조건 읽기", () => {
   });
 });
 
+describe("S1 서버에 연결되지 않음 (E1, 결함 D5)", () => {
+  const OFFLINE = "서버에 연결되지 않아 지금은 보낼 수 없습니다.";
+
+  it("연결 확인이 실패하면 본문 맨 위에 시스템 오류를 띄우고, 칸은 쓸 수 있게 둔 채 조건 읽기만 잠근다", async () => {
+    const user = userEvent.setup();
+    let up = false;
+    const server = fakeServer({
+      "GET /health": () => {
+        if (!up) throw new TypeError("Failed to fetch");
+        return json({ status: "ok", programs: [] });
+      },
+    });
+    renderApp("/write");
+
+    const region = await screen.findByRole("region", { name: "지금 판정 서버에 연결할 수 없습니다" });
+    expect(region).toHaveTextContent("조건의 문제가 아닙니다.");
+    // 본문 맨 위: 화면 제목보다 앞에 있다
+    const title = screen.getByRole("heading", { level: 1, name: "상황을 문장으로 적어 주세요" });
+    expect(region.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await user.type(box(), SENTENCE);
+    expect(box()).toHaveValue(SENTENCE);
+    expect(box()).not.toHaveAttribute("readonly");
+    expect(region).toHaveTextContent("적어 두신 문장은 그대로 있습니다.");
+    expect(readButton()).toHaveAttribute("aria-disabled", "true");
+    expect(readButton()).toHaveAccessibleDescription(OFFLINE);
+    await user.click(readButton());
+    expect(callsTo(server, "POST /v1/sessions")).toHaveLength(0);
+
+    // 다시 연결 확인 → 연결 확인을 다시 부르고, 돌아오면 상자를 걷고 잠금을 푼다. 같은 화면에 머문다
+    up = true;
+    await user.click(within(region).getByRole("button", { name: "다시 연결 확인" }));
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("region", { name: "지금 판정 서버에 연결할 수 없습니다" })).not.toBeInTheDocument(),
+    );
+    expect(readButton()).not.toHaveAttribute("aria-disabled");
+    expect(screen.getByTestId("location")).toHaveTextContent("/write");
+    expect(box()).toHaveValue(SENTENCE);
+  });
+
+  it("조건 읽기에서 연결이 안 되면 연결 상태를 끊김으로 바꿔 머리·사이드바도 맞춘다", async () => {
+    const user = userEvent.setup();
+    fakeServer({
+      "POST /v1/sessions": () => {
+        throw new TypeError("Failed to fetch");
+      },
+    });
+    renderApp("/write");
+    expect(await screen.findByText("판정 서버에 연결됨")).toBeInTheDocument();
+    await user.type(box(), SENTENCE);
+    await user.click(readButton());
+
+    await screen.findByRole("region", { name: "지금 판정 서버에 연결할 수 없습니다" });
+    expect(screen.getByText("판정 서버에 연결되지 않음")).toBeInTheDocument();
+    expect(screen.getByText("연결 안 됨")).toBeInTheDocument();
+    expect(readButton()).toHaveAccessibleDescription(OFFLINE);
+    // 같은 내용의 상자가 둘 뜨지 않는다
+    expect(screen.getAllByRole("region", { name: "지금 판정 서버에 연결할 수 없습니다" })).toHaveLength(1);
+  });
+});
+
 describe("S1 화면을 떠난 뒤 늦게 온 응답", () => {
   it("읽는 중에 전체 초기화로 떠나면 답이 와도 S2로 끌고 가지 않는다. 열린 세션은 지울 수 있게 남는다", async () => {
     const user = userEvent.setup();
@@ -385,17 +446,16 @@ describe("S1 실패 — 종류마다 다르게 말하고, 적은 문장은 그�
   it("실패 안내가 떠 있을 때 문장을 고치면 안내를 걷고 조건 읽기를 다시 보인다", async () => {
     const user = userEvent.setup();
     fakeServer({
-      "POST /v1/sessions": () => {
-        throw new TypeError("Failed to fetch");
-      },
+      "POST /v1/sessions": sessions(),
+      "POST /v1/sessions/s-1/messages": () => json({ detail: "조건을 읽지 못했습니다" }, 503),
     });
     renderApp("/write");
     await user.type(box(), SENTENCE);
     await user.click(readButton());
-    await screen.findByRole("region", { name: "지금 판정 서버에 연결할 수 없습니다" });
+    await screen.findByRole("region", { name: "조건을 읽지 못했습니다" });
 
     await user.type(box(), " 무주택입니다.");
-    expect(screen.queryByRole("region", { name: "지금 판정 서버에 연결할 수 없습니다" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "조건을 읽지 못했습니다" })).not.toBeInTheDocument();
     expect(readButton()).not.toHaveAttribute("aria-disabled");
   });
 });

@@ -3,7 +3,8 @@
  *
  * 여기서 하는 일
  * - 앱 메모리(적은 문장, 상품 목록)를 갖고 아래 화면에 나눠 준다(AppState.tsx)
- * - 서버 연결 상태를 본다. 처음 열 때와 주소가 바뀔 때마다(설계서 E1 "화면을 다시 그릴 때마다")
+ * - 서버 연결 상태를 본다. 처음 열 때와 주소가 바뀔 때마다(설계서 E1 "화면을 다시 그릴 때마다"),
+ *   화면이 '다시 연결 확인'을 누를 때. 화면의 호출이 연결 안 됨으로 실패해도 끊김으로 바꾼다(lostConnection)
  * - 단계는 주소로 정한다(routes.ts). 단계가 바뀐 순간에만 본문이 위에서 내려온다(C-HEADER, 420ms)
  * - 주소가 바뀌면 초점을 새 화면 제목(h1)으로 옮긴다(시안 C0 1절). 화면 읽기 프로그램 사용자가
  *   화면이 바뀐 것을 알게 하려고
@@ -39,6 +40,15 @@ export function Layout() {
   const rememberSession = useCallback((id: string) => {
     setOpened((list) => (list.includes(id) ? list : [...list, id]));
   }, []);
+  const recheckConnection = useCallback(async () => {
+    try {
+      await api.health();
+      setConnected(true);
+    } catch {
+      setConnected(false);
+    }
+  }, []);
+  const lostConnection = useCallback(() => setConnected(false), []);
 
   useEffect(() => {
     let alive = true;
@@ -105,7 +115,9 @@ export function Layout() {
   }
 
   return (
-    <AppStateContext.Provider value={{ draft, setDraft, programs, rememberSession }}>
+    <AppStateContext.Provider
+      value={{ draft, setDraft, programs, rememberSession, connected, recheckConnection, lostConnection }}
+    >
       <div className={styles.app}>
         <Sidebar
           programs={Array.isArray(programs) ? programs : []}
