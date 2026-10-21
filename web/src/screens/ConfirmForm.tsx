@@ -155,7 +155,8 @@ export function ConfirmForm({ sessionId, catalog, held, warnings, unreadable, of
               provenance={
                 <RowNotes
                   label={catalog[name].label}
-                  unreadable={unreadable[name]}
+                  // S3에서 뒤로 오면 라우터 state(못 쓴 원문)가 남아 있다. 그 사이 직접 넣은 값이 있으면 경고는 지난 일이다
+                  unreadable={held[name]?.source === "USER" ? undefined : unreadable[name]}
                   provenance={provenanceOf(catalog[name], held[name], current(name), Boolean(edits[name]?.problem))}
                 />
               }

@@ -482,6 +482,18 @@ describe("S2 들어오는 길", () => {
     expect(screen.getByRole("button", { name: "비어 있는 항목 2개 — 아는 값이 있으면 미리 채워도 됩니다" })).toBeInTheDocument();
   });
 
+  it("S3에서 뒤로 와 라우터 state가 남아 있어도, 이미 직접 넣은 항목에는 '그대로 쓸 수 없습니다' 경고를 감춘다", async () => {
+    server({
+      [SESSION]: () =>
+        json({ session_id: "s-1", values: { ...HELD, housing_area_m2: { value: 84, source: "USER", at: AT, phrase: null } } }),
+    });
+    await open();
+
+    expect(row("전용면적")).toHaveTextContent("84");
+    expect(row("전용면적")).toHaveTextContent("직접 넣은 값");
+    expect(screen.queryByText(/그대로 쓸 수 없습니다/)).not.toBeInTheDocument();
+  });
+
   it("세션이 없으면(404) 처음부터 다시 하라고 안내하고, '처음부터'는 S1로 간다 (E2)", async () => {
     const user = userEvent.setup();
     fakeServer({ [SESSION]: () => json({ detail: "없는 세션입니다" }, 404) });
