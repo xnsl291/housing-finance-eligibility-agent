@@ -234,6 +234,29 @@ describe("S1 조건 읽기", () => {
   });
 });
 
+describe("S1 ← S2 확인 창(M1)을 거쳐 돌아옴", () => {
+  it("S2에서 값을 고친 뒤 '처음부터'로 돌아와도 적은 문장은 남는다 (확인 창 문구가 약속한 대로)", async () => {
+    const user = userEvent.setup();
+    const server = fakeServer({
+      "POST /v1/sessions": sessions(),
+      "POST /v1/sessions/s-1/messages": () => extracted("s-1"),
+    }, { emptySession: true });
+    renderApp("/write");
+    await user.type(box(), SENTENCE);
+    await user.click(readButton());
+    await user.click(await screen.findByRole("button", { name: /^비어 있는 항목/ }));
+    await user.type(screen.getByRole("textbox", { name: "나이" }), "31");
+
+    await user.click(screen.getByRole("button", { name: "문장 다시 쓰기" }));
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("적어 두신 문장은 남습니다.");
+    await user.click(screen.getByRole("button", { name: "처음부터" }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/write");
+    expect(box()).toHaveValue(SENTENCE);
+    expect(callsTo(server, "PUT /v1/sessions/s-1/fields")).toHaveLength(0);
+  });
+});
+
 describe("S1 서버에 연결되지 않음 (E1, 결함 D5)", () => {
   const OFFLINE = "서버에 연결되지 않아 지금은 보낼 수 없습니다.";
 

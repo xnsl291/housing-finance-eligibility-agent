@@ -208,7 +208,10 @@ export function ConfirmForm({ sessionId, catalog, held, warnings, unreadable, of
         }}
         onCancel={() => setAskBack(false)}
       >
-        지금까지 고치고 답한 내용이 사라집니다. 처음부터 다시 할까요? 적어 두신 문장은 남습니다.
+        {/* 설계서 M1 문구는 S3·S4와 같이 쓰는 것이라 '답한 내용'이 들어 있다. S2에는 아직 답한 것이 없어
+            이 화면에서 사라지는 것만 적는다. 실제로 S1로 가면 이 화면의 칸(고친 값)은 보내지 않고 버려지고,
+            문장은 앱 메모리(AppState의 draft)에 있어 S1 칸에 그대로 남는다 */}
+        이 화면에서 고친 값이 사라집니다. 적어 두신 문장은 남습니다.
       </ConfirmDialog>
     </>
   );

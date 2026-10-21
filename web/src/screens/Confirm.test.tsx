@@ -443,7 +443,10 @@ describe("S2 문장 다시 쓰기", () => {
     await user.type(screen.getByRole("textbox", { name: "나이" }), "0");
 
     await user.click(screen.getByRole("button", { name: "문장 다시 쓰기" }));
-    expect(screen.getByRole("alertdialog", { name: "처음부터 다시 할까요?" })).toBeInTheDocument();
+    const dialog = screen.getByRole("alertdialog", { name: "처음부터 다시 할까요?" });
+    // S2에서 사라지는 것은 이 화면에서 고친 값뿐이다. S3의 '답한 내용'은 아직 없다
+    expect(dialog).toHaveTextContent("이 화면에서 고친 값이 사라집니다. 적어 두신 문장은 남습니다.");
+    expect(dialog).not.toHaveTextContent("답한");
     expect(screen.getByRole("button", { name: "계속하기" })).toHaveFocus();
     await user.click(screen.getByRole("button", { name: "계속하기" }));
     expect(location()).toHaveTextContent(PATH);
@@ -451,8 +454,9 @@ describe("S2 문장 다시 쓰기", () => {
     await user.click(screen.getByRole("button", { name: "문장 다시 쓰기" }));
     await user.click(screen.getByRole("button", { name: "처음부터" }));
     expect(location()).toHaveTextContent("/write");
-    // 서버 세션은 지우지 않는다
+    // 서버 세션은 지우지 않고, 고친 값도 보내지 않는다(버려짐)
     expect(callsTo(spy, "DELETE /v1/sessions/s-1")).toHaveLength(0);
+    expect(callsTo(spy, PUT)).toHaveLength(0);
   });
 });
 
