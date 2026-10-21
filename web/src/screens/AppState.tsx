@@ -12,7 +12,7 @@
  * 세션 열기 자체가 시간 초과로 끊겨 번호를 받지 못한 경우도 모을 수 없다.
  * 브라우저 저장소에 두지 않은 것은 적은 문장과 같은 이유다(이 탭 밖에 흔적을 남기지 않음).
  */
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect, useRef, type RefObject } from "react";
 
 import type { Program } from "../api/types";
 
@@ -39,4 +39,20 @@ export function useAppState(): AppState {
   const state = useContext(AppStateContext);
   if (!state) throw new Error("useAppState는 Layout 안에서만 쓸 수 있습니다");
   return state;
+}
+
+/**
+ * 이 화면이 아직 떠 있는가(언마운트되면 false). 서버를 기다리는 동안 사용자가 전체 초기화·뒤로 가기로
+ * 떠날 수 있는데, 그 뒤에 온 답으로 화면을 옮기거나 상태를 바꾸지 않으려고 S0·S1이 함께 쓴다.
+ * StrictMode가 효과를 두 번 돌려도 맞도록 마운트될 때마다 true로 되돌린다
+ */
+export function useAlive(): RefObject<boolean> {
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  return alive;
 }

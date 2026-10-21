@@ -15,14 +15,14 @@
  * 세션을 여는 동안 다른 화면으로 떠났으면 답이 와도 S3로 끌고 가지 않는다(alive). 번호는 앱 메모리에
  * 모았으므로 '내 기록 지우기'로 지울 수 있다.
  */
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
 import { Button } from "../components/Button";
 import { Skeleton, SystemError } from "../components/Feedback";
 import { Icon } from "../components/Icon";
-import { useAppState } from "./AppState";
+import { useAlive, useAppState } from "./AppState";
 import { describeFailure } from "./failure";
 import { sessionPath } from "./routes";
 import styles from "./Start.module.css";
@@ -43,13 +43,7 @@ export function Start() {
   const navigate = useNavigate();
   const { programs, rememberSession, lostConnection } = useAppState();
   const [failure, setFailure] = useState<{ id: number; error: unknown } | null>(null);
-  const alive = useRef(true);
-  useEffect(() => {
-    alive.current = true;
-    return () => {
-      alive.current = false;
-    };
-  }, []);
+  const alive = useAlive();
 
   // '항목을 직접 고르기'와 실패 뒤 '다시 시도'는 같은 일을 한다. 버튼마다 따로 잠기므로 둘을 잇달아 누르면
   // 세션이 둘 열린다. 화면 단위로 한 번에 하나만 열게 막는다(ref는 다시 그리기를 기다리지 않고 바로 바뀐다)

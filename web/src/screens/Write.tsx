@@ -37,8 +37,8 @@ import { LoadingSentence, SystemError } from "../components/Feedback";
 import { FieldFrame } from "../components/Field";
 import { Icon } from "../components/Icon";
 import { Notice } from "../components/Notice";
-import { useAppState } from "./AppState";
-import { describeFailure, inputRejection, type Stage } from "./failure";
+import { useAlive, useAppState } from "./AppState";
+import { describeFailure, inputRejection, type FailureText, type Stage } from "./failure";
 import { sessionPath, type ConfirmState } from "./routes";
 import screen from "./Screen.module.css";
 import styles from "./Write.module.css";
@@ -77,41 +77,25 @@ interface Failure {
   action: "read" | "direct";
 }
 
+/** '조건 읽기'가 잠긴 이유. 없으면 undefined. 연결 안 됨이 먼저다 — 칸을 채워도 보낼 수 없으므로 그 이유부터 말한다 */
+function lockReason(draft: string, offline: boolean): string | undefined {
+  if (offline) return "서버에 연결되지 않아 지금은 보낼 수 없습니다.";
+  if (draft.trim() === "") return "칸이 비어 있어 아직 보낼 수 없습니다. 한 문장이라도 적으면 눌러집니다.";
+  if (countChars(draft) > MAX_CHARS) return `${n(MAX_CHARS)}자를 넘어 아직 보낼 수 없습니다.`;
+  return undefined;
+}
+
 export function Write() {
   const navigate = useNavigate();
   const { draft, setDraft, rememberSession, connected, recheckConnection, lostConnection } = useAppState();
   const offline = connected === false;
   const [reading, setReading] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
-  const [pendingExample, setPendingExample] = useState<string | null>(null);
   // 상태는 다시 그려진 뒤에야 바뀌므로, 같은 순간 두 번 누름은 ref로 막는다
   const busy = useRef(false);
-  // '조건 읽기'·'다시 시도'를 누르면 그 버튼이 기다림 표시로 바뀌며 사라진다. 그대로 두면 키보드 초점이
-  // 페이지 밖(body)으로 떨어져 다음 Tab이 맨 위부터 시작한다. 기다림 표시로 초점을 옮긴다
-  const loadingRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (reading) loadingRef.current?.focus({ preventScroll: true });
-  }, [reading]);
   // 이 화면이 떠 있는가. 떠난 뒤 온 답은 버린다(머리말)
-  const alive = useRef(true);
-  useEffect(() => {
-    alive.current = true;
-    return () => {
-      alive.current = false;
-    };
-  }, []);
-
-  const length = countChars(draft);
-  const over = length - MAX_CHARS;
-  const empty = draft.trim() === "";
-  // 연결 안 됨이 먼저다. 칸을 채워도 보낼 수 없으므로 그 이유부터 말한다
-  const lockedReason = offline
-    ? "서버에 연결되지 않아 지금은 보낼 수 없습니다."
-    : empty
-      ? "칸이 비어 있어 아직 보낼 수 없습니다. 한 문장이라도 적으면 눌러집니다."
-      : over > 0
-        ? `${n(MAX_CHARS)}자를 넘어 아직 보낼 수 없습니다.`
-        : undefined;
+  const alive = useAlive();
+  const lockedReason = lockReason(draft, offline);
 
   function fail(error: unknown, stage: Stage, action: Failure["action"]) {
     // 연결 안 됨은 맨 위 E1 상자 하나로 알린다(머리말)
@@ -160,11 +144,6 @@ export function Write() {
     }
   }
 
-  function pickExample(text: string) {
-    if (draft.trim() === "") setDraft(text);
-    else if (draft !== text) setPendingExample(text);
-  }
-
   function edit(text: string) {
     setDraft(text);
     // 고쳐 쓰면 앞 실패 안내는 지난 문장에 대한 것이 된다. 걷고 '조건 읽기'를 다시 보인다
@@ -173,16 +152,36 @@ export function Write() {
 
   // 422는 입력 오류라 칸 아래에(C-ERROR). 그 밖의 실패만 시스템 오류 상자로
   const rejected = failure && inputRejection(failure.error);
-  const text = failure && !rejected && describeFailure(failure.error, failure.stage);
 
   return (
     <>
-      {offline && (
-        <SystemError title="지금 판정 서버에 연결할 수 없습니다" retryLabel="다시 연결 확인" onRetry={recheckConnection}>
-          <span className={styles.line}>조건의 문제가 아닙니다.</span>
-          {!empty && <span className={styles.line}>{KEEP_DRAFT}</span>}
-        </SystemError>
-      )}
+      {offline && <Offline hasDraft={draft.trim() !== ""} onRetry={recheckConnection} />}
+      <Intro />
+      <Examples draft={draft} disabled={reading} onPick={edit} />
+      <DraftField draft={draft} rejected={rejected} readOnly={reading} onChange={edit} />
+
+      <section className={styles.actions} aria-label="보내기">
+        {reading ? (
+          <Reading />
+        ) : failure && !rejected && !offline ? (
+          <FailureNotice
+            key={failure.id}
+            text={describeFailure(failure.error, failure.stage)}
+            onRetry={failure.action === "read" ? read : startDirect}
+            onDirect={startDirect}
+          />
+        ) : (
+          <SendButton lockedReason={lockedReason} onSend={read} />
+        )}
+      </section>
+    </>
+  );
+}
+
+/** 화면 제목과 입력 안내. 안내는 입력 칸보다 먼저 둔다 — 다 쓰고 나서 읽는 안내는 이미 늦다 */
+function Intro() {
+  return (
+    <>
       <section className={screen.heading}>
         <span className={screen.eyebrow}>조건 입력</span>
         <h1 className={screen.title}>상황을 문장으로 적어 주세요</h1>
@@ -190,25 +189,53 @@ export function Write() {
           읽은 내용은 다음 화면에서 직접 확인하고 고칠 수 있고, 판정에 더 필요한 것은 그다음에 하나씩 여쭙니다.
         </p>
       </section>
-
-      {/* 입력 칸보다 먼저. 다 쓰고 나서 읽는 안내는 이미 늦다 */}
       <div className={styles.notice}>
         <Notice kind="input" />
       </div>
+    </>
+  );
+}
 
+/** 서버에 연결되지 않음(E1). 본문 맨 위. 연결 안 됨은 이 상자 하나로만 알린다(머리말) */
+function Offline({ hasDraft, onRetry }: { hasDraft: boolean; onRetry: () => Promise<void> }) {
+  return (
+    <SystemError title="지금 판정 서버에 연결할 수 없습니다" retryLabel="다시 연결 확인" onRetry={onRetry}>
+      <span className={styles.line}>조건의 문제가 아닙니다.</span>
+      {hasDraft && <span className={styles.line}>{KEEP_DRAFT}</span>}
+    </SystemError>
+  );
+}
+
+/** '조건 읽기'. 잠겼으면 버튼 아래 이유 한 줄, 아니면 누르면 무엇이 일어나는지 한 줄 */
+function SendButton({ lockedReason, onSend }: { lockedReason: string | undefined; onSend: () => Promise<void> }) {
+  return (
+    <>
+      <Button lockedReason={lockedReason} onClick={onSend}>
+        조건 읽기
+      </Button>
+      {!lockedReason && <p className={styles.hint}>누르면 문장을 서버로 보냅니다.</p>}
+    </>
+  );
+}
+
+/** 예시 버튼 두 개. 칸이 비어 있으면 바로 넣고, 글이 있으면 덮어쓰기 전에 묻는다(M3) */
+function Examples({ draft, disabled, onPick }: { draft: string; disabled: boolean; onPick: (text: string) => void }) {
+  const [pending, setPending] = useState<string | null>(null);
+
+  function pick(text: string) {
+    if (draft.trim() === "") onPick(text);
+    else if (draft !== text) setPending(text);
+  }
+
+  return (
+    <>
       <section className={styles.examples} aria-labelledby="s1-examples">
         <h2 id="s1-examples" className={styles.examplesLabel}>
           이렇게 적으면 됩니다
         </h2>
         <div className={styles.exampleRow}>
           {EXAMPLES.map((ex) => (
-            <button
-              key={ex.name}
-              type="button"
-              className={styles.example}
-              disabled={reading}
-              onClick={() => pickExample(ex.text)}
-            >
+            <button key={ex.name} type="button" className={styles.example} disabled={disabled} onClick={() => pick(ex.text)}>
               <span className={styles.exampleName}>
                 <Icon name="cornerDownLeft" size={14} />
                 {ex.name}
@@ -218,81 +245,107 @@ export function Write() {
           ))}
         </div>
       </section>
-
-      <FieldFrame
-        label="상황을 자유롭게 적어 주세요"
-        error={over > 0 ? `${n(MAX_CHARS)}자까지 보낼 수 있습니다. ${n(over)}자 줄여 주세요` : rejected}
-      >
-        {(a) => (
-          <div className={styles.inputArea}>
-            <textarea
-              id={a.id}
-              className={styles.textarea}
-              aria-describedby={[a.describedBy, `${a.id}-count`].filter(Boolean).join(" ")}
-              aria-invalid={a.invalid || undefined}
-              placeholder="나이, 소득, 무주택 여부, 지역, 보증금을 적어 주시면 읽을 수 있는 항목이 많아집니다."
-              value={draft}
-              readOnly={reading}
-              onChange={(e) => edit(e.target.value)}
-            />
-            <span id={`${a.id}-count`} className={`${styles.count} num`} data-over={over > 0 || undefined}>
-              {over > 0
-                ? `${n(length)} / ${n(MAX_CHARS)}자`
-                : `${n(length)} / ${n(MAX_CHARS)}자 (남은 글자 ${n(MAX_CHARS - length)})`}
-            </span>
-          </div>
-        )}
-      </FieldFrame>
-
-      <section className={styles.actions} aria-label="보내기">
-        {reading ? (
-          <div ref={loadingRef} tabIndex={-1}>
-            <LoadingSentence label="문장을 읽고 있습니다" />
-          </div>
-        ) : failure && text && !offline ? (
-          <>
-            <SystemError key={failure.id} title={text.title} icon={text.icon} onRetry={failure.action === "read" ? read : startDirect}>
-              {/* 서버가 준 문구는 마침표 없이 끝나기도 해서 한 줄로 이어 붙이지 않고 줄을 나눈다 */}
-              <span className={styles.line}>{text.body}</span>
-              <span className={styles.line}>{KEEP_DRAFT}</span>
-            </SystemError>
-            {text.direct && (
-              <>
-                <p className={styles.hint}>
-                  직접 입력으로 넘어가면 읽은 값 없이 시작합니다. 확인할 것이 없으므로 '읽은 내용 확인'은 건너뛰고 바로
-                  질문으로 갑니다.
-                </p>
-                <div>
-                  <Button variant={text.direct} busyLabel="여는 중" onClick={startDirect}>
-                    직접 입력으로 넘어가기
-                  </Button>
-                </div>
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            <Button lockedReason={lockedReason} onClick={read}>
-              조건 읽기
-            </Button>
-            {!lockedReason && <p className={styles.hint}>누르면 문장을 서버로 보냅니다.</p>}
-          </>
-        )}
-      </section>
-
       <ConfirmDialog
-        open={pendingExample !== null}
+        open={pending !== null}
         title="적어 두신 문장을 예시로 바꿀까요?"
         confirmLabel="바꾸기"
         cancelLabel="취소"
         onConfirm={() => {
-          if (pendingExample !== null) edit(pendingExample);
-          setPendingExample(null);
+          if (pending !== null) onPick(pending);
+          setPending(null);
         }}
-        onCancel={() => setPendingExample(null)}
+        onCancel={() => setPending(null)}
       >
         지금 칸에 있는 글이 예시 문장으로 바뀝니다. 되돌리려면 다시 적어야 합니다.
       </ConfirmDialog>
+    </>
+  );
+}
+
+interface DraftFieldProps {
+  draft: string;
+  /** 서버가 거절한 사유(422). 칸 바로 아래 입력 오류로 보인다 */
+  rejected: string | null;
+  readOnly: boolean;
+  onChange: (text: string) => void;
+}
+
+/** 문장 칸과 글자 수. 1,000자를 넘거나 서버가 거절하면 칸 바로 아래 오류 */
+function DraftField({ draft, rejected, readOnly, onChange }: DraftFieldProps) {
+  const length = countChars(draft);
+  const over = length - MAX_CHARS;
+  return (
+    <FieldFrame
+      label="상황을 자유롭게 적어 주세요"
+      error={over > 0 ? `${n(MAX_CHARS)}자까지 보낼 수 있습니다. ${n(over)}자 줄여 주세요` : rejected}
+    >
+      {(a) => (
+        <div className={styles.inputArea}>
+          <textarea
+            id={a.id}
+            className={styles.textarea}
+            aria-describedby={[a.describedBy, `${a.id}-count`].filter(Boolean).join(" ")}
+            aria-invalid={a.invalid || undefined}
+            placeholder="나이, 소득, 무주택 여부, 지역, 보증금을 적어 주시면 읽을 수 있는 항목이 많아집니다."
+            value={draft}
+            readOnly={readOnly}
+            onChange={(e) => onChange(e.target.value)}
+          />
+          <span id={`${a.id}-count`} className={`${styles.count} num`} data-over={over > 0 || undefined}>
+            {over > 0
+              ? `${n(length)} / ${n(MAX_CHARS)}자`
+              : `${n(length)} / ${n(MAX_CHARS)}자 (남은 글자 ${n(MAX_CHARS - length)})`}
+          </span>
+        </div>
+      )}
+    </FieldFrame>
+  );
+}
+
+/**
+ * 기다림 표시. 나타날 때 초점을 받는다. '조건 읽기'·'다시 시도'를 누르면 그 버튼이 이것으로 바뀌며
+ * 사라지는데, 그대로 두면 키보드 초점이 페이지 밖(body)으로 떨어져 다음 Tab이 맨 위부터 시작한다
+ */
+function Reading() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.focus({ preventScroll: true });
+  }, []);
+  return (
+    <div ref={ref} tabIndex={-1}>
+      <LoadingSentence label="문장을 읽고 있습니다" />
+    </div>
+  );
+}
+
+interface FailureNoticeProps {
+  text: FailureText;
+  onRetry: () => Promise<void>;
+  onDirect: () => Promise<void>;
+}
+
+/** 시스템 오류 상자. 문장 읽기가 실패·지연된 경우에는 '직접 입력으로 넘어가기'(S1-F)를 함께 */
+function FailureNotice({ text, onRetry, onDirect }: FailureNoticeProps) {
+  return (
+    <>
+      <SystemError title={text.title} icon={text.icon} onRetry={onRetry}>
+        {/* 서버가 준 문구는 마침표 없이 끝나기도 해서 한 줄로 이어 붙이지 않고 줄을 나눈다 */}
+        <span className={styles.line}>{text.body}</span>
+        <span className={styles.line}>{KEEP_DRAFT}</span>
+      </SystemError>
+      {text.direct && (
+        <>
+          <p className={styles.hint}>
+            직접 입력으로 넘어가면 읽은 값 없이 시작합니다. 확인할 것이 없으므로 '읽은 내용 확인'은 건너뛰고 바로
+            질문으로 갑니다.
+          </p>
+          <div>
+            <Button variant={text.direct} busyLabel="여는 중" onClick={onDirect}>
+              직접 입력으로 넘어가기
+            </Button>
+          </div>
+        </>
+      )}
     </>
   );
 }
