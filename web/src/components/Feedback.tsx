@@ -61,6 +61,11 @@ interface SystemErrorProps {
   icon?: IconName;
   /** 다시 시도 버튼 글. 같은 화면에 상자가 둘 뜰 수 있는 자리(E1)에서 무엇을 다시 하는지 구분하려고 */
   retryLabel?: string;
+  /**
+   * 버튼 무게. 기본은 보조 버튼. 다시 해도 소용없고 그 버튼이 유일한 길인 자리(E2 세션 없음의 '처음부터')는
+   * 주 버튼으로(시안 E2)
+   */
+  retryVariant?: "primary" | "secondary";
 }
 
 /**
@@ -74,7 +79,14 @@ interface SystemErrorProps {
  * 키보드 사용자의 자리도 '다시 시도' 바로 앞으로 옮겨 주고, 다른 화면 바뀜(질문 카드 등)과
  * 같은 방식이다. 묶음은 제목을 이름으로 단 영역(region)으로 둔다.
  */
-export function SystemError({ title, children, onRetry, icon = "serverOff", retryLabel = "다시 시도" }: SystemErrorProps) {
+export function SystemError({
+  title,
+  children,
+  onRetry,
+  icon = "serverOff",
+  retryLabel = "다시 시도",
+  retryVariant = "secondary",
+}: SystemErrorProps) {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const titleId = useId();
   useEffect(() => {
@@ -88,7 +100,7 @@ export function SystemError({ title, children, onRetry, icon = "serverOff", retr
         {title}
       </h2>
       <div className={styles.systemBody}>{children}</div>
-      <Button variant="secondary" onClick={onRetry}>
+      <Button variant={retryVariant} onClick={onRetry}>
         {retryLabel}
       </Button>
     </section>
