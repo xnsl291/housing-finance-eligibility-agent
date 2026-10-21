@@ -200,6 +200,52 @@ describe("S1 조건 읽기", () => {
   });
 });
 
+describe("S1 화면을 떠난 뒤 늦게 온 응답", () => {
+  it("읽는 중에 전체 초기화로 떠나면 답이 와도 S2로 끌고 가지 않는다. 열린 세션은 지울 수 있게 남는다", async () => {
+    const user = userEvent.setup();
+    let answer: (r: Response) => void = () => {};
+    const server = fakeServer({
+      "POST /v1/sessions": sessions(),
+      "POST /v1/sessions/s-1/messages": () => new Promise<Response>((resolve) => (answer = resolve)),
+      "DELETE /v1/sessions/s-1": () => json({ session_id: "s-1", deleted: true }),
+    });
+    renderApp("/write");
+    await user.type(box(), SENTENCE);
+    await user.click(readButton());
+    await screen.findByText("문장을 읽고 있습니다");
+
+    await user.click(screen.getByRole("button", { name: "전체 초기화" }));
+    await user.click(screen.getByRole("button", { name: "처음으로" }));
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/);
+
+    await act(async () => answer(extracted("s-1")));
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/);
+
+    await user.click(screen.getByRole("button", { name: "내 기록 지우기" }));
+    await user.click(screen.getByRole("button", { name: "지우기" }));
+    await vi.waitFor(() => expect(callsTo(server, "DELETE /v1/sessions/s-1")).toHaveLength(1));
+  });
+
+  it("읽는 중에 떠난 뒤 실패가 와도 다른 화면에 영향이 없다", async () => {
+    const user = userEvent.setup();
+    let answer: (r: Response) => void = () => {};
+    fakeServer({
+      "POST /v1/sessions": sessions(),
+      "POST /v1/sessions/s-1/messages": () => new Promise<Response>((resolve) => (answer = resolve)),
+    });
+    renderApp("/write");
+    await user.type(box(), SENTENCE);
+    await user.click(readButton());
+    await screen.findByText("문장을 읽고 있습니다");
+    await user.click(screen.getByRole("button", { name: "전체 초기화" }));
+    await user.click(screen.getByRole("button", { name: "처음으로" }));
+
+    await act(async () => answer(json({ detail: "조건을 읽지 못했습니다" }, 503)));
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/);
+    expect(screen.queryByRole("region", { name: "조건을 읽지 못했습니다" })).not.toBeInTheDocument();
+  });
+});
+
 describe("S1 실패 — 종류마다 다르게 말하고, 적은 문장은 그대로 둔다 (결함 D14)", () => {
   it("서버에 연결되지 않으면 연결 안내", async () => {
     const user = userEvent.setup();

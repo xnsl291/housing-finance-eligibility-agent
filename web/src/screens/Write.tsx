@@ -17,8 +17,12 @@
  * 4. 성공하면 S2로. 경고와 못 읽은 값은 서버에 남지 않는 값이라 라우터 state로 넘긴다
  *
  * 실패는 종류별로 다르게 말한다(failure.ts). 어느 경우든 적어 둔 문장이 그대로 있다고 덧붙인다.
+ *
+ * 기다리는 동안 사용자가 전체 초기화·뒤로 가기로 이 화면을 떠날 수 있다. 그 뒤에 온 답으로 S2로 끌고
+ * 가거나 상태를 바꾸지 않는다(alive). 요청을 끊지는 않는다 — 끊어도 서버는 끝까지 일하므로 얻는 것이 없다.
+ * 열린 세션 번호는 떠났어도 이미 앱 메모리에 모였으므로 '내 기록 지우기'로 지울 수 있다.
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { api } from "../api/client";
@@ -76,6 +80,14 @@ export function Write() {
   const [pendingExample, setPendingExample] = useState<string | null>(null);
   // 상태는 다시 그려진 뒤에야 바뀌므로, 같은 순간 두 번 누름은 ref로 막는다
   const busy = useRef(false);
+  // 이 화면이 떠 있는가. 떠난 뒤 온 답은 버린다(머리말)
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
 
   const length = countChars(draft);
   const over = length - MAX_CHARS;
@@ -101,13 +113,14 @@ export function Write() {
       rememberSession(session_id);
       stage = "read";
       const result = await api.sendMessage(session_id, draft);
+      if (!alive.current) return;
       const state: ConfirmState = { warnings: result.warnings, unreadable: result.unreadable };
       navigate(sessionPath(session_id, "confirm"), { state });
     } catch (error) {
-      fail(error, stage, "read");
+      if (alive.current) fail(error, stage, "read");
     } finally {
       busy.current = false;
-      setReading(false);
+      if (alive.current) setReading(false);
     }
   }
 
@@ -118,9 +131,9 @@ export function Write() {
     try {
       const { session_id } = await api.startSession();
       rememberSession(session_id);
-      navigate(sessionPath(session_id, "questions"));
+      if (alive.current) navigate(sessionPath(session_id, "questions"));
     } catch (error) {
-      fail(error, "start", "direct");
+      if (alive.current) fail(error, "start", "direct");
     } finally {
       busy.current = false;
     }

@@ -11,8 +11,11 @@
  * 시작 버튼 두 개
  * - 문장으로 적기 → S1
  * - 항목을 직접 고르기 → 세션을 열고 바로 S3. 읽은 값이 없으니 확인할 것도 없어 S2를 건너뛴다(Q8)
+ *
+ * 세션을 여는 동안 다른 화면으로 떠났으면 답이 와도 S3로 끌고 가지 않는다(alive). 번호는 앱 메모리에
+ * 모았으므로 '내 기록 지우기'로 지울 수 있다.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { api } from "../api/client";
@@ -39,14 +42,21 @@ export function Start() {
   const navigate = useNavigate();
   const { programs, rememberSession } = useAppState();
   const [failure, setFailure] = useState<{ id: number; error: unknown } | null>(null);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
 
   async function startDirect() {
     try {
       const { session_id } = await api.startSession();
       rememberSession(session_id);
-      navigate(sessionPath(session_id, "questions"));
+      if (alive.current) navigate(sessionPath(session_id, "questions"));
     } catch (error) {
-      setFailure((f) => ({ id: (f?.id ?? 0) + 1, error }));
+      if (alive.current) setFailure((f) => ({ id: (f?.id ?? 0) + 1, error }));
     }
   }
 

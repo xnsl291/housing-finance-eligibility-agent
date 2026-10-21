@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { callsTo, fakeServer, json, PROGRAMS, renderApp } from "./testing";
@@ -51,6 +51,27 @@ describe("S0 첫 화면 — 시작 버튼", () => {
     await user.click(screen.getByRole("button", { name: "항목을 직접 고르기" }));
     await vi.waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/s/s-1/questions"));
     expect(callsTo(server, "POST /v1/sessions")).toHaveLength(1);
+  });
+
+  it("직접 고르기를 기다리는 중에 다른 화면으로 떠나면, 세션이 열려도 질문 화면으로 끌고 가지 않는다", async () => {
+    const user = userEvent.setup();
+    let answer: (r: Response) => void = () => {};
+    const server = fakeServer({
+      "POST /v1/sessions": () => new Promise<Response>((resolve) => (answer = resolve)),
+      "DELETE /v1/sessions/s-1": () => json({ session_id: "s-1", deleted: true }),
+    });
+    renderApp("/");
+    await user.click(screen.getByRole("button", { name: "항목을 직접 고르기" }));
+    await user.click(screen.getByRole("button", { name: "문장으로 적기" }));
+    expect(screen.getByTestId("location")).toHaveTextContent("/write");
+
+    await act(async () => answer(json({ session_id: "s-1" }, 201)));
+    expect(screen.getByTestId("location")).toHaveTextContent("/write");
+
+    // 열린 세션 번호는 지울 대상으로 남는다
+    await user.click(screen.getByRole("button", { name: "내 기록 지우기" }));
+    await user.click(screen.getByRole("button", { name: "지우기" }));
+    await vi.waitFor(() => expect(callsTo(server, "DELETE /v1/sessions/s-1")).toHaveLength(1));
   });
 
   it("직접 고르기에서 서버에 연결되지 않으면 조건 문제가 아니라고 알리고 다시 시도할 수 있다", async () => {
