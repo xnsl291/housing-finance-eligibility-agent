@@ -7,6 +7,12 @@
  * stage는 어느 호출에서 실패했는지다. 같은 시간 초과라도 세션을 여는 짧은 호출(10초)과 문장을 읽는
  * 긴 호출(LLM)은 뜻이 다르다. 문장을 읽다 끊긴 경우만 "서버는 켜져 있습니다"라고 말할 수 있다 —
  * 바로 앞에서 세션 열기가 성공했기 때문이다.
+ *
+ * 504는 시간 초과로 묶는다. 판정 서버는 504를 내지 않고, 사이에 선 중계(개발 서버의 프록시 등)가
+ * "판정 서버가 제때 답하지 않았다"고 알려 온 것이다. 거절(http)로 두면 "요청이 거부됐습니다 (HTTP 504)"가 보인다.
+ *
+ * 422(서버가 입력을 거절함)는 여기서 다루지 않는다. 시스템 오류가 아니라 입력 오류라서 상자가 아니라
+ * 칸 바로 아래에 보인다(설계서 C-ERROR). 화면은 inputRejection으로 먼저 걸러 낸다.
  */
 import { ApiError } from "../api/client";
 import type { IconName } from "../components/Icon";
@@ -25,6 +31,15 @@ export interface FailureText {
   direct: "primary" | "secondary" | null;
 }
 
+/** 서버가 입력을 거절했으면(422) 칸 아래에 보일 사유를, 아니면 null */
+export function inputRejection(error: unknown): string | null {
+  return error instanceof ApiError && error.status === 422 ? error.message : null;
+}
+
+function isTimeout(error: ApiError): boolean {
+  return error.kind === "timeout" || error.status === 504;
+}
+
 export function describeFailure(error: unknown, stage: Stage): FailureText {
   if (error instanceof ApiError && error.kind === "network") {
     // 시안 E1
@@ -35,7 +50,7 @@ export function describeFailure(error: unknown, stage: Stage): FailureText {
       direct: null,
     };
   }
-  if (error instanceof ApiError && error.kind === "timeout") {
+  if (error instanceof ApiError && isTimeout(error)) {
     if (stage === "read") {
       // 설계서 E3
       return {

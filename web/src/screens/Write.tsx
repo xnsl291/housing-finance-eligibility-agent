@@ -28,7 +28,7 @@ import { FieldFrame } from "../components/Field";
 import { Icon } from "../components/Icon";
 import { Notice } from "../components/Notice";
 import { useAppState } from "./AppState";
-import { describeFailure, type Stage } from "./failure";
+import { describeFailure, inputRejection, type Stage } from "./failure";
 import { sessionPath, type ConfirmState } from "./routes";
 import screen from "./Screen.module.css";
 import styles from "./Write.module.css";
@@ -134,7 +134,9 @@ export function Write() {
     setFailure(null);
   }
 
-  const text = failure && describeFailure(failure.error, failure.stage);
+  // 422는 입력 오류라 칸 아래에(C-ERROR). 그 밖의 실패만 시스템 오류 상자로
+  const rejected = failure && inputRejection(failure.error);
+  const text = failure && !rejected && describeFailure(failure.error, failure.stage);
 
   return (
     <>
@@ -176,7 +178,7 @@ export function Write() {
 
       <FieldFrame
         label="상황을 자유롭게 적어 주세요"
-        error={over > 0 ? `${n(MAX_CHARS)}자까지 보낼 수 있습니다. ${n(over)}자 줄여 주세요` : null}
+        error={over > 0 ? `${n(MAX_CHARS)}자까지 보낼 수 있습니다. ${n(over)}자 줄여 주세요` : rejected}
       >
         {(a) => (
           <div className={styles.inputArea}>

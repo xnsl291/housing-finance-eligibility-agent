@@ -270,16 +270,51 @@ describe("S1 실패 — 종류마다 다르게 말하고, 적은 문장은 그�
     const user = userEvent.setup();
     fakeServer({
       "POST /v1/sessions": sessions(),
-      "POST /v1/sessions/s-1/messages": () => json({ detail: "문장이 1,000자를 넘습니다" }, 422),
+      "POST /v1/sessions/s-1/messages": () => json({ detail: "세션 파일을 쓰지 못했습니다" }, 500),
     });
     renderApp("/write");
     await user.type(box(), SENTENCE);
     await user.click(readButton());
 
     const region = await screen.findByRole("region", { name: "요청을 처리하지 못했습니다" });
-    expect(region).toHaveTextContent("문장이 1,000자를 넘습니다");
+    expect(region).toHaveTextContent("세션 파일을 쓰지 못했습니다");
     expect(region).toHaveTextContent("적어 두신 문장은 그대로 있습니다.");
     expect(box()).toHaveValue(SENTENCE);
+  });
+
+  it("서버가 문장을 거절하면(422) 시스템 오류 상자가 아니라 칸 바로 아래 입력 오류로 보인다 (C-ERROR)", async () => {
+    const user = userEvent.setup();
+    fakeServer({
+      "POST /v1/sessions": sessions(),
+      "POST /v1/sessions/s-1/messages": () => json({ detail: "문장이 1,000자를 넘습니다" }, 422),
+    });
+    renderApp("/write");
+    await user.type(box(), SENTENCE);
+    await user.click(readButton());
+
+    await vi.waitFor(() => expect(box()).toHaveAccessibleDescription(/문장이 1,000자를 넘습니다/));
+    expect(box()).toHaveAttribute("aria-invalid", "true");
+    expect(screen.queryByRole("region", { name: "요청을 처리하지 못했습니다" })).not.toBeInTheDocument();
+    expect(box()).toHaveValue(SENTENCE);
+    // 고쳐서 다시 보낼 수 있게 조건 읽기가 그대로 있다. 고치면 오류를 걷는다
+    expect(readButton()).not.toHaveAttribute("aria-disabled");
+    await user.type(box(), " 무주택입니다.");
+    expect(box()).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("중계가 시간 초과(504)를 알려 오면 시간 초과로 말한다 — 거절로 보이지 않는다", async () => {
+    const user = userEvent.setup();
+    fakeServer({
+      "POST /v1/sessions": sessions(),
+      "POST /v1/sessions/s-1/messages": () => new Response("Gateway Timeout", { status: 504 }),
+    });
+    renderApp("/write");
+    await user.type(box(), SENTENCE);
+    await user.click(readButton());
+
+    const region = await screen.findByRole("region", { name: "문장을 읽는 데 너무 오래 걸려 중단했습니다" });
+    expect(region).not.toHaveTextContent("HTTP 504");
+    expect(screen.getByRole("button", { name: "직접 입력으로 넘어가기" })).toBeInTheDocument();
   });
 
   it("실패한 뒤 다시 시도하면 새 세션을 열어 보낸다", async () => {
