@@ -277,3 +277,23 @@ def test_지운_값은_파일에도_남지_않는다(tmp_path) -> None:
     store.delete(session_id)
 
     assert 표식.encode("utf-8") not in path.read_bytes()
+
+
+def test_여러_요청이_한꺼번에_읽고_써도_깨지지_않는다(tmp_path) -> None:
+    """API는 요청마다 다른 스레드에서 같은 저장소를 쓴다. 화면이 같은 세션을 두 번
+    동시에 부르면 연결 하나를 두 스레드가 함께 써서 500이나 있는 세션의 404가 났다."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    store = SessionStore(tmp_path / "sessions.db")
+    session_id = store.start()
+
+    def 한_번(i: int) -> None:
+        store.record_fields(session_id, {"age": i})
+        assert store.exists(session_id)
+        store.state(session_id)
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(한_번, range(200)))
+
+    # 순번이 겹치지 않고 빠짐없이 쌓였다(시작 기록 1 + 값 200).
+    assert [e.seq for e in store.events(session_id)] == list(range(1, 202))
