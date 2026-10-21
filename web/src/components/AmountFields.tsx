@@ -8,6 +8,7 @@
 import { useId, useState } from "react";
 
 import type { AmountRange } from "../api/types";
+import { afterPress } from "./afterPress";
 import { formatRange, formatWon, parseAmount, wonToInput } from "./amount";
 import { FieldError, FieldFrame } from "./Field";
 import styles from "./Field.module.css";
@@ -48,7 +49,8 @@ export function AmountField({ label, defaultWon, onChange, help, error }: Amount
               const p = parseAmount(e.target.value);
               onChange("won" in p ? p.won : null, "error" in p ? p.error : null);
             }}
-            onBlur={() => setLeft(true)}
+            // 마우스를 누르는 중이면 뗀 뒤에 오류를 그린다 — 누르는 사이 아래 버튼이 밀려 클릭이 빗나가지 않게(afterPress.ts)
+            onBlur={() => afterPress(() => setLeft(true))}
           />
           <span className={styles.unit}>만원</span>
         </div>
@@ -125,7 +127,8 @@ export function RangeField({ label, defaultValue, onChange, error }: RangeFieldP
         // 최소 칸을 채우고 최대 칸으로 가는 중에 "모두 채우거나 모두 비워 주세요"를 띄우면 아직 적는 사람을
         // 나무라는 꼴이다. 초점이 두 칸 묶음 밖으로 나갔을 때만 떠난 것으로 본다
         // (React onBlur는 focusout처럼 올라오고, relatedTarget이 새로 초점을 받은 곳이다)
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setLeft(true);
+        // 마우스로 묶음 밖을 누르는 중이면 뗀 뒤에 오류를 그린다(afterPress.ts — 버튼이 밀려 클릭이 빗나가는 것을 막음)
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) afterPress(() => setLeft(true));
       }}
     >
       <legend className={styles.label}>{label}</legend>

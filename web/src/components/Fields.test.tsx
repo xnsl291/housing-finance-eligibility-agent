@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { AmountField, RangeField } from "./AmountFields";
@@ -148,6 +148,54 @@ describe("범위 칸 (G6)", () => {
 
     expect(onChange).toHaveBeenLastCalledWith(null, "최소가 최대보다 큽니다");
     expect(screen.getByText("최소가 최대보다 큽니다")).toBeInTheDocument();
+  });
+});
+
+describe("칸을 떠날 때 생기는 오류 줄은 마우스를 뗀 뒤에 그린다", () => {
+  // 마우스로 아래 버튼을 누르면 누르는 순간(pointerdown) 칸이 blur된다. 그때 오류 줄이 새로 생기면 버튼이
+  // 밀려 손을 뗄 때 버튼이 다른 자리에 있고, 클릭이 빗나간다(브라우저에서 관찰). jsdom은 자리를 계산하지 않아
+  // 빗나감 자체는 재현할 수 없으므로, 누르는 동안에는 줄을 그리지 않고 뗀 뒤에 그리는지를 본다
+  async function pressOutside(input: HTMLElement) {
+    const button = screen.getByRole("button", { name: "다음" });
+    fireEvent.pointerDown(button);
+    act(() => button.focus());
+    expect(input).not.toHaveFocus();
+    return button;
+  }
+
+  it.each([
+    ["범위", <RangeField key="r" label="소득" onChange={() => {}} />, "소득 최소", "4500", "범위는 두 칸을 모두 채우거나 모두 비워 주세요"],
+    ["금액", <AmountField key="a" label="소득" onChange={() => {}} />, "소득", "억억", "금액을 알아볼 수 없습니다. 예: 3억 2천, 4500"],
+    ["숫자", <NumberField key="n" label="나이" integer onChange={() => {}} />, "나이", "abc", "숫자로 적어 주세요"],
+  ])("%s 칸", async (_kind, field, label, text, message) => {
+    const user = userEvent.setup();
+    render(
+      <>
+        {field}
+        <button type="button">다음</button>
+      </>,
+    );
+    const input = screen.getByLabelText(label);
+    await user.type(input, text);
+
+    const button = await pressOutside(input);
+    expect(screen.queryByText(message)).not.toBeInTheDocument();
+
+    fireEvent.pointerUp(button);
+    expect(await screen.findByText(message)).toBeInTheDocument();
+  });
+
+  it("키보드로 떠나면(누르는 중이 아님) 바로 그린다", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <AmountField label="소득" onChange={() => {}} />
+        <button type="button">다음</button>
+      </>,
+    );
+    await user.type(screen.getByLabelText("소득"), "억억");
+    await user.tab();
+    expect(screen.getByText("금액을 알아볼 수 없습니다. 예: 3억 2천, 4500")).toBeInTheDocument();
   });
 });
 

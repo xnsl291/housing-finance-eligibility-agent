@@ -8,10 +8,12 @@
  *   화면 읽기 프로그램이 같이 읽는다(설계서 11.3)
  * - 글을 숫자로 바꾸는 칸(숫자·금액·범위)은 onChange(값, 오류)로 알린다. 못 알아본 글을
  *   빈칸으로 바꿔 넘기면 사용자가 적은 값이 조용히 사라지므로, 부모가 보내기를 막을 수 있게
- *   오류를 같이 넘긴다. 칸 스스로는 칸을 떠난 뒤에만 오류를 보인다(치는 중에 빨갛게 하지 않음)
+ *   오류를 같이 넘긴다. 칸 스스로는 칸을 떠난 뒤에만 오류를 보인다(치는 중에 빨갛게 하지 않음).
+ *   마우스로 다른 곳을 눌러 떠났으면 손을 뗀 뒤에 보인다 — 오류 줄이 생기며 누른 버튼이 밀리지 않게(afterPress.ts)
  */
 import { useId, useState, type ReactNode } from "react";
 
+import { afterPress } from "./afterPress";
 import { Icon } from "./Icon";
 import styles from "./Field.module.css";
 
@@ -152,7 +154,8 @@ export function NumberField({ label, defaultValue, integer, onChange, unit, help
               const p = numberProblem(next, integer);
               onChange(p || next.trim() === "" ? null : Number(next.replace(/,/g, "")), p);
             }}
-            onBlur={() => setLeft(true)}
+            // 마우스를 누르는 중이면 뗀 뒤에 오류를 그린다(afterPress.ts)
+            onBlur={() => afterPress(() => setLeft(true))}
           />
           {unit && <span className={styles.unit}>{unit}</span>}
         </div>
