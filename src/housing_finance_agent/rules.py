@@ -29,8 +29,21 @@ def load_program(program_id: str) -> dict:
     program = yaml.safe_load(path.read_text(encoding="utf-8"))
     # 항목 안내는 상품이 달라도 같다. 상품 파일마다 적으면 두 곳이 갈라지므로
     # 공통 파일에 두고 여기서 합친다. 상품 파일에 같은 항목이 있으면 그쪽이 이긴다.
+    _구간_이름표_확인(program_id, program)
     program["field_guides"] = {**_load_field_guides(), **(program.get("field_guides") or {})}
     return program
+
+
+def _구간_이름표_확인(program_id: str, program: dict) -> None:
+    """한도 구간마다 한국어 이름표(label)가 있어야 한다.
+
+    화면은 판정 코드(구간 이름)를 모르므로 이름표를 서버가 실어 준다. 빠진 채로
+    두면 화면에 영문 코드가 그대로 나오므로 읽을 때 바로 실패시킨다.
+    """
+    spec = (program.get("limits") or {}).get("loan_amount") or {}
+    for tier in spec.get("tiers") or []:
+        if not tier.get("label"):
+            raise ValueError(f"{program_id}: 한도 구간 {tier.get('name')}에 label이 없음")
 
 
 def available_programs() -> list[str]:

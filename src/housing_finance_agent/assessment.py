@@ -60,7 +60,7 @@ def _next_actions(program: dict, decision: Decision, limit: LoanLimit | None) ->
     # 금액은 냈지만 더 유리한 구간을 몰라서 건너뛴 경우. 받을 수 있는 것보다 적게
     # 알려 준 상태이므로 그대로 두면 안 된다.
     if limit is not None and limit.skipped_tiers:
-        이름 = ", ".join(_TIER_NAMES.get(tier, tier) for tier in limit.skipped_tiers)
+        이름 = ", ".join(limit.skipped_tier_labels)
         return [f"{이름}에 해당하면 한도가 더 늘어날 수 있습니다"]
 
     # 사전 조건 부합일 때의 다음 단계는 아직 넣지 않았다. 신청 방법은 취급 은행마다
@@ -79,13 +79,6 @@ def _failure_reasons(program: dict, failed_rules: list[str]) -> list[str]:
         reasons.append(reason)
     return reasons
 
-
-_TIER_NAMES = {
-    "newlywed_or_two_children": "신혼 가구 또는 2자녀 이상 가구",
-    "under_25_single": "만 25세 미만 단독세대주",
-    "first_time": "생애최초 주택구입자",
-    "single_first_time": "생애최초 주택구입자",
-}
 
 # 비율을 거는 값이 없거나 범위일 때는 **어느 값인지를 항목 이름으로 말한다.**
 # 전세는 임차보증금이고 매매는 주택가격이라, 문구에 항목을 박으면 상품을 늘릴 때
