@@ -7,16 +7,14 @@
  * /s/:sessionId/confirm   S2 읽은 내용 확인
  * /s/:sessionId/questions S3 하나씩 확인 (직접 입력으로 시작하면 S2를 건너뛰고 여기로 — Q8)
  * /s/:sessionId/result    S4 판정 결과
- *
- * S4는 아직 자리표시다(Pending). 화면별 PR에서 채운다.
  */
 import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
 
 import { Confirm } from "./screens/Confirm";
 import { Layout } from "./screens/Layout";
-import { Pending } from "./screens/Pending";
 import { Questions } from "./screens/Questions";
+import { Result } from "./screens/Result";
 import { Start } from "./screens/Start";
 import { Write } from "./screens/Write";
 
@@ -34,7 +32,7 @@ export function App() {
         <Route path="/write" element={<Write />} />
         <Route path="/s/:sessionId/confirm" element={<Confirm />} />
         <Route path="/s/:sessionId/questions" element={<Questions />} />
-        <Route path="/s/:sessionId/result" element={<Pending />} />
+        <Route path="/s/:sessionId/result" element={<Result />} />
         <Route path="*" element={<h1>없는 화면입니다</h1>} />
       </Route>
       {ComponentGallery && (

@@ -101,7 +101,17 @@ export const api = {
   next: (id: string) => call<NextAction>("GET", `${s(id)}/next`),
   decline: (id: string, field: string) =>
     call<{ session_id: string; declined: string[] }>("POST", `${s(id)}/declined`, { field }),
-  assess: (id: string) => call<Assessment>("POST", `${s(id)}/assessment`),
+  /**
+   * 판정. programIds를 주면 그 상품만(본문에 id 목록을 그대로 — api.py assess_session, Streamlit api_client와 같은 모양).
+   * 결과 화면은 next가 준 후보만 보낸다. 빈 목록은 서버가 '전부'로 읽으므로 본문에 싣지 않는다 —
+   * 후보가 하나도 없을 때는 이 함수를 부르지 말 것(useResult.ts)
+   */
+  assess: (id: string, programIds?: string[]) =>
+    call<Assessment>(
+      "POST",
+      `${s(id)}/assessment`,
+      programIds && programIds.length > 0 ? programIds : undefined,
+    ),
   trace: (id: string) => call<Trace>("GET", `${s(id)}/trace`),
   deleteSession: (id: string) =>
     call<{ session_id: string; deleted: boolean }>("DELETE", s(id)),

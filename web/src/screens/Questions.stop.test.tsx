@@ -248,7 +248,8 @@ describe("S3 멈추기와 되돌아가기", () => {
     await user.click(stopButton());
 
     expect(location()).toHaveTextContent("/s/s-1/result");
-    expect(callsTo(spy, "POST /v1/sessions/s-1/assessment")).toHaveLength(0);
+    // 결과 화면(S4)이 한 번 부른다. S3도 불렀다면 두 번이 된다
+    await waitFor(() => expect(callsTo(spy, "POST /v1/sessions/s-1/assessment")).toHaveLength(1));
   });
 
   it("지울 것이 있으면 확인 창(M1)을 띄우고 초점은 계속하기. 처음부터는 S1로 가고 서버 세션은 지우지 않는다", async () => {
