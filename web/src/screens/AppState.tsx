@@ -17,7 +17,7 @@
  * 서버에서 셀 수는 없다 — 확인 과정(trace)의 값 저장 기록에는 S2에서 고친 값도 섞여 있어 S3 답만 골라낼 수 없다.
  * 그래서 새로 고치면 0부터 다시 센다.
  */
-import { createContext, useContext, useEffect, useRef, type RefObject } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, type RefObject } from "react";
 
 import type { Program } from "../api/types";
 
@@ -66,4 +66,28 @@ export function useAlive(): RefObject<boolean> {
     };
   }, []);
   return alive;
+}
+
+/**
+ * 서버에서 다시 받는 일을 한 번에 하나만 돌린다(S3 다음 질문 받기, S4 판정). 도는 중에 새 부름이 오면
+ * - drop이면 버린다. 들어올 때·다시 시도·다시 연결 확인처럼 '같은 것을 또 받을' 뿐인 부름이다. StrictMode가 효과를
+ *   두 번 돌려도 S4 판정 기록(ASSESSED)이 두 번 쌓이지 않는 것도 이 덕분이다
+ * - 아니면 앞 것이 끝난 뒤 돈다. 값을 저장한 뒤의 다시 받기다 — 도는 중인 것은 저장 전 상태로 물은 것일 수 있어
+ *   버리면 고친 값이 화면에 반영되지 않는다. 돌려준 Promise는 자기 차례가 끝나야 풀린다(부른 쪽이 '저장하는 중'을 그만큼 유지)
+ * job은 던지지 않아야 한다(실패는 job 안에서 상태로 바꾼다)
+ */
+export function useOneAtATime(): (job: () => Promise<void>, drop: boolean) => Promise<void> {
+  const running = useRef<Promise<void> | null>(null);
+  return useCallback(async (job: () => Promise<void>, drop: boolean) => {
+    if (running.current && drop) return;
+    // 기다리는 사이 다른 부름이 먼저 자리를 잡을 수 있어 비었는지 다시 본다
+    while (running.current) await running.current;
+    const mine = job();
+    running.current = mine;
+    try {
+      await mine;
+    } finally {
+      if (running.current === mine) running.current = null;
+    }
+  }, []);
 }

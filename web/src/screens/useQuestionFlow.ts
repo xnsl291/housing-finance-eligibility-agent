@@ -12,15 +12,18 @@
  * 떠난 뒤 늦게 온 응답은 버린다(useAlive).
  *
  * 한 번에 하나만 보낸다
- * - 다음 질문 받기: 받는 중이면 새로 부르지 않는다(fetching). StrictMode가 효과를 두 번 돌리거나, 받는 중에
- *   '다시 연결 확인'·'다시 시도'를 눌러도 GET /next가 겹쳐 나가지 않는다
+ * - 다음 질문 받기(fetchNext(why), AppState.useOneAtATime): 들어올 때·다시 시도·다시 연결 확인(enter)은 받는 중이면
+ *   버린다. StrictMode가 효과를 두 번 돌리거나 받는 중에 눌러도 GET /next가 겹쳐 나가지 않는다.
+ *   답 저장 뒤(answered)·고치기 저장 뒤(edited)는 버리지 않고 받던 것이 끝난 뒤 한 번 더 받는다 — 받던 것은 저장 전
+ *   상태로 물은 것일 수 있다. 예전에는 이것도 버려서, 고치기 저장 중에 다시 연결 확인을 누르면 고친 뒤의 질문을 받지 못했다
  * - 답 저장·모름 기록: 보내는 중이면 새로 보내지 않는다(sendingRef). 카드 버튼은 카드가 막지만 '다시 시도'는
  *   카드 밖에 있어, 여기서 막지 않으면 한 질문에 답과 모름이 둘 다 갈 수 있다
  *
  * S7 '지금까지 확인한 항목'(heldItems.ts)에 쓸 세션 값과 기록(trace)도 다음 질문을 받을 때마다 함께 받는다.
  * 고치기 저장(useValueEdit.ts, Questions.tsx가 부름)이 끝나면 다음 질문을 다시 받는다 — 고친 값에 따라 물을 것이 바뀐다.
- * 다음 질문을 받는 동안(fetching)은 화면이 고치기를 잠근다. 받는 중에 고치기를 저장하면 위 '받는 중이면 새로 부르지
- * 않는다' 때문에 고친 뒤의 질문을 받지 못한다
+ * 그때 같은 항목을 같은 방식(ask_kind)으로 다시 물으면 같은 질문으로 보고 key를 그대로 둔다 — 카드에 적던 답이 남고 초점도
+ * 튀지 않는다. 답을 보낸 뒤 같은 항목이 다시 오는 것(기준에 걸쳐 다시 물음)은 새 질문이라 전처럼 key를 바꿔 칸을 비운다.
+ * 다음 질문을 받는 동안(fetching)은 화면이 고치기를 잠근다(받는 동안 목록 줄이 바뀔 수 있다)
  *
  * 다음 질문 받기(useNextQuestion)와 답 보내기(useQuestionFlow)를 두 함수로 나눴다. S7 목록 재료가 붙으며 한 함수가
  * 150줄을 넘었다. 둘이 맞물리는 곳은 두 군데뿐이다 — 새 질문을 받으면 답 칸을 비우고(onAsk), 답을 보내면 다음 질문을 받는다
@@ -31,7 +34,7 @@ import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import type { Question, SessionState, TraceEvent } from "../api/types";
 import { formatRange, formatWon } from "../components/amount";
-import { useAlive, useAppState } from "./AppState";
+import { useAlive, useAppState, useOneAtATime } from "./AppState";
 import { NO_ANSWER, valueToSend, type Answer } from "./QuestionInput";
 import { sessionPath } from "./routes";
 
@@ -44,6 +47,9 @@ type Load =
   | { kind: "failed"; error: unknown };
 
 type Send = "answer" | "decline";
+
+/** 왜 다음 질문을 받나(머리말 '한 번에 하나만'). enter는 뼈대를 보이고, 받는 중이면 버린다 */
+export type FetchWhy = "enter" | "answered" | "edited";
 
 export function useQuestionFlow(sessionId: string) {
   const { lostConnection, countAnswer } = useAppState();
@@ -93,7 +99,7 @@ export function useQuestionFlow(sessionId: string) {
     }
     if (!alive.current) return;
     countAnswer(sessionId);
-    await fetchNext(false);
+    await fetchNext("answered");
   }
 
   /**
@@ -133,18 +139,19 @@ function useNextQuestion(sessionId: string, onAsk: () => void) {
   /** S7 목록의 재료. null은 처음 받는 중, failed는 세션 값이나 기록을 못 받음(목록 자리에 그렇게 알린다) */
   const [records, setRecords] = useState<{ held: SessionState; events: TraceEvent[] } | "failed" | null>(null);
   const [fetchingNow, setFetchingNow] = useState(false);
-  const fetching = useRef(false);
+  const oneAtATime = useOneAtATime();
   const asked = useRef(0);
   const onAskRef = useRef(onAsk);
   onAskRef.current = onAsk;
+  // 고치기 저장 뒤 같은 질문인지 견주려고 지금 질문을 든다(받는 동안 새로 그려져도 최신)
+  const loadRef = useRef(load);
+  loadRef.current = load;
 
   // 세션 상태는 '지금 아는 값'과 '처음부터 다시' 확인 창을 띄울지, S7 목록에 쓴다. 못 받아도 질문은 그린다
-  const fetchNext = useCallback(
-    async (skeleton: boolean) => {
-      if (fetching.current) return;
-      fetching.current = true;
+  const fetchOnce = useCallback(
+    async (why: FetchWhy) => {
       setFetchingNow(true);
-      if (skeleton) setLoad({ kind: "loading" });
+      if (why === "enter") setLoad({ kind: "loading" });
       try {
         // next를 먼저 부른다. 예전에는 서버가 같은 세션을 동시에 두 번 읽으면 500·404를 내서 꼭 차례로 불러야 했으나,
         // 서버 쪽은 이슈 #36(PR #37, 세션 저장소에 잠금)에서 고쳐졌다. 지금 먼저 두는 것은 단순해서다 —
@@ -163,13 +170,21 @@ function useNextQuestion(sessionId: string, onAsk: () => void) {
           return;
         }
         if (!next.question) throw new Error("질문이 없는 ASK 응답");
-        asked.current += 1;
-        onAskRef.current();
+        const now = loadRef.current;
+        const same =
+          why === "edited" &&
+          now.kind === "ask" &&
+          now.question.field === next.question.field &&
+          now.question.ask_kind === next.question.ask_kind;
+        if (!same) {
+          asked.current += 1;
+          onAskRef.current();
+        }
         setLoad({
           kind: "ask",
           question: next.question,
           known: knownText(next.question, held),
-          key: `${next.question.field}:${asked.current}`,
+          key: same ? now.key : `${next.question.field}:${asked.current}`,
         });
       } catch (error) {
         if (!alive.current) return;
@@ -179,15 +194,19 @@ function useNextQuestion(sessionId: string, onAsk: () => void) {
           setLoad({ kind: "offline" });
         } else setLoad({ kind: "failed", error });
       } finally {
-        fetching.current = false;
         if (alive.current) setFetchingNow(false);
       }
     },
     [sessionId, alive, navigate, lostConnection],
   );
 
+  const fetchNext = useCallback(
+    (why: FetchWhy) => oneAtATime(() => fetchOnce(why), why === "enter"),
+    [oneAtATime, fetchOnce],
+  );
+
   useEffect(() => {
-    void fetchNext(true);
+    void fetchNext("enter");
   }, [fetchNext]);
 
   return { load, setLoad, fetchNext, hasValues, records, fetching: fetchingNow };

@@ -24,7 +24,6 @@
  * 모른다고 한 것만 남은 경우(ONLY_DECLINED_LEFT)에는 두지 않는다 — 모른다고 한 항목은 다시 묻지 않아 누르면
  * 곧바로 결과로 돌아온다(8.4 'D1을 푸는 길'). 대신 멈춘 이유 배너 안에 그 항목들의 '값 넣기'를 두어 요약의 그 줄을 연다(S7).
  */
-import type { ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { ApiError } from "../api/client";
@@ -45,7 +44,7 @@ import { ResumeBanner } from "./ResumeBanner";
 import { RuleDetails } from "./RuleDetails";
 import { StartOver } from "./StartOver";
 import { TraceSection } from "./TraceSection";
-import { MORE_TO_ASK, useResult } from "./useResult";
+import { MORE_TO_ASK, type RefreshFailure, useResult } from "./useResult";
 import screen from "./Screen.module.css";
 import styles from "./Result.module.css";
 
@@ -81,11 +80,18 @@ function SessionResult({ sessionId }: { sessionId: string }) {
   const dirty =
     answeredCount(sessionId) > 0 || ready === null || ready.trace.kind !== "ready" || hasRecords(ready.trace.events);
   const editLock = offline ? OFFLINE_LOCK : undefined;
+  // 고친 값을 저장하고 다시 판정하는 동안 다른 다시 받기·떠나기를 잠근다(저장 뒤 다시 판정은 화면이 알아서 한다)
+  const savingLock = summary.saving ? SAVING_LOCK : undefined;
 
   return (
     <>
       {offline && (
-        <SystemError title="지금 판정 서버에 연결할 수 없습니다" retryLabel="다시 연결 확인" onRetry={reconnect}>
+        <SystemError
+          title="지금 판정 서버에 연결할 수 없습니다"
+          retryLabel="다시 연결 확인"
+          onRetry={reconnect}
+          lockedReason={savingLock}
+        >
           <span className={styles.line}>조건의 문제가 아닙니다.</span>
           {ready && <span className={styles.line}>이미 받은 결과는 화면에 그대로 있습니다.</span>}
         </SystemError>
@@ -94,22 +100,20 @@ function SessionResult({ sessionId }: { sessionId: string }) {
         <span className={screen.eyebrow}>판정 결과</span>
         <h1 className={screen.title}>이 조건으로 본 결과</h1>
       </section>
-      <ResumeBanner sessionId={sessionId} dirty={dirty} closed={ready?.change != null || refreshFailure !== null} />
+      <ResumeBanner
+        sessionId={sessionId}
+        dirty={dirty}
+        closed={ready?.change != null || refreshFailure !== null}
+        lockedReason={savingLock}
+      />
       {ready && (
         <Top
           ready={ready}
           catalog={catalog}
           summary={summary}
-          lockedReason={editLock ?? (summary.saving ? SAVING_LOCK : undefined)}
-          refreshFailed={
-            refreshFailure && (
-              <RefreshFailed
-                failure={refreshFailure}
-                onRetry={retryRefresh}
-                lockedReason={editLock ?? (summary.saving ? SAVING_LOCK : undefined)}
-              />
-            )
-          }
+          lockedReason={editLock ?? savingLock}
+          refreshFailure={refreshFailure}
+          onRetryRefresh={retryRefresh}
         />
       )}
       <Notice kind="result" />
@@ -134,7 +138,7 @@ function SessionResult({ sessionId }: { sessionId: string }) {
             trace={ready.trace}
             catalog={catalog}
             onRetry={retryRecords}
-            lockedReason={offline ? OFFLINE_LOCK : undefined}
+            lockedReason={offline ? OFFLINE_LOCK : savingLock}
           />
         </>
       )}
@@ -142,14 +146,14 @@ function SessionResult({ sessionId }: { sessionId: string }) {
       <section className={styles.actions} aria-label="다음 할 일">
         {ready?.reason === MORE_TO_ASK && (
           <Button
-            lockedReason={offline ? OFFLINE_LOCK : summary.saving ? SAVING_LOCK : undefined}
+            lockedReason={editLock ?? savingLock}
             onClick={() => navigate(sessionPath(sessionId, "questions"))}
           >
             질문 이어서 하기
           </Button>
         )}
         <span className={styles.back}>
-          <StartOver sessionId={sessionId} dirty={dirty} />
+          <StartOver sessionId={sessionId} dirty={dirty} lockedReason={savingLock} />
         </span>
       </section>
     </>
@@ -167,14 +171,16 @@ function Top({
   catalog,
   summary,
   lockedReason,
-  refreshFailed,
+  refreshFailure,
+  onRetryRefresh,
 }: {
   ready: Ready;
   catalog: FieldCatalog | null;
   summary: ReturnType<typeof useSummaryEdit>;
   lockedReason: string | undefined;
-  /** 다시 판정 실패 알림. 있으면 바뀐 곳 안내 대신 — 안내는 그 앞 판정 것이라 지난 말이다 */
-  refreshFailed: ReactNode;
+  /** 다시 판정 실패. 있으면 바뀐 곳 안내 대신 알림 — 안내는 그 앞 판정 것이라 지난 말이다 */
+  refreshFailure: RefreshFailure | null;
+  onRetryRefresh: () => Promise<void>;
 }) {
   const { programs } = useAppState();
   const scope = scopeLine(
@@ -185,10 +191,11 @@ function Top({
   );
   return (
     <div className={styles.top}>
-      {refreshFailed ||
-        (ready.change && (
-          <ChangeNotice change={ready.change} items={summary.items} results={ready.results} catalog={catalog} />
-        ))}
+      {refreshFailure ? (
+        <RefreshFailed failure={refreshFailure} onRetry={onRetryRefresh} lockedReason={lockedReason} />
+      ) : (
+        ready.change && <ChangeNotice change={ready.change} items={summary.items} results={ready.results} catalog={catalog} />
+      )}
       <StopBanner reason={ready.reason} declinedLabels={ready.declinedNeeded.map((f) => fieldLabel(catalog, f))}>
         {ready.reason === "ONLY_DECLINED_LEFT" && (
           <DeclinedLinks

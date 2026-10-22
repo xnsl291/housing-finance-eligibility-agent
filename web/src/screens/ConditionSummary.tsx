@@ -23,6 +23,8 @@ import type { Change, HeldState, RefreshFailure, TraceState } from "./useResult"
 import { useValueEdit } from "./useValueEdit";
 import styles from "./ConditionSummary.module.css";
 
+const SAVING_LOCK = "고친 값을 저장하는 중입니다.";
+
 /**
  * 요약의 줄과 고치기 상태. 저장은 그 값만 PUT(useValueEdit) → 끝나면 다시 판정(useResult refresh).
  * 저장할 때 그 줄의 고치기 전 값을 들어 두었다가 다시 판정에 넘긴다 — 바뀐 곳 안내의 '고친 값: A → B'의 A
@@ -76,7 +78,7 @@ export function ConditionSummary({ held, items, onRetry, lockedReason, ...list }
       ) : (
         <div className={styles.failed}>
           <p>판정에 쓴 값을 불러오지 못했습니다. {reasonOf(held)}</p>
-          <Button variant="secondary" lockedReason={lockedReason} onClick={onRetry}>
+          <Button variant="secondary" lockedReason={lockedReason ?? (list.saving ? SAVING_LOCK : undefined)} onClick={onRetry}>
             다시 시도
           </Button>
         </div>

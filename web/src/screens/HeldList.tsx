@@ -12,6 +12,8 @@
  *   '→ 모른다고 함'이라 같은 말이 된다(ConditionSummary.tsx)
  * - 서버 거절(422)·저장 실패는 그 줄 아래 한 줄. 저장 중에는 다른 줄의 고치기와 이 줄의 취소를 잠근다
  * - 한 번에 한 줄만 열린다. 어느 줄이 열렸는지는 화면이 든다 — S4는 멈춘 이유 아래 버튼으로 줄을 열어야 해서
+ * - 줄이 닫히면(취소·저장) 초점이 닫힌 칸과 함께 사라진다. 그때 화면이 이미 초점을 옮겼으면(S4 바뀐 곳 안내, S3 새 질문
+ *   제목) 그대로 두고, 아니면 그 줄의 고치기로 돌려보낸다. 그 줄이 목록에서 사라졌으면(값을 비움) onFocusLost
  */
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
@@ -37,22 +39,39 @@ interface HeldListProps {
   lockedReason?: string;
   /** 저장하면 무엇이 일어나는지 한 줄(S3: 다음 질문을 다시 받음, S4: 다시 판정함) */
   afterSave: string;
+  /** 줄이 닫혔는데 초점 둘 곳이 없을 때(그 줄이 목록에서 사라짐). S3는 질문 제목으로 */
+  onFocusLost?: () => void;
 }
 
 const SAVING_LOCK = "고친 값을 저장하는 중입니다.";
 
-export function HeldList({ items, catalog, openField, onOpenField, onSave, saving, lockedReason, afterSave }: HeldListProps) {
+export function HeldList({
+  items,
+  catalog,
+  openField,
+  onOpenField,
+  onSave,
+  saving,
+  lockedReason,
+  afterSave,
+  onFocusLost,
+}: HeldListProps) {
   const lockId = useId();
   const table = useRef<HTMLTableElement>(null);
-  // 취소로 닫으면 초점을 그 줄의 고치기로 돌려보낸다. 저장으로 닫힐 때는 화면이 초점을 정한다(S4 바뀐 곳 안내 등)
+  // 닫힌 줄. 닫힌 뒤 초점이 빠졌으면 그 줄의 고치기로 돌려보낸다(머리말)
   const returnTo = useRef<string | null>(null);
   const lock = lockedReason ?? (saving ? SAVING_LOCK : undefined);
 
   useEffect(() => {
     if (openField !== null || returnTo.current === null) return;
-    table.current?.querySelector<HTMLElement>(`[data-field="${returnTo.current}"] button`)?.focus();
+    const field = returnTo.current;
     returnTo.current = null;
-  }, [openField]);
+    const active = document.activeElement;
+    if (active !== null && active !== document.body) return;
+    const button = table.current?.querySelector<HTMLElement>(`[data-field="${field}"] button`);
+    if (button) button.focus();
+    else onFocusLost?.();
+  }, [openField, onFocusLost]);
 
   if (items.length === 0) return <p className={styles.empty}>아직 확인한 항목이 없습니다.</p>;
   return (
@@ -108,8 +127,8 @@ export function HeldList({ items, catalog, openField, onOpenField, onSave, savin
                       saving={saving}
                       afterSave={afterSave}
                       onSave={onSave}
-                      onClose={(cancelled) => {
-                        if (cancelled) returnTo.current = item.field;
+                      onClose={() => {
+                        returnTo.current = item.field;
                         onOpenField(null);
                       }}
                     />
@@ -157,7 +176,7 @@ interface EditRowProps {
   saving: boolean;
   afterSave: string;
   onSave: HeldListProps["onSave"];
-  onClose: (cancelled: boolean) => void;
+  onClose: () => void;
 }
 
 function EditRow({ item, spec, lockedReason, saving, afterSave, onSave, onClose }: EditRowProps) {
@@ -193,7 +212,7 @@ function EditRow({ item, spec, lockedReason, saving, afterSave, onSave, onClose 
     setPending(next === null ? "clear" : "save");
     const failed = await onSave(item.field, next);
     setPending(null);
-    if (failed === null) onClose(false);
+    if (failed === null) onClose();
     else setError(failed);
   }
 
@@ -229,7 +248,7 @@ function EditRow({ item, spec, lockedReason, saving, afterSave, onSave, onClose 
             값 비우기
           </Button>
         )}
-        <Button variant="text" lockedReason={saving ? SAVING_LOCK : undefined} onClick={() => onClose(true)}>
+        <Button variant="text" lockedReason={saving ? SAVING_LOCK : undefined} onClick={onClose}>
           취소
         </Button>
       </div>

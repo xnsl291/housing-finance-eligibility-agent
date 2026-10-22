@@ -22,7 +22,16 @@ import { useAppState } from "./AppState";
 import { StartOver } from "./StartOver";
 import styles from "./ResumeBanner.module.css";
 
-export function ResumeBanner({ sessionId, dirty, closed = false }: { sessionId: string; dirty: boolean; closed?: boolean }) {
+interface ResumeBannerProps {
+  sessionId: string;
+  dirty: boolean;
+  /** 켜지면 닫는다(머리말) */
+  closed?: boolean;
+  /** '새로 시작'을 잠글 이유(고친 값을 저장하는 중 — StartOver.tsx) */
+  lockedReason?: string;
+}
+
+export function ResumeBanner({ sessionId, dirty, closed = false, lockedReason }: ResumeBannerProps) {
   const { knowsSession, rememberSession } = useAppState();
   const [resumed, setResumed] = useState(() => !knowsSession(sessionId));
   // 한 번 닫으면 closed가 다시 꺼져도(다시 받는 동안 등) 열지 않는다
@@ -45,7 +54,7 @@ export function ResumeBanner({ sessionId, dirty, closed = false }: { sessionId: 
           서버에 남아 있는 값으로 이어 갑니다. 처음부터 다시 하시려면 ‘새로 시작’을 눌러 주세요.
         </p>
       </div>
-      <StartOver sessionId={sessionId} dirty={dirty} label="새로 시작" variant="secondary" />
+      <StartOver sessionId={sessionId} dirty={dirty} label="새로 시작" variant="secondary" lockedReason={lockedReason} />
     </section>
   );
 }

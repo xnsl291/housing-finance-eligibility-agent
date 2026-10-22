@@ -25,14 +25,15 @@
  * - 연결 안 됨 → Layout 연결 상태를 끊김으로. 받은 결과가 있으면 그대로 둔다(시안 S4-f)
  * - 그 밖(next·판정 실패, 시간 초과) → failed. '판정하지 못했습니다' + 다시 시도(결함 D15와 같은 원칙)
  * - 단 고친 뒤 다시 판정이면 404 말고는 위 refreshFailure(연결 안 됨이면 Layout 연결 상태도 끊김으로)
- * 떠난 뒤 늦게 온 응답은 버린다(useAlive). 받는 중이면 다시 부르지 않는다 — StrictMode가 효과를 두 번 돌려도
- * 판정 기록(ASSESSED)이 두 번 쌓이지 않게
+ * 떠난 뒤 늦게 온 응답은 버린다(useAlive). 한 번에 하나만 받는다(AppState.useOneAtATime) — 처음 받기·다시 시도는
+ * 받는 중이면 버리고(StrictMode가 효과를 두 번 돌려도 판정 기록 ASSESSED가 두 번 쌓이지 않게), 고친 뒤 다시 판정은
+ * 버리지 않고 받던 것이 끝난 뒤 한 번 더 한다(예: 실패 뒤 '다시 판정'을 받는 중에 다른 값을 고쳐 저장함)
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { api, ApiError } from "../api/client";
 import type { FieldCatalog, HeldValue, ProgramResult, TraceEvent } from "../api/types";
-import { useAlive, useAppState } from "./AppState";
+import { useAlive, useAppState, useOneAtATime } from "./AppState";
 
 /** next가 ASK — 아직 물을 것이 남음(StopBanner.tsx, 머리말) */
 export const MORE_TO_ASK = "MORE_TO_ASK";
@@ -81,7 +82,7 @@ export function useResult(sessionId: string) {
   const [refreshFailure, setRefreshFailure] = useState<RefreshFailure | null>(null);
   /** 항목 목록. null은 못 받았거나 아직 받는 중 */
   const [catalog, setCatalog] = useState<FieldCatalog | null>(null);
-  const fetching = useRef(false);
+  const oneAtATime = useOneAtATime();
 
   const fail = useCallback(
     (error: unknown) => {
@@ -95,10 +96,8 @@ export function useResult(sessionId: string) {
   );
 
   /** 차례로 받는다(머리말). change가 있으면 고친 뒤 다시 판정 — 받는 동안 앞 결과를 그대로 둔다 */
-  const run = useCallback(
+  const once = useCallback(
     async (change: Change | null) => {
-      if (fetching.current) return;
-      fetching.current = true;
       if (!change) {
         setLoad({ kind: "loading" });
         setRefreshFailure(null);
@@ -133,12 +132,11 @@ export function useResult(sessionId: string) {
           if (isNetwork(error)) lostConnection();
           setRefreshFailure((f) => ({ id: (f?.id ?? 0) + 1, error, change }));
         } else fail(error);
-      } finally {
-        fetching.current = false;
       }
     },
     [sessionId, alive, fail, lostConnection],
   );
+  const run = useCallback((change: Change | null) => oneAtATime(() => once(change), change === null), [oneAtATime, once]);
 
   const fetchAll = useCallback(() => run(null), [run]);
 
