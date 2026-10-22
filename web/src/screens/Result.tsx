@@ -2,8 +2,10 @@
  * S4 판정 결과. 설계서 6절 S4 '제안 배치' 중 이번 범위, 시안 S4(kBM26)·S4-c·d·e·f·g·i, S4-M1.
  *
  * 위에서 아래로
- * 0. 표지와 제목(h1). 이 탭에서 시작하지 않은 세션이면 바로 아래 S8 이어서 하기 배너(ResumeBanner.tsx)
- * 0-1. 고친 값으로 다시 판정한 직후면 바뀐 곳 안내(S7, ConditionSummary.tsx)
+ * 0. 표지와 제목(h1). 이 탭에서 시작하지 않은 세션이면 바로 아래 S8 이어서 하기 배너(ResumeBanner.tsx).
+ *    고친 값을 저장하면 닫는다 — 이미 이어서 작업하는 중이라 '이전에 하던 확인을 이어서 보여 드립니다'는 지난 말이다
+ * 0-1. 고친 값으로 다시 판정한 직후면 바뀐 곳 안내(S7, ConditionSummary.tsx). 다시 판정이 실패했으면 그 자리에
+ *      '저장했지만 다시 판정하지 못했다'는 알림 — 앞 결과는 그대로 둔다(useResult.ts)
  * 1. 멈춘 이유 — 중립 배너(판정 4색을 쓰지 않음, 11.2·D17). "물을 게 없어서"와 "모르셔서"를 다르게(8.4)
  * 2. 왜 이 상품만 보이나 한 줄 — 후보 상품과 모른다고 한 기록으로(resultText.scopeLine)
  * 3. 고지
@@ -12,7 +14,7 @@
  * 4. 상품 카드 — 판정 순(13절 Q2). 카드 안에 판정 근거(S5)
  * 5. 이 조건으로 판정했습니다 — 항목 · 값 · 출처 + 줄마다 고치기(S7). 저장하면 그 값만 PUT → next → assess로 다시 판정
  * 6. 확인 과정(S6, 접힘)
- * 7. 행동 영역 — 아직 물을 것이 남았으면(사용자가 멈춤·고친 뒤 남음) 주 버튼 '질문 이어서 하기', 보조 '처음부터 다시'
+ * 7. 행동 영역 — 아직 물을 것이 남았으면(next가 ASK) 주 버튼 '질문 이어서 하기', 보조 '처음부터 다시'
  * 비교표(S9)·인쇄(S12)는 다음 PR이라 자리도 두지 않는다.
  *
  * 서버 주고받기와 실패 나누기는 useResult.ts. 이 화면은 판정하지 않는다 — 받은 것을 그대로 보이고, 순서만 바꾼다.
@@ -22,6 +24,7 @@
  * 모른다고 한 것만 남은 경우(ONLY_DECLINED_LEFT)에는 두지 않는다 — 모른다고 한 항목은 다시 묻지 않아 누르면
  * 곧바로 결과로 돌아온다(8.4 'D1을 푸는 길'). 대신 멈춘 이유 배너 안에 그 항목들의 '값 넣기'를 두어 요약의 그 줄을 연다(S7).
  */
+import type { ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { ApiError } from "../api/client";
@@ -33,7 +36,7 @@ import { Notice } from "../components/Notice";
 import { ProductCard } from "../components/ProductCard";
 import { StopBanner } from "../components/StopBanner";
 import { useAppState } from "./AppState";
-import { ChangeNotice, ConditionSummary, DeclinedLinks, useSummaryEdit } from "./ConditionSummary";
+import { ChangeNotice, ConditionSummary, DeclinedLinks, RefreshFailed, useSummaryEdit } from "./ConditionSummary";
 import { Missing } from "./Confirm";
 import { describeFailure } from "./failure";
 import { fieldLabel, hasRecords, limitNote, scopeLine, sortByVerdict, unresolvedCount } from "./resultText";
@@ -42,7 +45,7 @@ import { ResumeBanner } from "./ResumeBanner";
 import { RuleDetails } from "./RuleDetails";
 import { StartOver } from "./StartOver";
 import { TraceSection } from "./TraceSection";
-import { MORE_TO_ASK, USER_STOPPED, useResult } from "./useResult";
+import { MORE_TO_ASK, useResult } from "./useResult";
 import screen from "./Screen.module.css";
 import styles from "./Result.module.css";
 
@@ -61,16 +64,18 @@ export function Result() {
 function SessionResult({ sessionId }: { sessionId: string }) {
   const navigate = useNavigate();
   const { connected, recheckConnection, answeredCount } = useAppState();
-  const { load, catalog, fetchAll, refresh, retryRecords } = useResult(sessionId);
+  const { load, catalog, fetchAll, refresh, refreshFailure, retryRefresh, retryRecords } = useResult(sessionId);
   const ready = load.kind === "ready" ? load : null;
   const summary = useSummaryEdit(sessionId, ready?.held ?? null, ready?.trace ?? null, catalog, refresh);
 
   if (load.kind === "missing") return <Missing />;
 
   const offline = connected === false || load.kind === "offline";
+  // 다시 판정이 연결 때문에 실패했으면 연결을 확인한 뒤 다시 판정까지 한다(알림의 '다시 판정'은 끊긴 동안 잠김)
   async function reconnect() {
     await recheckConnection();
     if (load.kind !== "ready") await fetchAll();
+    else if (refreshFailure) await retryRefresh();
   }
   // 지울 것이 있을 때만 확인 창(설계서 M1). 기록을 못 받았으면 있다고 본다
   const dirty =
@@ -89,13 +94,22 @@ function SessionResult({ sessionId }: { sessionId: string }) {
         <span className={screen.eyebrow}>판정 결과</span>
         <h1 className={screen.title}>이 조건으로 본 결과</h1>
       </section>
-      <ResumeBanner sessionId={sessionId} dirty={dirty} />
+      <ResumeBanner sessionId={sessionId} dirty={dirty} closed={ready?.change != null || refreshFailure !== null} />
       {ready && (
         <Top
           ready={ready}
           catalog={catalog}
           summary={summary}
           lockedReason={editLock ?? (summary.saving ? SAVING_LOCK : undefined)}
+          refreshFailed={
+            refreshFailure && (
+              <RefreshFailed
+                failure={refreshFailure}
+                onRetry={retryRefresh}
+                lockedReason={editLock ?? (summary.saving ? SAVING_LOCK : undefined)}
+              />
+            )
+          }
         />
       )}
       <Notice kind="result" />
@@ -126,7 +140,7 @@ function SessionResult({ sessionId }: { sessionId: string }) {
       )}
 
       <section className={styles.actions} aria-label="다음 할 일">
-        {(ready?.reason === USER_STOPPED || ready?.reason === MORE_TO_ASK) && (
+        {ready?.reason === MORE_TO_ASK && (
           <Button
             lockedReason={offline ? OFFLINE_LOCK : summary.saving ? SAVING_LOCK : undefined}
             onClick={() => navigate(sessionPath(sessionId, "questions"))}
@@ -145,18 +159,22 @@ function SessionResult({ sessionId }: { sessionId: string }) {
 type Ready = Extract<ReturnType<typeof useResult>["load"], { kind: "ready" }>;
 
 /**
- * 제목 아래 묶음(머리말 0-1~2) — 바뀐 곳 안내, 멈춘 이유(모른다고 한 것만 남았으면 그 항목의 '값 넣기'), 왜 이 상품만 보이나
+ * 제목 아래 묶음(머리말 0-1~2) — 바뀐 곳 안내(또는 다시 판정 실패 알림), 멈춘 이유(모른다고 한 것만 남았으면 그 항목의
+ * '값 넣기'), 왜 이 상품만 보이나
  */
 function Top({
   ready,
   catalog,
   summary,
   lockedReason,
+  refreshFailed,
 }: {
   ready: Ready;
   catalog: FieldCatalog | null;
   summary: ReturnType<typeof useSummaryEdit>;
   lockedReason: string | undefined;
+  /** 다시 판정 실패 알림. 있으면 바뀐 곳 안내 대신 — 안내는 그 앞 판정 것이라 지난 말이다 */
+  refreshFailed: ReactNode;
 }) {
   const { programs } = useAppState();
   const scope = scopeLine(
@@ -167,9 +185,10 @@ function Top({
   );
   return (
     <div className={styles.top}>
-      {ready.change && (
-        <ChangeNotice change={ready.change} items={summary.items} results={ready.results} catalog={catalog} />
-      )}
+      {refreshFailed ||
+        (ready.change && (
+          <ChangeNotice change={ready.change} items={summary.items} results={ready.results} catalog={catalog} />
+        ))}
       <StopBanner reason={ready.reason} declinedLabels={ready.declinedNeeded.map((f) => fieldLabel(catalog, f))}>
         {ready.reason === "ONLY_DECLINED_LEFT" && (
           <DeclinedLinks

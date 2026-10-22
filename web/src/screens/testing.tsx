@@ -103,3 +103,22 @@ export function renderApp(path: string | { pathname: string; state: unknown } = 
     </MemoryRouter>,
   );
 }
+
+/**
+ * 붙잡아 둔 응답을 내주고, 화면 코드가 그 본문을 다 읽은 뒤 이어지는 일까지 끝날 때까지 기다린다.
+ * 본문을 읽은 뒤의 일(떠났는지 확인 → 다음 호출 또는 상태 바꾸기)은 모두 마이크로태스크라,
+ * 그다음 매크로태스크(setTimeout 0)가 돌 때는 이미 끝나 있다. 시간을 재며 기다리지 않는다
+ */
+export async function settle(release: (r: Response) => void, response: Response) {
+  let read: () => void = () => {};
+  const consumed = new Promise<void>((resolve) => (read = resolve));
+  const json = response.json.bind(response);
+  response.json = () =>
+    json().then((body: unknown) => {
+      read();
+      return body;
+    });
+  release(response);
+  await consumed;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}

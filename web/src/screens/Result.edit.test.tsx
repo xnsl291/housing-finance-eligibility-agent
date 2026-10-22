@@ -68,7 +68,9 @@ describe("S4 고치기 → 다시 판정", () => {
     expect(sentBodies(spy, PUT)).toEqual([{ values: { age: 40 } }]);
     expect(keys(spy).slice(before, before + 3)).toEqual([PUT, NEXT, ASSESS]);
 
-    const box = screen.getByText(/고치신 값으로 다시 판정했습니다/).closest("[role=status]") as HTMLElement;
+    const box = screen.getByText(/고치신 값으로 다시 판정했습니다/).closest("[tabindex='-1']") as HTMLElement;
+    // 초점을 옮기므로 role="status"를 겹쳐 달지 않는다 — 두 번 읽힌다
+    expect(box).not.toHaveAttribute("role");
     expect(box).toHaveTextContent("고치신 값으로 다시 판정했습니다 — 바뀐 곳 1군데");
     expect(box).toHaveTextContent("가상 청년 상품 가 — 사전 조건 부합 → 조건 불충족");
     expect(box).toHaveTextContent("고친 값: 나이 — 29 → 40");
@@ -87,15 +89,40 @@ describe("S4 고치기 → 다시 판정", () => {
     expect(await screen.findByText("판정과 한도는 그대로입니다.")).toBeInTheDocument();
   });
 
-  it("고친 뒤 아직 물을 것이 남으면 '중간에 멈췄습니다'가 아니라 남았다고 하고, 질문 이어서 하기를 둔다", async () => {
+  it("고친 뒤 아직 물을 것이 남으면 남았다고 하고, 질문 이어서 하기를 둔다", async () => {
     const user = userEvent.setup();
     server({ [NEXT]: sequence(result("COMPLETE"), ask(CHOICE_Q)) });
     await open();
     expect(screen.queryByRole("button", { name: "질문 이어서 하기" })).not.toBeInTheDocument();
     await changeAge(user, "30");
     expect(await screen.findByText("아직 여쭐 항목이 남았습니다")).toBeInTheDocument();
+    expect(screen.getByText("지금까지 확인한 값으로만 판정했습니다. 질문을 이어서 하면 결과가 바뀔 수 있습니다.")).toBeInTheDocument();
     expect(screen.queryByText("중간에 멈췄습니다")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "질문 이어서 하기" })).toBeInTheDocument();
+  });
+
+  it("처음부터 물을 것이 남았던 결과(ASK)도 고친 뒤 같은 문구다 — 새로 고쳐도 서버는 둘을 나누지 못한다", async () => {
+    const user = userEvent.setup();
+    server({ [NEXT]: () => ask(CHOICE_Q) });
+    await open();
+    expect(screen.getByText("아직 여쭐 항목이 남았습니다")).toBeInTheDocument();
+    await changeAge(user, "30");
+    await screen.findByText(/고치신 값으로 다시 판정했습니다/);
+    expect(screen.getByText("아직 여쭐 항목이 남았습니다")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "질문 이어서 하기" })).toBeInTheDocument();
+  });
+
+  it("판정은 같은데 한도가 없다가 생기면 '그대로'라고 하지 않고 계산했다고 적는다. 확정이 아니면 기준을 붙인다", async () => {
+    const user = userEvent.setup();
+    const limit = program().loan_limit!;
+    const conditional = (amount_krw: number | null) =>
+      program({ status: "CONDITIONAL", missing_fields: ["net_asset_krw"], loan_limit: { ...limit, amount_krw, reason: amount_krw ? null : "BASE_UNKNOWN" } });
+    server({ [ASSESS]: sequence(assessment(conditional(null)), assessment(conditional(120_000_000))) });
+    await open();
+    await changeAge(user, "30");
+    await screen.findByText(/고치신 값으로 다시 판정했습니다/);
+    expect(screen.queryByText("판정과 한도는 그대로입니다.")).not.toBeInTheDocument();
+    expect(screen.getByText("가상 청년 상품 가 — 한도를 이번에 계산했습니다: 지금까지 확인된 조건 기준 1억 2,000만원")).toBeInTheDocument();
   });
 
   it("값 비우기는 null을 보내고, 바뀐 곳 안내에 '비움'으로 적는다", async () => {
@@ -109,6 +136,28 @@ describe("S4 고치기 → 다시 판정", () => {
     expect(await screen.findByText("고친 값: 나이 — 29 → 비움")).toBeInTheDocument();
     expect(sentBodies(spy, PUT)).toEqual([{ values: { age: null } }]);
     expect(within(summary()).queryByRole("rowheader", { name: "나이" })).not.toBeInTheDocument();
+  });
+
+  it("값도 있고 모른다고도 한 항목은 비워도 '모른다고 함'이 남는다고 알리고, 바뀐 곳 안내도 같은 말이다", async () => {
+    const user = userEvent.setup();
+    const range = { low: 45_000_000, high: 50_000_000 };
+    const income = { combined_annual_income_krw: { value: range, source: "LLM", at: "t", phrase: "4,500~5,000" } };
+    const events = [
+      { seq: 1, at: "t", kind: "EXTRACTED", payload: { values: { combined_annual_income_krw: range } } },
+      { seq: 2, at: "t", kind: "FIELD_DECLINED", payload: { field: "combined_annual_income_krw" } },
+    ];
+    const spy = server({
+      [SESSION]: sequence(sessionOf({ ...VALUES, ...income }), sessionOf(VALUES)),
+      [TRACE]: () => json({ session_id: "s-1", events }),
+    });
+    await open();
+    await user.click(within(summary()).getByRole("button", { name: "고치기 — 부부합산 총소득" }));
+    expect(summary()).toHaveTextContent("값을 비워도 ‘모른다고 함’은 남아 다시 묻지 않습니다.");
+    expect(summary()).not.toHaveTextContent("다시 여쭐 수 있습니다");
+    await user.click(screen.getByRole("button", { name: "값 비우기" }));
+    expect(await screen.findByText("고친 값: 부부합산 총소득 — 4,500만~5,000만원 → 모른다고 함")).toBeInTheDocument();
+    expect(sentBodies(spy, PUT)).toEqual([{ values: { combined_annual_income_krw: null } }]);
+    expect(row("부부합산 총소득")).toHaveTextContent("모른다고 함 · 다시 묻지 않습니다");
   });
 
   it("서버가 거절하면(422) 그 줄 아래에 사유. 다시 판정하지 않는다", async () => {

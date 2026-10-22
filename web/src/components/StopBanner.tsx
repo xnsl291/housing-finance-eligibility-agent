@@ -4,15 +4,15 @@
  * 판정 4색을 쓰지 않는다. COMPLETE를 초록 성공 상자로 그리면 바로 아래 빨간 '조건 불충족'
  * 카드와 뜻이 부딪친다(결함 D17). 중립색에 아이콘과 제목으로 구분한다.
  * "물을 게 없어서 멈춤"과 "모르셔서 멈춤"을 반드시 다르게 보여 준다 — 같으면 확정되지 않은
- * 결과를 확정으로 읽는다. 본문은 8.4절 문구 그대로, 제목은 시안이 붙인 것.
+ * 결과를 확정으로 읽는다. 본문은 8.4절 문구 그대로(MORE_TO_ASK만 아래 이유로 다름), 제목은 시안이 붙인 것.
  */
 import type { ReactNode } from "react";
 
 import { Icon, type IconName } from "./Icon";
 import styles from "./StopBanner.module.css";
 
-/** 서버 next.reason + 화면이 아는 USER_STOPPED. 그 밖의 값은 '판정했습니다'로 */
-type StopReason = "COMPLETE" | "ALL_NOT_MATCHED" | "ONLY_DECLINED_LEFT" | "USER_STOPPED" | "MORE_TO_ASK";
+/** 서버 next.reason + 화면이 정한 MORE_TO_ASK(next가 ASK — 아직 물을 것이 남음). 그 밖의 값은 '판정했습니다'로 */
+type StopReason = "COMPLETE" | "ALL_NOT_MATCHED" | "ONLY_DECLINED_LEFT" | "MORE_TO_ASK";
 
 const BANNER: Record<StopReason | "OTHER", { icon: IconName; title: string; body: string }> = {
   COMPLETE: { icon: "check", title: "모두 확인했습니다", body: "판정에 필요한 항목을 모두 확인했습니다." },
@@ -26,17 +26,13 @@ const BANNER: Record<StopReason | "OTHER", { icon: IconName; title: string; body
     title: "모르신 항목이 남았습니다",
     body: "을(를) 모르셔서 확정하지 못한 부분이 있습니다. 확인되면 이어서 판정할 수 있습니다.",
   },
-  USER_STOPPED: {
-    icon: "pause",
-    title: "중간에 멈췄습니다",
-    body: "질문을 중간에 멈췄습니다. 지금까지 확인한 값으로만 판정했습니다.",
-  },
-  // 고친 값으로 다시 판정했더니 물을 것이 남음(useResult.ts). 사용자가 멈춘 것이 아니라 USER_STOPPED 문구를 쓰지 않는다.
-  // 8.4절에 없는 경우라 문구는 화면이 정했다 — 고친 값 때문인지는 단정하지 않는다(앞서 남아 있던 질문일 수도 있음)
+  // next가 ASK인데 결과 화면에 있음. 설계서 8.4의 USER_STOPPED("질문을 중간에 멈췄습니다")를 쓰지 않는다 — 서버는
+  // '사용자가 멈춤'과 '고친 뒤 물을 것이 새로 생김'을 나누지 못하고, 화면 메모리로 나누면 새로 고칠 때 말이 바뀐다.
+  // 어느 경우에도 참인 사실 하나만 말한다(useResult.ts)
   MORE_TO_ASK: {
-    icon: "help",
+    icon: "pause",
     title: "아직 여쭐 항목이 남았습니다",
-    body: "판정에 더 필요한 항목이 남아 있습니다. 지금까지 확인한 값으로만 판정했습니다.",
+    body: "지금까지 확인한 값으로만 판정했습니다. 질문을 이어서 하면 결과가 바뀔 수 있습니다.",
   },
   OTHER: { icon: "info", title: "판정했습니다", body: "판정했습니다." },
 };

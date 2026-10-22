@@ -40,6 +40,22 @@ describe("heldItems — 목록 줄", () => {
     });
     expect(items.find((i) => i.field === "combined_annual_income_krw")?.source).toBe("read");
   });
+
+  it("값이 있는데 모른다고도 한 항목(범위 값을 다시 물었을 때 모르겠어요)은 값 줄이고 declined가 켜진다", () => {
+    const events = [
+      ev(1, "EXTRACTED", { values: { combined_annual_income_krw: { low: 45_000_000, high: 50_000_000 } } }),
+      ev(2, "FIELD_DECLINED", { field: "combined_annual_income_krw" }),
+    ];
+    const items = heldItems(
+      { combined_annual_income_krw: held({ low: 45_000_000, high: 50_000_000 }, "LLM"), age: held(30) },
+      events,
+      FIELDS,
+    );
+    expect(items.map((i) => [i.field, i.source, i.declined])).toEqual([
+      ["age", "direct", false],
+      ["combined_annual_income_krw", "read", true],
+    ]);
+  });
 });
 
 describe("changeLines — 바뀐 곳", () => {
@@ -60,5 +76,51 @@ describe("changeLines — 바뀐 곳", () => {
     const youth = program();
     const buy = program({ program_id: "p-buy", program_name: "가상 상품 나" });
     expect(changeLines([youth], [buy])).toEqual(["가상 상품 나 — 이번에 새로 봤습니다", "가상 청년 상품 가 — 이번에는 보지 않았습니다"]);
+  });
+});
+
+describe("changeLines — 한도 표기(G7)", () => {
+  const limit = program().loan_limit!;
+  const won = (amount_krw: number | null) => ({ ...limit, amount_krw, reason: amount_krw === null ? "BASE_UNKNOWN" : null });
+  /** 판정이 끝나지 않은 상품(추가 확인 필요, 남은 조건 1개) */
+  const open = (amount: number | null) =>
+    program({ status: "CONDITIONAL", missing_fields: ["net_asset_krw"], loan_limit: won(amount) });
+  const final = (amount: number | null) => program({ loan_limit: won(amount) });
+
+  it("확정이 아닌 한도는 '지금까지 확인된 조건 기준'을 붙인다", () => {
+    expect(changeLines([open(144_000_000)], [open(120_000_000)])).toEqual([
+      "가상 청년 상품 가 — 지금까지 확인된 조건 기준 한도 1억 4,400만원 → 1억 2,000만원",
+    ]);
+    expect(changeLines([final(144_000_000)], [final(120_000_000)])).toEqual([
+      "가상 청년 상품 가 — 한도 1억 4,400만원 → 1억 2,000만원",
+    ]);
+  });
+
+  it("판정이 같아도 한도가 없다가 생기거나 있다가 없어지면 적는다 — '판정과 한도는 그대로'가 거짓이 되지 않게", () => {
+    expect(changeLines([open(null)], [open(120_000_000)])).toEqual([
+      "가상 청년 상품 가 — 한도를 이번에 계산했습니다: 지금까지 확인된 조건 기준 1억 2,000만원",
+    ]);
+    expect(changeLines([final(null)], [final(120_000_000)])).toEqual([
+      "가상 청년 상품 가 — 한도를 이번에 계산했습니다: 1억 2,000만원",
+    ]);
+    expect(changeLines([final(144_000_000)], [final(null)])).toEqual(["가상 청년 상품 가 — 한도를 이번에는 계산하지 못했습니다"]);
+  });
+
+  it("금액이 같아도 확정 여부가 바뀌면 적는다", () => {
+    expect(changeLines([open(144_000_000)], [final(144_000_000)])).toEqual([
+      "가상 청년 상품 가 — 추가 확인 필요 → 사전 조건 부합",
+      "가상 청년 상품 가 — 한도 지금까지 확인된 조건 기준 1억 4,400만원 → 1억 4,400만원",
+    ]);
+  });
+
+  it("조건 불충족 상품의 한도는 어떤 경우에도 금액을 쓰지 않는다", () => {
+    const notMatched = (amount: number | null) => program({ status: "NOT_MATCHED", loan_limit: won(amount) });
+    const lines = [
+      ...changeLines([notMatched(144_000_000)], [notMatched(120_000_000)]),
+      ...changeLines([notMatched(null)], [final(120_000_000)]),
+      ...changeLines([final(144_000_000)], [notMatched(120_000_000)]),
+      ...changeLines([], [notMatched(120_000_000)]),
+    ];
+    expect(lines.join(" / ")).not.toMatch(/만원|한도/);
   });
 });

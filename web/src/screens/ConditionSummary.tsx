@@ -3,6 +3,7 @@
  * 설계서 6절 S7·8.4 'D1을 푸는 길', 시안 S4-k(qrvA3)·S4-v2(XtWat). Result.tsx가 180줄에 가까워 책임 단위로 나눴다.
  *
  * - 요약은 결과 카드 아래, 확인 과정 위(설계서 S4 제안 배치 6). 목록과 고치기 줄은 S3와 같은 HeldList
+ * - 다시 판정이 실패하면 바뀐 곳 안내 자리에 '저장했지만 다시 판정하지 못했다'는 알림(RefreshFailed)
  * - 바뀐 곳 안내는 다시 판정한 직후에만 보인다. 저장하면 고치기 줄이 닫혀 초점 둘 곳이 사라지므로, 안내로 초점을 옮겨
  *   화면 읽기 프로그램이 "다시 판정했다"는 것부터 읽게 한다(시안 S4-k 메모)
  * - 모른다고 한 것만 남아 멈췄을 때(ONLY_DECLINED_LEFT) 멈춘 이유 배너 안에 항목마다 '값 넣기'를 둔다. 누르면 요약의
@@ -14,11 +15,11 @@ import { ApiError } from "../api/client";
 import type { FieldCatalog, FieldValue, ProgramResult } from "../api/types";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
-import { describeFailure } from "./failure";
+import { describeFailure, isTimeout } from "./failure";
 import { changeLines, heldItems, type HeldItem } from "./heldItems";
 import { HeldList } from "./HeldList";
 import { fieldLabel } from "./resultText";
-import type { Change, HeldState, TraceState } from "./useResult";
+import type { Change, HeldState, RefreshFailure, TraceState } from "./useResult";
 import { useValueEdit } from "./useValueEdit";
 import styles from "./ConditionSummary.module.css";
 
@@ -90,7 +91,11 @@ function reasonOf(held: HeldState): string {
   return describeFailure(held.error, "start").title;
 }
 
-/** 고친 값으로 다시 판정한 직후(시안 S4-k). 초점을 받는다(머리말) */
+/**
+ * 고친 값으로 다시 판정한 직후(시안 S4-k). 초점을 받는다(머리말).
+ * role="status"는 달지 않는다 — 초점을 옮기면 화면 읽기 프로그램이 이미 읽는데, status까지 있으면 두 번 읽는다
+ * (SystemError와 같은 이유로 초점 이동을 남김)
+ */
 export function ChangeNotice({ change, items, results, catalog }: {
   change: Change;
   items: HeldItem[] | null;
@@ -106,7 +111,7 @@ export function ChangeNotice({ change, items, results, catalog }: {
   const now = items?.find((i) => i.field === change.field);
   const after = items === null ? null : now ? (now.shown ?? "모른다고 함") : "비움";
   return (
-    <div ref={box} tabIndex={-1} className={styles.change} role="status">
+    <div ref={box} tabIndex={-1} className={styles.change}>
       <Icon name="rotateCcw" size={18} />
       <div className={styles.changeText}>
         <strong>
@@ -128,6 +133,45 @@ export function ChangeNotice({ change, items, results, catalog }: {
       </div>
     </div>
   );
+}
+
+/**
+ * 고친 값은 저장했지만 다시 판정이 실패함(useResult.ts refreshFailure). 바뀐 곳 안내 자리에 대신 둔다.
+ * 아래 결과는 지우지 않는다 — 고치기 전 값으로 판정한 것이라고 적는다. 초점을 받는다(저장으로 고치기 줄이 닫혀
+ * 초점 둘 곳이 사라짐, 바뀐 곳 안내와 같은 이유). 실패할 때마다(id) 다시 받는다
+ */
+export function RefreshFailed({ failure, onRetry, lockedReason }: {
+  failure: RefreshFailure;
+  onRetry: () => Promise<void>;
+  lockedReason: string | undefined;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    box.current?.focus();
+  }, [failure.id]);
+  return (
+    <div ref={box} tabIndex={-1} className={styles.change}>
+      <Icon name="alertCircle" size={18} />
+      <div className={styles.changeText}>
+        <strong>고친 값은 저장했지만 다시 판정하지 못했습니다.</strong>
+        <span>사유: {refreshReason(failure.error)}</span>
+        <span>아래 결과는 고치기 전 값으로 판정한 것입니다.</span>
+        <span className={styles.retry}>
+          <Button variant="secondary" lockedReason={lockedReason} onClick={onRetry}>
+            다시 판정
+          </Button>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** 서버가 준 사유는 그대로, 연결·시간 초과는 무엇이 안 됐는지만. 조건 문제가 아니라는 것은 '저장했지만'이 이미 말한다 */
+function refreshReason(error: unknown): string {
+  if (error instanceof ApiError && error.kind === "network") return "서버에 연결되지 않았습니다.";
+  if (isTimeout(error)) return "서버가 제때 답하지 않았습니다.";
+  if (error instanceof ApiError) return error.message;
+  return "화면에서 예상하지 못한 오류가 났습니다.";
 }
 
 /** 모른다고 한 것만 남았을 때 그 항목들로 가는 버튼(결함 D1). 요약을 못 그리면 갈 곳이 없어 두지 않는다 */

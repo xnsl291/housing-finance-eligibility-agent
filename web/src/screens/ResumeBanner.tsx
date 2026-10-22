@@ -12,6 +12,8 @@
  * - '새로 시작'은 '처음부터 다시'와 같은 확인 창 규칙(설계서 M1, StartOver.tsx)
  * - 시안 본문의 '3개를 확인한 곳부터'는 쓰지 않는다. 확인 수는 앱 메모리라 새로 고치면 모른다(AppState.tsx)
  * - 시안의 주소 공유 주의(이 주소를 남에게 보내지 마세요)는 S11 개인정보 안내 몫이라 여기 두지 않는다
+ * - 화면이 closed를 켜면 닫고 다시 열지 않는다. S4는 고친 값을 저장하면 켠다 — 이미 이어서 작업하는 중이라
+ *   '이전에 하던 확인을 이어서 보여 드립니다'가 지난 말이 되고, 제목과 바뀐 곳 안내 사이를 가로막는다
  */
 import { useEffect, useId, useState } from "react";
 
@@ -20,9 +22,11 @@ import { useAppState } from "./AppState";
 import { StartOver } from "./StartOver";
 import styles from "./ResumeBanner.module.css";
 
-export function ResumeBanner({ sessionId, dirty }: { sessionId: string; dirty: boolean }) {
+export function ResumeBanner({ sessionId, dirty, closed = false }: { sessionId: string; dirty: boolean; closed?: boolean }) {
   const { knowsSession, rememberSession } = useAppState();
-  const [resumed] = useState(() => !knowsSession(sessionId));
+  const [resumed, setResumed] = useState(() => !knowsSession(sessionId));
+  // 한 번 닫으면 closed가 다시 꺼져도(다시 받는 동안 등) 열지 않는다
+  if (closed && resumed) setResumed(false);
   const titleId = useId();
 
   useEffect(() => {
