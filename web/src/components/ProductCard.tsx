@@ -10,6 +10,8 @@
  *      남은 조건 수가 0이어도 판정이 끝나지 않았으면(추가 확인 필요·정보 부족) 크게 띄우지 않는다
  *   ④ 금액을 못 냄: 설계서 8.3 사유 그대로
  * 아래 목록은 판정에 따라 뜻이 달라 제목을 다르게 단다(묶음 14).
+ * '사전 조건 부합'인데 금액을 못 냈으면 서버 목록에는 그 사유 한 줄만 온다(assessment.py _next_actions).
+ * 한도 자리(④)가 이미 같은 사유를 말하므로 목록은 그리지 않는다.
  */
 import type { ReactNode } from "react";
 
@@ -69,6 +71,7 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ name, status, limit, unresolved, items, sourceUrl, details }: ProductCardProps) {
+  const list = status === "PRECHECK_MATCH" && limit.won === null ? [] : items;
   return (
     <article className={styles.card}>
       <div className={styles.head}>
@@ -78,12 +81,12 @@ export function ProductCard({ name, status, limit, unresolved, items, sourceUrl,
 
       {status !== "NOT_MATCHED" && <Limit limit={limit} final={status === "PRECHECK_MATCH" && unresolved === 0} unresolved={unresolved} />}
 
-      {items.length > 0 && (
+      {list.length > 0 && (
         <div className={styles.list}>
           <h4 className={styles.listTitle}>{LIST_TITLE[status]}</h4>
           <ul className={status === "NOT_MATCHED" ? styles.failed : undefined}>
             {/* 서버 문장이 겹칠 수 있어(같은 사유가 두 규칙에서 나옴) 글만으로는 key가 겹친다 */}
-            {items.map((item, i) => (
+            {list.map((item, i) => (
               <li key={`${i}-${item}`}>{item}</li>
             ))}
           </ul>

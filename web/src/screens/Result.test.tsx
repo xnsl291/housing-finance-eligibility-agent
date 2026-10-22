@@ -6,7 +6,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 
 import type { NextAction } from "../api/types";
 import { ask, CHOICE_Q, result } from "./questionsTesting";
-import { ASSESS, assessment, card, event, open, program, server, traceOf } from "./resultTesting";
+import { ASSESS, assessment, card, event, NEXT, open, program, server, TRACE, traceOf } from "./resultTesting";
 import { callsTo, json } from "./testing";
 
 afterEach(() => vi.restoreAllMocks());
@@ -63,11 +63,13 @@ describe("후보 상품만 판정한다", () => {
     expect(JSON.parse(String(init?.body))).toEqual(["p-youth", "p-buy"]);
   });
 
-  it("후보가 비어 있으면 본문을 보내지 않는다 — 빈 목록은 서버가 '전부'로 읽는다", async () => {
+  it("후보가 없으면 판정을 부르지 않고 '판정한 상품이 없습니다.' — 빈 목록을 보내면 서버가 전부 판정한다", async () => {
     const empty: NextAction = { session_id: "s-1", action: "RESULT", candidates: [], policy_version: 1, reason: "COMPLETE" };
-    const spy = server({ "GET /v1/sessions/s-1/next": () => json(empty) });
+    const spy = server({ [NEXT]: () => json(empty) });
     await open();
-    expect(callsTo(spy, ASSESS)[0][1]?.body).toBeUndefined();
+    expect(callsTo(spy, ASSESS)).toHaveLength(0);
+    expect(screen.getByText("판정한 상품이 없습니다.")).toBeInTheDocument();
+    expect(callsTo(spy, TRACE)).toHaveLength(1);
   });
 
   it("판정은 멈춘 이유를 받은 뒤에, 기록은 판정 뒤에 부른다 — 방금 한 판정이 기록에 들어가게", async () => {
@@ -151,6 +153,18 @@ describe("상품 카드", () => {
     expect(card("금액 없음")).toHaveTextContent("지역에 따라 한도가 달라집니다. 주택 소재지를 입력해 주세요");
   });
 
+  it("판정은 맞는데 한도를 못 냈으면 그 사유는 한 번만 — '참고' 목록에 같은 말을 다시 두지 않는다", async () => {
+    const limit = { ...program().loan_limit!, amount_krw: null, tier: null, tier_label: null, reason: "BASE_UNKNOWN" };
+    server({
+      [ASSESS]: () => assessment(program({ loan_limit: limit, next_actions: ["대출 한도를 보려면 임차보증금을 알려주세요"] })),
+    });
+    await open();
+    const box = card("가상 청년 상품 가");
+    expect(box).toHaveTextContent("한도 계산에 쓰는 금액을 입력하면 한도를 계산할 수 있습니다");
+    expect(box).not.toHaveTextContent("대출 한도를 보려면 임차보증금을 알려주세요");
+    expect(within(box).queryByRole("heading", { level: 4, name: "참고" })).not.toBeInTheDocument();
+  });
+
   it("상품이 없으면 '판정한 상품이 없습니다.'", async () => {
     server({ [ASSESS]: () => assessment() });
     await open();
@@ -167,31 +181,81 @@ describe("상품 카드", () => {
   });
 });
 
-describe("왜 이 상품만 보이나 (설계서 S3 끝 표)", () => {
-  it.each([
-    ["문장에서 전세로 읽음", [event("EXTRACTED", { values: { intended_tenure: "JEONSE" } })], "전세를 구하신다고 해서 매매 상품은 빼고 봤습니다"],
-    ["매매라고 답함", [event("FIELD_SET", { values: { intended_tenure: "PURCHASE" } })], "집을 사신다고 해서 전세 상품은 빼고 봤습니다"],
-    ["모른다고 함", [event("FIELD_DECLINED", { field: "intended_tenure" })], "전세인지 매매인지 모르셔서 세 상품을 모두 봤습니다"],
-    [
-      "모른다고 한 뒤 답함 — 모름이 풀린다",
-      [event("FIELD_DECLINED", { field: "intended_tenure" }), event("FIELD_SET", { values: { intended_tenure: "JEONSE" } })],
-      "전세를 구하신다고 해서 매매 상품은 빼고 봤습니다",
-    ],
+describe("왜 이 상품만 보이나 (설계서 S3 끝 표) — 후보 상품과 모른다고 한 기록으로", () => {
+  const ALL = ["p-youth", "p-buy"];
+  const nextWith = (candidates: string[], declined: string[] = []) => () =>
+    json({
+      session_id: "s-1",
+      action: "RESULT",
+      reason: declined.length ? "ONLY_DECLINED_LEFT" : "COMPLETE",
+      candidates,
+      policy_version: 1,
+      declined_needed: declined,
+    });
+  const fails = () => json({ detail: "x" }, 500);
+  const tenure = (value: string | null) => event("FIELD_SET", { values: { intended_tenure: value } });
+  const declined = () => event("FIELD_DECLINED", { field: "intended_tenure" });
+
+  it.each<[string, string[], string[], () => Response, string]>([
+    ["전세 상품만 후보", ["p-youth"], [], () => traceOf(), "전세를 구하신다고 해서 매매 상품은 빼고 봤습니다"],
+    ["매매 상품만 후보", ["p-buy"], [], () => traceOf([tenure("PURCHASE")]), "집을 사신다고 해서 전세 상품은 빼고 봤습니다"],
     [
       "값이 있는데 모른다고 함 — 값이 남는다",
-      [event("FIELD_SET", { values: { intended_tenure: "PURCHASE" } }), event("FIELD_DECLINED", { field: "intended_tenure" })],
+      ["p-buy"],
+      [],
+      () => traceOf([tenure("PURCHASE"), declined()]),
       "집을 사신다고 해서 전세 상품은 빼고 봤습니다",
     ],
-    ["아직 묻지 않음", [event("FIELD_SET", { values: { age: 30 } })], "전세인지 매매인지 아직 여쭙지 않아 세 상품을 모두 봤습니다"],
-  ])("%s", async (_name, events, line) => {
-    server({ "GET /v1/sessions/s-1/trace": () => traceOf(events) });
+    ["모른다고 함", ALL, [], () => traceOf([declined()]), "전세인지 매매인지 모르셔서 상품 2개를 모두 봤습니다"],
+    [
+      "모른다고 한 뒤 값을 비움 — 비우는 것만으로는 모름이 풀리지 않는다(session.py declined_of)",
+      ALL,
+      [],
+      () => traceOf([declined(), tenure(null)]),
+      "전세인지 매매인지 모르셔서 상품 2개를 모두 봤습니다",
+    ],
+    [
+      "모른다고 한 뒤 답하고 그 값을 비움 — 답한 순간 모름이 풀렸다",
+      ALL,
+      [],
+      () => traceOf([declined(), tenure("JEONSE"), tenure(null)]),
+      "전세·매매를 답하지 않으셔서 상품 2개를 모두 봤습니다",
+    ],
+    [
+      "답하지 않음(묻기 전에 멈췄거나 물을 필요가 없었음)",
+      ALL,
+      [],
+      () => traceOf([event("FIELD_SET", { values: { age: 30 } })]),
+      "전세·매매를 답하지 않으셔서 상품 2개를 모두 봤습니다",
+    ],
+    ["기록을 못 받아도 후보로 안다", ["p-youth"], [], fails, "전세를 구하신다고 해서 매매 상품은 빼고 봤습니다"],
+    [
+      "기록을 못 받아도 멈춘 이유가 전세·매매를 모른다고 알려 줌",
+      ALL,
+      ["intended_tenure"],
+      fails,
+      "전세인지 매매인지 모르셔서 상품 2개를 모두 봤습니다",
+    ],
+    ["기록을 못 받고 모른다고 했는지도 모름 — 어느 쪽이든 참인 말로", ALL, [], fails, "전세·매매를 답하지 않으셔서 상품 2개를 모두 봤습니다"],
+  ])("%s", async (_name, candidates, declinedNeeded, trace, line) => {
+    server({ [NEXT]: nextWith(candidates, declinedNeeded), [TRACE]: trace });
     await open();
-    expect(screen.getByText(line)).toBeInTheDocument();
+    expect(await screen.findByText(line)).toBeInTheDocument();
   });
 
-  it("기록을 못 받으면 그 줄을 그리지 않는다 — 짐작하지 않는다", async () => {
-    server({ "GET /v1/sessions/s-1/trace": () => json({ detail: "x" }, 500) });
+  it("상품 목록을 못 받으면 그 줄을 그리지 않는다 — 어느 쪽 상품인지 모른다", async () => {
+    server({ [NEXT]: nextWith(["p-youth"]), "GET /v1/programs": fails });
     await open();
-    await waitFor(() => expect(screen.queryByText(/상품은 빼고 봤습니다|모두 봤습니다/)).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText(/빼고 봤습니다|모두 봤습니다/)).not.toBeInTheDocument());
+  });
+
+  it("멈춘 이유와 이 한 줄은 제목(h1) 아래 — 결과 화면에 들어오면 초점이 제목으로 가므로 위에 두면 건너뛴다", async () => {
+    server({ [NEXT]: nextWith(["p-youth"]) });
+    await open();
+    const h1 = screen.getByRole("heading", { level: 1 });
+    for (const text of ["모두 확인했습니다", "전세를 구하신다고 해서 매매 상품은 빼고 봤습니다"]) {
+      const node = await screen.findByText(text);
+      expect(h1.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
   });
 });

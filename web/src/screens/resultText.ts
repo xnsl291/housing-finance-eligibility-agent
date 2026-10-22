@@ -7,7 +7,7 @@
  * 이름표는 화면이 만들지 않는다. 항목 이름은 서버 항목 목록(GET /v1/fields)과, 판정 응답이 규칙마다 싣는
  * field_label(파생 항목 포함), 한도 구간 이름은 판정 응답의 tier_label·skipped_tier_labels가 정본이다.
  */
-import type { FieldCatalog, FieldInfo, FieldValue, LoanLimit, ProgramResult, Status, TraceEvent } from "../api/types";
+import type { FieldCatalog, FieldInfo, FieldValue, LoanLimit, Program, ProgramResult, Status, TraceEvent } from "../api/types";
 import { formatRange, formatWon } from "../components/amount";
 
 /** 결과 카드 순서(설계서 13절 Q2 — 판정 순으로 확정). 모르는 상태는 맨 뒤 */
@@ -59,12 +59,23 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 
 /**
  * 확인 과정(S6) 줄들. Streamlit flow.trace_lines와 같은 모양.
- * 판정에 쓰이지 않는 기록(세션 시작)과 모르는 종류는 줄을 만들지 않는다
+ * 판정에 쓰이지 않는 기록(세션 시작)과 모르는 종류는 줄을 만들지 않는다.
+ * 바로 앞 기록도 판정이고 결과가 같으면 '판정함'을 다시 쓰지 않는다. 판정이 시간 초과로 끊겼지만 서버는
+ * 마친 뒤 '다시 시도'하면, 같은 값으로 같은 판정이 두 번 기록된다. 사용자가 한 일은 한 번이다
  */
 export function traceLines(events: TraceEvent[], catalog: FieldCatalog | null): string[] {
   const lines: string[] = [];
   const name = (f: string) => fieldLabel(catalog, f);
+  let lastAssessed: string | null = null;
   for (const event of events) {
+    if (event.kind === "ASSESSED") {
+      const results = JSON.stringify(isObject(event.payload) ? event.payload.results : null);
+      if (results !== lastAssessed) lines.push("판정함");
+      lastAssessed = results;
+      continue;
+    }
+    // 값을 읽고·넣고·모른다고 한 기록이 사이에 있으면 다시 판정한 것이다
+    if (event.kind === "EXTRACTED" || event.kind === "FIELD_SET" || event.kind === "FIELD_DECLINED") lastAssessed = null;
     const payload = isObject(event.payload) ? event.payload : {};
     const values = isObject(payload.values) ? payload.values : {};
     if (event.kind === "EXTRACTED") {
@@ -80,52 +91,62 @@ export function traceLines(events: TraceEvent[], catalog: FieldCatalog | null): 
       }
     } else if (event.kind === "FIELD_DECLINED") {
       lines.push(`${name(String(payload.field))} — 모른다고 함`);
-    } else if (event.kind === "ASSESSED") {
-      lines.push("판정함");
     }
   }
   return lines;
 }
 
 /**
- * 기록으로 본 전세·매매 답. 서버 상태와 같은 규칙으로 되짚는다(session.py) — 값을 넣으면 '모른다'가 풀리고,
- * 비우면(null) 모르는 상태로 돌아간다. NONE은 아직 묻지도 답하지도 않음
+ * 모른다고 한 항목. 서버 session.py declined_of와 같은 규칙이다 — 나중 것이 이긴다.
+ * 모른다고 한 뒤 값을 넣으면(답하든 문장에서 읽든) 풀린다. **값을 비우는 것(null)만으로는 풀리지 않는다.**
+ * 풀린 뒤 값을 지워도 모름이 되살아나지 않는다
  */
-export type Tenure = "JEONSE" | "PURCHASE" | "DECLINED" | "NONE";
+export function declinedOf(events: TraceEvent[]): Set<string> {
+  const declined = new Set<string>();
+  for (const event of events) {
+    const payload = isObject(event.payload) ? event.payload : {};
+    if (event.kind === "FIELD_DECLINED") {
+      declined.add(String(payload.field));
+    } else if (event.kind === "EXTRACTED" || event.kind === "FIELD_SET") {
+      const values = isObject(payload.values) ? payload.values : {};
+      for (const [field, value] of Object.entries(values)) if (value !== null) declined.delete(field);
+    }
+  }
+  return declined;
+}
 
 const TENURE_FIELD = "intended_tenure";
 
-export function tenureOf(events: TraceEvent[]): Tenure {
-  let tenure: Tenure = "NONE";
-  for (const event of events) {
-    const payload = isObject(event.payload) ? event.payload : {};
-    if (event.kind === "FIELD_DECLINED" && payload.field === TENURE_FIELD) {
-      if (tenure === "NONE") tenure = "DECLINED";
-    } else if (event.kind === "EXTRACTED" || event.kind === "FIELD_SET") {
-      const values = isObject(payload.values) ? payload.values : {};
-      if (!(TENURE_FIELD in values)) continue;
-      const v = values[TENURE_FIELD];
-      tenure = v === "JEONSE" || v === "PURCHASE" ? v : "NONE";
-    }
-  }
-  return tenure;
-}
-
 /**
- * 왜 이 상품만 보이나 한 줄(설계서 S3 끝 표). 앞 셋은 설계서 제안 문구 그대로.
- * 아직 묻지 않은 채 멈춘 경우(NONE)는 설계서 표에 없어 문구를 더했다 — 모른다고 한 것과는 사실이 다르다
+ * 왜 이 상품만 보이나 한 줄(설계서 S3 끝 표).
+ *
+ * 무엇을 뺐는지는 후보 상품(next.candidates)으로 안다. 서버는 전세·매매 값이 있을 때만 그쪽 상품으로
+ * 후보를 좁힌다(next_action.py _candidates) — 기록을 되짚지 않아도 되고, 기록을 못 받아도 쓸 수 있다.
+ * 상품 목록을 못 받았으면 어느 쪽 상품인지 몰라 그리지 않는다(null).
+ *
+ * 다 봤을 때는 모른다고 했는지에 따라 문구가 다르다. 멈춘 이유의 declined_needed나 기록(declinedOf)으로 안다.
+ * 둘 다로 알 수 없으면(기록을 못 받음) '답하지 않으셔서' — 모른다고 한 경우에도 참인 말이다.
+ * 설계서 표의 '세 상품'은 상품 수가 바뀌면 틀리므로 실제로 본 상품 수를 쓴다
  */
-export function scopeLine(tenure: Tenure): string {
-  switch (tenure) {
-    case "JEONSE":
-      return "전세를 구하신다고 해서 매매 상품은 빼고 봤습니다";
-    case "PURCHASE":
-      return "집을 사신다고 해서 전세 상품은 빼고 봤습니다";
-    case "DECLINED":
-      return "전세인지 매매인지 모르셔서 세 상품을 모두 봤습니다";
-    case "NONE":
-      return "전세인지 매매인지 아직 여쭙지 않아 세 상품을 모두 봤습니다";
+export function scopeLine(
+  candidates: string[],
+  programs: Program[] | null,
+  events: TraceEvent[] | null,
+  declinedNeeded: string[],
+): string | null {
+  if (!programs || candidates.length === 0) return null;
+  if (candidates.length < programs.length) {
+    const kinds = new Set(candidates.map((id) => programs.find((p) => p.program_id === id)?.tenure));
+    if (kinds.size !== 1) return null;
+    if (kinds.has("JEONSE")) return "전세를 구하신다고 해서 매매 상품은 빼고 봤습니다";
+    if (kinds.has("PURCHASE")) return "집을 사신다고 해서 전세 상품은 빼고 봤습니다";
+    return null;
   }
+  const declined = declinedNeeded.includes(TENURE_FIELD) || (events !== null && declinedOf(events).has(TENURE_FIELD));
+  const n = candidates.length;
+  return declined
+    ? `전세인지 매매인지 모르셔서 상품 ${n}개를 모두 봤습니다`
+    : `전세·매매를 답하지 않으셔서 상품 ${n}개를 모두 봤습니다`;
 }
 
 /** 지울 것(읽은 값·넣은 값·모른다고 한 것)이 있는가 — '처음부터 다시' 확인 창을 띄울지(설계서 M1) */

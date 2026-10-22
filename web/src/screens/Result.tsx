@@ -2,9 +2,12 @@
  * S4 판정 결과. 설계서 6절 S4 '제안 배치' 중 이번 범위, 시안 S4(kBM26)·S4-c·d·e·f·g·i, S4-M1.
  *
  * 위에서 아래로
+ * 0. 표지와 제목(h1)
  * 1. 멈춘 이유 — 중립 배너(판정 4색을 쓰지 않음, 11.2·D17). "물을 게 없어서"와 "모르셔서"를 다르게(8.4)
- * 2. 왜 이 상품만 보이나 한 줄 — 기록에 남은 전세·매매 답으로(resultText.scopeLine)
+ * 2. 왜 이 상품만 보이나 한 줄 — 후보 상품과 모른다고 한 기록으로(resultText.scopeLine)
  * 3. 고지
+ * 설계서·시안은 1·2를 제목 위에 둔다. 화면이 바뀌면 초점이 h1로 가므로(Layout.tsx) 제목 위에 두면 화면 읽기
+ * 프로그램이 멈춘 이유를 건너뛴다. 그래서 제목 바로 아래로 내렸다. 1·2·3의 순서는 그대로다
  * 4. 상품 카드 — 판정 순(13절 Q2). 카드 안에 판정 근거(S5)
  * 5. 확인 과정(S6, 접힘)
  * 6. 행동 영역 — 사용자가 멈췄으면 주 버튼 '질문 이어서 하기', 보조 '처음부터 다시'
@@ -30,7 +33,7 @@ import { StopBanner } from "../components/StopBanner";
 import { useAppState } from "./AppState";
 import { Missing } from "./Confirm";
 import { describeFailure } from "./failure";
-import { fieldLabel, hasRecords, limitNote, scopeLine, sortByVerdict, tenureOf, unresolvedCount } from "./resultText";
+import { fieldLabel, hasRecords, limitNote, scopeLine, sortByVerdict, unresolvedCount } from "./resultText";
 import { sessionPath } from "./routes";
 import { RuleDetails } from "./RuleDetails";
 import { StartOver } from "./StartOver";
@@ -41,10 +44,18 @@ import styles from "./Result.module.css";
 
 const OFFLINE_LOCK = "서버에 연결되지 않아 지금은 이어 갈 수 없습니다.";
 
+/**
+ * 주소의 세션 번호마다 새로 그린다. 같은 화면에서 세션만 바뀌면(뒤로 가기 등) 앞 세션의 받는 중 표시와
+ * 늦은 응답이 남아, 앞 세션의 판정이 새 세션 화면에 그려진다
+ */
 export function Result() {
   const { sessionId = "" } = useParams();
+  return <SessionResult key={sessionId} sessionId={sessionId} />;
+}
+
+function SessionResult({ sessionId }: { sessionId: string }) {
   const navigate = useNavigate();
-  const { connected, recheckConnection, answeredCount } = useAppState();
+  const { connected, recheckConnection, answeredCount, programs } = useAppState();
   const { load, catalog, fetchAll, retryTrace } = useResult(sessionId);
 
   if (load.kind === "missing") return <Missing />;
@@ -58,6 +69,14 @@ export function Result() {
   // 지울 것이 있을 때만 확인 창(설계서 M1). 기록을 못 받았으면 있다고 본다
   const dirty =
     answeredCount(sessionId) > 0 || ready === null || ready.trace.kind !== "ready" || hasRecords(ready.trace.events);
+  const scope =
+    ready &&
+    scopeLine(
+      ready.candidates,
+      Array.isArray(programs) ? programs : null,
+      ready.trace.kind === "ready" ? ready.trace.events : null,
+      ready.declinedNeeded,
+    );
 
   return (
     <>
@@ -67,25 +86,25 @@ export function Result() {
           {ready && <span className={styles.line}>이미 받은 결과는 화면에 그대로 있습니다.</span>}
         </SystemError>
       )}
+      <section className={screen.heading}>
+        <span className={screen.eyebrow}>판정 결과</span>
+        <h1 className={screen.title}>이 조건으로 본 결과</h1>
+      </section>
       {ready && (
         <div className={styles.top}>
           <StopBanner
             reason={ready.reason}
             declinedLabels={ready.declinedNeeded.map((f) => fieldLabel(catalog, f))}
           />
-          {ready.trace.kind === "ready" && (
+          {scope && (
             <p className={styles.scope}>
               <Icon name="minus" size={15} />
-              {scopeLine(tenureOf(ready.trace.events))}
+              {scope}
             </p>
           )}
         </div>
       )}
-      <section className={screen.heading}>
-        <span className={screen.eyebrow}>판정 결과</span>
-        <h1 className={screen.title}>이 조건으로 본 결과</h1>
-        <Notice kind="result" />
-      </section>
+      <Notice kind="result" />
 
       {load.kind === "loading" && <Skeleton />}
       {load.kind === "failed" && !offline && <AssessFailed error={load.error} onRetry={fetchAll} />}

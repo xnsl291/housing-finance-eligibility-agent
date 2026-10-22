@@ -1,8 +1,11 @@
 /*
  * S4 판정 결과 — 질문 이어서 하기, 처음부터 다시(M1), 실패(E2·판정 실패·E1), 떠난 뒤 늦은 응답.
  */
-import { screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter, useNavigate } from "react-router-dom";
+
+import { App } from "../App";
 
 import { ask, CHOICE_Q, result } from "./questionsTesting";
 import { ASSESS, assessment, event, NEXT, open, PATH, program, server, TRACE, traceOf } from "./resultTesting";
@@ -11,6 +14,25 @@ import { callsTo, json, renderApp } from "./testing";
 afterEach(() => vi.restoreAllMocks());
 
 const location = () => screen.getByTestId("location");
+
+/**
+ * 붙잡아 둔 응답을 내주고, 화면 코드가 그 본문을 다 읽은 뒤 이어지는 일까지 끝날 때까지 기다린다.
+ * 본문을 읽은 뒤의 일(떠났는지 확인 → 다음 호출 또는 상태 바꾸기)은 모두 마이크로태스크라,
+ * 그다음 매크로태스크(setTimeout 0)가 돌 때는 이미 끝나 있다. 시간을 재며 기다리지 않는다
+ */
+async function settle(release: (r: Response) => void, response: Response) {
+  let read: () => void = () => {};
+  const consumed = new Promise<void>((resolve) => (read = resolve));
+  const json = response.json.bind(response);
+  response.json = () =>
+    json().then((body: unknown) => {
+      read();
+      return body;
+    });
+  release(response);
+  await consumed;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
 const actions = () => screen.getByRole("region", { name: "다음 할 일" });
 
 describe("질문 이어서 하기 — 사용자가 멈췄을 때만", () => {
@@ -156,5 +178,33 @@ describe("실패", () => {
     finish(result("COMPLETE"));
     await new Promise((r) => setTimeout(r, 20));
     expect(callsTo(spy, ASSESS)).toHaveLength(0);
+  });
+
+  it("주소의 세션만 바뀌면 앞 세션의 늦은 판정을 새 세션 화면에 그리지 않는다", async () => {
+    const user = userEvent.setup();
+    let finish: (r: Response) => void = () => {};
+    const spy = server({
+      [ASSESS]: () => new Promise<Response>((resolve) => (finish = resolve)),
+      "GET /v1/sessions/s-2/next": () => result("COMPLETE"),
+      "POST /v1/sessions/s-2/assessment": () => assessment(program({ program_id: "p-buy", program_name: "둘째 세션 상품" })),
+      "GET /v1/sessions/s-2/trace": () => traceOf(),
+    });
+    function Go() {
+      const navigate = useNavigate();
+      return <button onClick={() => navigate("/s/s-2/result")}>둘째 세션으로</button>;
+    }
+    render(
+      <MemoryRouter initialEntries={[PATH]}>
+        <App />
+        <Go />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(callsTo(spy, ASSESS)).toHaveLength(1));
+    await user.click(screen.getByRole("button", { name: "둘째 세션으로" }));
+    expect(await screen.findByRole("heading", { level: 3, name: "둘째 세션 상품" })).toBeInTheDocument();
+
+    await settle(finish, assessment(program()));
+    expect(screen.queryByRole("heading", { level: 3, name: "가상 청년 상품 가" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "둘째 세션 상품" })).toBeInTheDocument();
   });
 });

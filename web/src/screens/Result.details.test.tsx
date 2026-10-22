@@ -214,6 +214,33 @@ describe("S6 확인 과정", () => {
     expect(NOTICE.trace).toBe("입력하신 문장 전체는 저장하지 않습니다. 위에 보이는 값과 근거 구절은 서버에 남습니다.");
   });
 
+  it("이어진 '판정함'은 결과가 같으면 한 줄로 — 시간 초과 뒤 다시 시도해 서버가 두 번 판정한 경우", async () => {
+    const user = userEvent.setup();
+    const same = { results: [{ program_id: "p-youth", status: "PRECHECK_MATCH", rule_version: 2 }] };
+    const other = { results: [{ program_id: "p-youth", status: "CONDITIONAL", rule_version: 2 }] };
+    server({
+      [TRACE]: () =>
+        traceOf([
+          event("FIELD_SET", { values: { age: 30 } }),
+          event("ASSESSED", same),
+          event("ASSESSED", same),
+          event("ASSESSED", other),
+          event("FIELD_SET", { values: { age: 31 } }),
+          event("ASSESSED", other),
+        ]),
+    });
+    await open();
+    await user.click(screen.getByText("어떤 순서로 무엇을 확인했나"));
+    const box = screen.getByText("어떤 순서로 무엇을 확인했나").closest("details")!;
+    expect(within(box).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "나이 — 30",
+      "판정함",
+      "판정함",
+      "나이 — 31",
+      "판정함",
+    ]);
+  });
+
   it("기록을 못 받으면 '기록을 불러오지 못했습니다. (사유)'와 다시 시도, 결과는 그대로", async () => {
     const user = userEvent.setup();
     let fail = true;

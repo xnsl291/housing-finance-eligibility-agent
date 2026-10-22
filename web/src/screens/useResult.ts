@@ -6,8 +6,8 @@
  *    S3는 결과 화면에 이유를 넘기지 않는다(Questions.tsx 머리말 'S4와의 약속'). next는 기록을 쓰지 않아
  *    새로 고쳐도 같은 판단이 나온다
  * 2. POST /assessment — 후보 상품만 판정한다(Streamlit questions.finish와 같음. 전세라고 한 사람에게 매매 상품의
- *    '정보 부족'을 보이지 않으려고)
- * 3. GET /trace — 확인 과정(S6), 왜 이 상품만 보이나(전세·매매 답), 처음부터 다시 확인 창을 띄울지.
+ *    '정보 부족'을 보이지 않으려고). 후보가 없으면 부르지 않는다 — 빈 목록을 보내면 서버가 '전부'로 읽는다
+ * 3. GET /trace — 확인 과정(S6), 전세·매매를 모른다고 했는지(왜 이 상품만 보이나), 처음부터 다시 확인 창을 띄울지.
  *    판정 뒤에 불러야 방금 한 판정이 기록 끝에 들어 있다. 실패해도 결과는 그린다
  * 항목 목록(GET /v1/fields)은 처음부터 함께 받는다. 못 받아도 결과는 그린다 — 이름 자리에 코드가 나올 뿐이다
  *
@@ -39,6 +39,8 @@ export type ResultLoad =
       /** 서버 next의 이유 또는 USER_STOPPED */
       reason: string | undefined;
       declinedNeeded: string[];
+      /** next가 준 후보 상품. 왜 이 상품만 보이나 한 줄에 쓴다 */
+      candidates: string[];
       results: ProgramResult[];
       trace: TraceState;
     };
@@ -74,7 +76,7 @@ export function useResult(sessionId: string) {
       const next = await api.next(sessionId);
       // 그새 떠났으면 판정을 부르지 않는다. 부르면 아무도 보지 않는 판정이 기록(ASSESSED)에 남는다
       if (!alive.current) return;
-      const assessment = await api.assess(sessionId, next.candidates);
+      const results = next.candidates.length > 0 ? (await api.assess(sessionId, next.candidates)).results : [];
       if (!alive.current) return;
       const trace = await api.trace(sessionId).then(
         (r): TraceState => ({ kind: "ready", events: r.events }),
@@ -86,7 +88,8 @@ export function useResult(sessionId: string) {
         kind: "ready",
         reason: next.action === "RESULT" ? next.reason : USER_STOPPED,
         declinedNeeded: next.declined_needed ?? [],
-        results: assessment.results,
+        candidates: next.candidates,
+        results,
         trace,
       });
     } catch (error) {
