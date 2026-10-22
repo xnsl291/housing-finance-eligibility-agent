@@ -20,12 +20,12 @@ import type { ReactNode } from "react";
 import type { FieldCatalog, ProgramResult, RuleOutcome } from "../api/types";
 import { formatWon } from "../components/amount";
 import { Icon } from "../components/Icon";
-import { limitCaveat, limitReasonText } from "../components/ProductCard";
+import { isFinal, limitCaveat, limitReasonText } from "../components/ProductCard";
 
 import styles from "./RuleDetails.module.css";
 
 /** 설계서 8.2 규칙 결과 이름. 모르는 코드는 코드 그대로(Streamlit labels.outcome_label) */
-export const OUTCOME_LABEL: Record<string, string> = {
+const OUTCOME_LABEL: Record<string, string> = {
   FAILED: "불충족",
   MISSING_VALUE: "값 없음",
   IMPRECISE: "값이 기준에 걸쳐 판단 불가",
@@ -42,13 +42,13 @@ const NO_QUOTE = "이 규칙에는 원문 인용이 붙어 있지 않습니다";
 interface RuleDetailsProps {
   result: ProgramResult;
   catalog: FieldCatalog | null;
-  /** 카드와 같은 한도 설명·단서를 쓰려고 화면이 계산해 넘긴다 */
+  /** 카드와 같은 한도 설명을 쓰려고 화면이 계산해 넘긴다 */
   limitNote: string;
-  final: boolean;
   unresolved: number;
 }
 
-export function RuleDetails({ result, catalog, limitNote, final, unresolved }: RuleDetailsProps) {
+export function RuleDetails({ result, catalog, limitNote, unresolved }: RuleDetailsProps) {
+  const final = isFinal(result.status, unresolved);
   return (
     <div className={styles.details}>
       <Rules outcomes={result.rule_outcomes} catalog={catalog} />

@@ -29,7 +29,7 @@ export const USER_STOPPED = "USER_STOPPED";
 /** 기록: 받음 / 못 받음(사유) */
 export type TraceState = { kind: "ready"; events: TraceEvent[] } | { kind: "failed"; error: unknown };
 
-export type ResultLoad =
+type ResultLoad =
   | { kind: "loading" }
   | { kind: "missing" }
   | { kind: "offline" }

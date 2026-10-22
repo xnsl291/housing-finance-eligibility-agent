@@ -3,6 +3,7 @@
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 
 import { App } from "../App";
@@ -158,8 +159,7 @@ describe("실패", () => {
     await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "처음부터" }));
     expect(location()).toHaveTextContent("/write");
 
-    finish(assessment(program()));
-    await new Promise((r) => setTimeout(r, 20));
+    await settle(finish, assessment(program()));
     expect(location()).toHaveTextContent("/write");
     expect(screen.queryByRole("heading", { level: 3 })).not.toBeInTheDocument();
     expect(error).not.toHaveBeenCalled();
@@ -175,9 +175,23 @@ describe("실패", () => {
     await user.click(within(actions()).getByRole("button", { name: "처음부터 다시" }));
     await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "처음부터" }));
 
-    finish(result("COMPLETE"));
-    await new Promise((r) => setTimeout(r, 20));
+    await settle(finish, result("COMPLETE"));
     expect(callsTo(spy, ASSESS)).toHaveLength(0);
+  });
+
+  it("StrictMode가 효과를 두 번 돌려도 판정은 한 번만 부른다 — 판정 기록(ASSESSED)이 두 번 쌓이지 않게", async () => {
+    // 실제 앱(main.tsx)은 StrictMode로 감싸 있다
+    const spy = server();
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={[PATH]}>
+          <App />
+        </MemoryRouter>
+      </StrictMode>,
+    );
+    expect(await screen.findByRole("heading", { level: 3, name: "가상 청년 상품 가" })).toBeInTheDocument();
+    expect(callsTo(spy, NEXT)).toHaveLength(1);
+    expect(callsTo(spy, ASSESS)).toHaveLength(1);
   });
 
   it("주소의 세션만 바뀌면 앞 세션의 늦은 판정을 새 세션 화면에 그리지 않는다", async () => {

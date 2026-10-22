@@ -143,7 +143,6 @@ function Cards({ results, catalog }: { results: ProgramResult[]; catalog: FieldC
         const tenure = Array.isArray(programs) ? programs.find((p) => p.program_id === result.program_id)?.tenure : undefined;
         const limit = result.loan_limit;
         const unresolved = unresolvedCount(result);
-        const final = result.status === "PRECHECK_MATCH" && unresolved === 0;
         const note = limit ? limitNote(limit, tenure) : "";
         return (
           <ProductCard
@@ -154,7 +153,7 @@ function Cards({ results, catalog }: { results: ProgramResult[]; catalog: FieldC
             unresolved={unresolved}
             items={result.next_actions}
             sourceUrl={result.source_url}
-            details={<RuleDetails result={result} catalog={catalog} limitNote={note} final={final} unresolved={unresolved} />}
+            details={<RuleDetails result={result} catalog={catalog} limitNote={note} unresolved={unresolved} />}
           />
         );
       })}

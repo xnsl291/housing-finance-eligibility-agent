@@ -41,6 +41,11 @@ export function limitCaveat(unresolved: number): string {
     : "판정이 끝나지 않아 이 금액은 달라질 수 있습니다";
 }
 
+/** 한도를 확정처럼 크게 보여도 되는가(②) — 판정이 '사전 조건 부합'이고 남은 조건이 없을 때만. 판정 근거(S5)도 이걸로 단서를 단다 */
+export function isFinal(status: Status, unresolved: number): boolean {
+  return status === "PRECHECK_MATCH" && unresolved === 0;
+}
+
 const LIST_TITLE: Record<Status, string> = {
   NOT_MATCHED: "맞지 않는 조건",
   CONDITIONAL: "더 알려 주시면 판정할 수 있는 것",
@@ -79,7 +84,7 @@ export function ProductCard({ name, status, limit, unresolved, items, sourceUrl,
         <VerdictBadge status={status} />
       </div>
 
-      {status !== "NOT_MATCHED" && <Limit limit={limit} final={status === "PRECHECK_MATCH" && unresolved === 0} unresolved={unresolved} />}
+      {status !== "NOT_MATCHED" && <Limit limit={limit} final={isFinal(status, unresolved)} unresolved={unresolved} />}
 
       {list.length > 0 && (
         <div className={styles.list}>
