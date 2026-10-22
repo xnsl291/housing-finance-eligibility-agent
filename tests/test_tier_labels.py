@@ -9,9 +9,47 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 
+from housing_finance_agent.api import create_app
 from housing_finance_agent.rules import _RULES_DIR, available_programs, load_program
-from tests.test_api import _client, _통과
-from tests.test_limit_tier_fallback import _일반
+
+# 다른 테스트 파일에서 가져오지 않고 여기 둔다. CI는 `pytest`로 돌려 `tests`가 패키지로
+# 잡히지 않아 `from tests.… import`가 실패한다(로컬 `python -m pytest`에서는 통과했음).
+_일반 = {
+    "age": 40,
+    "household_head_status": "HEAD",
+    "home_ownership_status": "NO_HOME_ALL_MEMBERS",
+    "combined_annual_income_krw": 40000000,
+    "net_asset_krw": 100000000,
+    "housing_area_m2": 59,
+    "lease_deposit_krw": 150000000,
+    "region": "CAPITAL_AREA",
+}
+
+_통과 = {
+    "age": 30,
+    "household_head_status": "HEAD",
+    "home_ownership_status": "NO_HOME_ALL_MEMBERS",
+    "combined_annual_income_krw": 40000000,
+    "minor_children_count": 0,
+    "marital_status": "SINGLE",
+    "net_asset_krw": 100000000,
+    "household_type": "SINGLE",
+    "housing_area_m2": 59,
+    "lease_deposit_krw": 200000000,
+    "deposit_paid_ratio": 0.10,
+    "is_innovation_city_relocated_worker": False,
+    "is_redevelopment_area_tenant": False,
+    "employment_category": "OTHER",
+    "military_service_years": 0,
+    "contract_balance_date": "2026-03-10",
+    "move_in_date": "2026-04-20",
+    "application_date": "2026-05-01",
+}
+
+
+def _client() -> TestClient:
+    # 판정 경로는 LLM을 부르지 않는다.
+    return TestClient(create_app(object()))
 
 
 def test_모든_규칙_파일의_모든_구간에_이름표가_있다() -> None:
@@ -27,19 +65,21 @@ def test_이름표가_없는_구간이_있으면_읽을_때_실패한다(tmp_pat
     del 규칙["limits"]["loan_amount"]["tiers"][0]["label"]
     (tmp_path / "bad.yaml").write_text(yaml.safe_dump(규칙, allow_unicode=True), encoding="utf-8")
     monkeypatch.setattr("housing_finance_agent.rules._RULES_DIR", tmp_path)
-    monkeypatch.setattr(
-        "housing_finance_agent.rules._load_field_guides", lambda: {}
-    )
+    monkeypatch.setattr("housing_finance_agent.rules._load_field_guides", lambda: {})
 
     with pytest.raises(ValueError, match="label"):
         load_program("bad")
 
 
 def test_판정_응답에_구간_이름표가_실린다() -> None:
-    응답 = _client().post(
-        "/v1/eligibility/check",
-        json={"profile": _일반, "program_ids": ["nhuf-general-jeonse"]},
-    ).json()["results"][0]
+    응답 = (
+        _client()
+        .post(
+            "/v1/eligibility/check",
+            json={"profile": _일반, "program_ids": ["nhuf-general-jeonse"]},
+        )
+        .json()["results"][0]
+    )
 
     한도 = 응답["loan_limit"]
     assert 한도["tier"] == "general"
