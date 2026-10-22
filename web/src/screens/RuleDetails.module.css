@@ -1,0 +1,166 @@
+/* S5 판정 근거 상세. 시안 S4-a·S4-i·S4-l */
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin-top: 16px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.part {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.partTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.groupTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.rules {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rule {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ruleHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* 규칙 번호는 근거를 되짚는 용도라 작게(결함 D4) */
+.ruleId {
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+  background: var(--chip-bg);
+  border-radius: var(--r-chip);
+}
+
+/* 불충족 사유만 no 색(설계서 8.2) */
+.failure {
+  font-weight: 600;
+  color: var(--no-fg);
+}
+
+/* 원문 인용은 서식 없이 글자 그대로. 줄바꿈도 원문대로(G8) */
+.quote {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  background: var(--bg-soft);
+  border-left: 2px solid var(--line-strong);
+}
+
+.muted {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.fold summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-2);
+  cursor: pointer;
+  list-style: none;
+}
+
+.fold summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold[open] summary svg {
+  transform: rotate(180deg);
+}
+
+.fold[open] > ul {
+  margin-top: 10px;
+}
+
+/* 검수 대기 건수. 회색 상자 — 판정 '추가 확인 필요'(주황 배지)와 모양으로 구분(설계서 11.2) */
+.caution {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  background: var(--chip-bg);
+  border-radius: var(--r-sm);
+}
+
+.plain {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.fact {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.fact dt {
+  font-weight: 700;
+  color: var(--ink-3);
+}
+
+.fact dd {
+  margin: 0;
+  color: var(--ink-2);
+}
