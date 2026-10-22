@@ -11,7 +11,8 @@
  * 3. 고지
  * 설계서·시안은 1·2를 제목 위에 둔다. 화면이 바뀌면 초점이 h1로 가므로(Layout.tsx) 제목 위에 두면 화면 읽기
  * 프로그램이 멈춘 이유를 건너뛴다. 그래서 제목 바로 아래로 내렸다. 1·2·3의 순서는 그대로다
- * 4. 상품 카드 — 판정 순(13절 Q2). 카드 안에 판정 근거(S5)
+ * 4. 상품 비교표(S9, CompareTable.tsx) — 후보가 2개 이상일 때만. 카드를 대신하지 않고 위에 덧붙인다
+ * 4-1. 상품 카드 — 판정 순(13절 Q2). 카드 안에 판정 근거(S5). 비교표의 '자세히'가 카드 id로 찾아온다
  * 5. 이 조건으로 판정했습니다 — 항목 · 값 · 출처 + 줄마다 고치기(S7). 저장하면 그 값만 PUT → next → assess로 다시 판정
  * 6. 확인 과정(S6, 접힘)
  * 7. 행동 영역 — 아직 물을 것이 남았으면(next가 ASK) 주 버튼 '질문 이어서 하기', 보조 '처음부터 다시'
@@ -35,6 +36,7 @@ import { Notice } from "../components/Notice";
 import { ProductCard } from "../components/ProductCard";
 import { StopBanner } from "../components/StopBanner";
 import { useAppState } from "./AppState";
+import { CompareTable, cardId } from "./CompareTable";
 import { ChangeNotice, ConditionSummary, DeclinedLinks, RefreshFailed, useSummaryEdit } from "./ConditionSummary";
 import { Missing } from "./Confirm";
 import { describeFailure } from "./failure";
@@ -122,6 +124,7 @@ function SessionResult({ sessionId }: { sessionId: string }) {
       {load.kind === "failed" && !offline && <AssessFailed error={load.error} onRetry={fetchAll} />}
       {ready && (
         <>
+          <CompareTable results={ready.results} />
           <Cards results={ready.results} catalog={catalog} />
           <ConditionSummary
             held={ready.held}
@@ -230,6 +233,7 @@ function Cards({ results, catalog }: { results: ProgramResult[]; catalog: FieldC
         return (
           <ProductCard
             key={result.program_id}
+            id={cardId(result.program_id)}
             name={result.program_name}
             status={result.status}
             limit={{ won: limit?.amount_krw ?? null, reason: limit?.reason, note }}

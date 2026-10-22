@@ -73,14 +73,18 @@ interface ProductCardProps {
   sourceUrl: string;
   /** 판정 근거 상세(S5). 접힘 안에 넣는다 */
   details: ReactNode;
+  /** 비교표(S9)의 '자세히'가 찾아오는 id. 제목은 초점을 받을 수 있다(tabIndex -1) */
+  id?: string;
 }
 
-export function ProductCard({ name, status, limit, unresolved, items, sourceUrl, details }: ProductCardProps) {
+export function ProductCard({ name, status, limit, unresolved, items, sourceUrl, details, id }: ProductCardProps) {
   const list = status === "PRECHECK_MATCH" && limit.won === null ? [] : items;
   return (
-    <article className={styles.card}>
+    <article id={id} className={styles.card}>
       <div className={styles.head}>
-        <h3 className={styles.name}>{name}</h3>
+        <h3 className={styles.name} tabIndex={-1}>
+          {name}
+        </h3>
         <VerdictBadge status={status} />
       </div>
 
