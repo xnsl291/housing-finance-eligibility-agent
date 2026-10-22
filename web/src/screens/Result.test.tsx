@@ -72,11 +72,13 @@ describe("후보 상품만 판정한다", () => {
     expect(callsTo(spy, TRACE)).toHaveLength(1);
   });
 
-  it("판정은 멈춘 이유를 받은 뒤에, 기록은 판정 뒤에 부른다 — 방금 한 판정이 기록에 들어가게", async () => {
+  it("판정은 멈춘 이유를 받은 뒤에, 기록·세션 값은 판정 뒤에 부른다 — 방금 한 판정이 기록에 들어가게", async () => {
     const spy = server();
     await open();
     const order = spy.mock.calls.map(([url, init]) => `${init?.method ?? "GET"} ${String(url)}`).filter((k) => k.includes("s-1"));
-    expect(order).toEqual(["GET /v1/sessions/s-1/next", ASSESS, "GET /v1/sessions/s-1/trace"]);
+    expect(order.slice(0, 2)).toEqual(["GET /v1/sessions/s-1/next", ASSESS]);
+    // 기록과 세션 값(S7 요약)은 함께 부르므로 둘 사이 순서는 정하지 않는다
+    expect(order.slice(2).sort()).toEqual(["GET /v1/sessions/s-1", "GET /v1/sessions/s-1/trace"]);
   });
 });
 

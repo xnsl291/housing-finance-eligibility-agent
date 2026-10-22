@@ -11,6 +11,8 @@ export const PATH = "/s/s-1/result";
 export const NEXT = "GET /v1/sessions/s-1/next";
 export const ASSESS = "POST /v1/sessions/s-1/assessment";
 export const TRACE = "GET /v1/sessions/s-1/trace";
+export const SESSION = "GET /v1/sessions/s-1";
+export const PUT = "PUT /v1/sessions/s-1/fields";
 
 /** 상품 하나의 판정. 기본은 전세 상품(p-youth)의 '사전 조건 부합', 남은 조건 0개 */
 export function program(over: Partial<ProgramResult> = {}): ProgramResult {
@@ -67,12 +69,24 @@ export function traceOf(events: TraceEvent[] = EVENTS): Response {
   return json({ session_id: "s-1", events });
 }
 
-/** next는 '모두 확인함', 판정은 기본 상품 하나, 기록은 EVENTS. routes로 바꾼다 */
+/** EVENTS를 되짚은 세션 값(서버 replay와 같게). 임차보증금은 모른다고 해서 값이 없다 */
+export const VALUES = {
+  age: { value: 29, source: "LLM", at: "2026-10-22T00:00:00Z", phrase: "만 29세" },
+  intended_tenure: { value: "JEONSE", source: "LLM", at: "2026-10-22T00:00:00Z", phrase: null },
+  household_head_status: { value: "HEAD", source: "USER", at: "2026-10-22T00:00:00Z", phrase: null },
+};
+
+export function sessionOf(values: Record<string, unknown> = VALUES): Response {
+  return json({ session_id: "s-1", values });
+}
+
+/** next는 '모두 확인함', 판정은 기본 상품 하나, 기록은 EVENTS, 세션 값은 VALUES. routes로 바꾼다 */
 export function server(routes: Parameters<typeof fakeServer>[0] = {}) {
   return fakeServer({
     [NEXT]: () => result("COMPLETE"),
     [ASSESS]: () => assessment(program()),
     [TRACE]: () => traceOf(),
+    [SESSION]: () => sessionOf(),
     ...routes,
   });
 }

@@ -12,24 +12,35 @@
  *   (결함 D15 — Streamlit 화면은 거기서 끝나 '처음부터 다시'만 남았다)
  * - 진행 줄에는 질문 총 개수·남은 개수를 쓰지 않는다(설계서 N3 — 실제 사용자로 잰 적이 없다). 확인 수는 AppState.tsx
  *
+ * S7 '지금까지 확인한 항목'(접힘, 시안 S3-e) — 값이 있는 항목과 모른다고 한 항목. 줄마다 고치기를 저장하면 그 값만 보내고
+ * 다음 질문을 다시 받는다(HeldList.tsx·useValueEdit.ts). 질문 카드와 고치기는 서로 보내는 동안 잠근다 — 한쪽이 보내는 중에
+ * 다른 쪽이 보내면 어느 값으로 다음 질문을 받았는지 알 수 없다.
+ * S8 이어서 하기 배너는 제목 아래(ResumeBanner.tsx).
+ *
  * S4와의 약속: S3는 결과 화면에 멈춘 이유를 넘기지 않는다. S4가 next를 다시 불러 RESULT면 서버가 준 이유를,
  * ASK면(아직 물을 것이 남았는데 결과로 옴) '사용자가 멈춤'으로 판단한다. next는 기록을 쓰지 않아 몇 번 불러도
  * 같은 답이므로(api.py get_next) 새로 고친 뒤에도 같은 판단이 나온다. 라우터 state로 넘기면 새로 고칠 때 사라진다.
  */
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { ApiError } from "../api/client";
+import { api, ApiError } from "../api/client";
+import type { FieldCatalog } from "../api/types";
 import { Button } from "../components/Button";
 import { Skeleton, SystemError } from "../components/Feedback";
 import { Icon } from "../components/Icon";
 import { QuestionCard } from "../components/QuestionCard";
-import { useAppState } from "./AppState";
+import { useAlive, useAppState } from "./AppState";
 import { Missing } from "./Confirm";
 import { describeFailure, isTimeout } from "./failure";
+import { heldItems } from "./heldItems";
+import { HeldList } from "./HeldList";
 import { QuestionInput, valueToSend } from "./QuestionInput";
+import { ResumeBanner } from "./ResumeBanner";
 import { sessionPath } from "./routes";
 import { StartOver } from "./StartOver";
 import { useQuestionFlow } from "./useQuestionFlow";
+import { useValueEdit } from "./useValueEdit";
 import screen from "./Screen.module.css";
 import styles from "./Questions.module.css";
 
@@ -38,12 +49,19 @@ const OFFLINE_LOCK = "서버에 연결되지 않아 지금은 보낼 수 없습�
 export function Questions() {
   const { sessionId = "" } = useParams();
   const { connected, recheckConnection, answeredCount } = useAppState();
-  const { load, answer, changeAnswer, rejected, saveFailure, retry, sending, hasValues, fetchNext, save } =
-    useQuestionFlow(sessionId);
+  const flow = useQuestionFlow(sessionId);
+  const { load, answer, changeAnswer, rejected, saveFailure, retry, hasValues, fetchNext, save } = flow;
+  // S7 고치기 저장. 끝나면 다음 질문을 다시 받는다(useQuestionFlow.ts 머리말)
+  const edit = useValueEdit(sessionId, () => fetchNext(false));
+  // 답 저장과 고치기 저장은 서로를 잠근다(머리말)
+  const sending = flow.sending || edit.saving;
   const count = answeredCount(sessionId);
   // 확인 수는 앱 메모리라 새로 고치면 0부터 센다(AppState.tsx). 세션에 값이 있는데 0이라고 쓰면 사실과 다르므로,
   // 이 화면에서 센 것이 있거나 세션이 비어 있다고 확인됐을 때만 수를 쓴다
   const showCount = count > 0 || hasValues === false;
+  // 지울 것이 있을 때만 확인 창(설계서 M1). 세션 상태를 못 받았으면 있다고 본다
+  const dirty = count > 0 || hasValues !== false;
+  const busy = edit.saving ? "고친 값을 저장하는 중이라" : flow.sending ? "답을 보내는 중이라" : null;
 
   if (load.kind === "missing") return <Missing />;
 
@@ -65,6 +83,7 @@ export function Questions() {
         <span className={screen.eyebrow}>하나씩 확인</span>
         <h1 className={screen.title}>몇 가지만 더 여쭙겠습니다</h1>
       </section>
+      <ResumeBanner sessionId={sessionId} dirty={dirty} />
       <div className={styles.progress}>
         <p className={styles.progressLine}>
           <Icon name="check" size={15} />
@@ -112,14 +131,79 @@ export function Questions() {
         )}
       </div>
 
+      <HeldSection records={flow.records} edit={edit} offline={offline} answering={flow.sending} fetching={flow.fetching} />
+
       <StopActions
         sessionId={sessionId}
-        stopLock={offline ? OFFLINE_LOCK : sending ? "답을 보내는 중이라 잠시 누를 수 없습니다" : undefined}
-        // 지울 것이 있을 때만 확인 창(설계서 M1). 세션 상태를 못 받았으면 있다고 본다
-        dirty={count > 0 || hasValues !== false}
+        stopLock={offline ? OFFLINE_LOCK : busy ? `${busy} 잠시 누를 수 없습니다` : undefined}
+        dirty={dirty}
       />
     </>
   );
+}
+
+/** S7 지금까지 확인한 항목(접힘, 시안 S3-e). 목록 재료를 못 받았으면 그렇다고 적는다 — 빈 목록으로 보이면 아무것도 없는 것으로 읽힌다 */
+function HeldSection({
+  records,
+  edit,
+  ...state
+}: {
+  records: ReturnType<typeof useQuestionFlow>["records"];
+  edit: ReturnType<typeof useValueEdit>;
+  offline: boolean;
+  /** 질문 카드의 답을 보내는 중 */
+  answering: boolean;
+  /** 다음 질문을 받는 중(useQuestionFlow.ts 머리말 — 받는 중에 저장하면 고친 뒤의 질문을 받지 못한다) */
+  fetching: boolean;
+}) {
+  const [openField, setOpenField] = useState<string | null>(null);
+  const catalog = useCatalog();
+  const lockedReason = state.offline
+    ? OFFLINE_LOCK
+    : state.answering
+      ? "답을 보내는 중입니다."
+      : state.fetching
+        ? "다음 질문을 받는 중입니다."
+        : undefined;
+  if (records === null) return null;
+  const items = records === "failed" ? null : heldItems(records.held.values, records.events, catalog);
+  return (
+    <details className={styles.held}>
+      <summary>
+        <Icon name="chevronRight" size={15} />
+        지금까지 확인한 항목{items && ` ${items.length}개`} — 잘못된 값은 여기서 고칠 수 있습니다
+      </summary>
+      <div className={styles.heldBody}>
+        {items ? (
+          <HeldList
+            items={items}
+            catalog={catalog}
+            openField={openField}
+            onOpenField={setOpenField}
+            onSave={edit.save}
+            saving={edit.saving}
+            lockedReason={lockedReason}
+            afterSave="저장하면 다음 질문을 다시 받습니다."
+          />
+        ) : (
+          <p className={styles.heldNote}>지금까지 확인한 항목을 불러오지 못했습니다. 다음 질문을 받을 때 다시 불러옵니다.</p>
+        )}
+      </div>
+    </details>
+  );
+}
+
+/** 고치기 칸의 종류·선택지(GET /v1/fields). 못 받으면 null — 목록은 보이되 고치기는 두지 않는다(HeldList.tsx) */
+function useCatalog(): FieldCatalog | null {
+  const alive = useAlive();
+  const [catalog, setCatalog] = useState<FieldCatalog | null>(null);
+  useEffect(() => {
+    api.fields().then(
+      (r) => alive.current && setCatalog(r.fields),
+      () => {},
+    );
+  }, [alive]);
+  return catalog;
 }
 
 /** 맨 아래 버튼 줄(그만 묻고 결과 보기 · 처음부터 다시). 처음부터 다시 확인 창(M1)은 S4와 함께 쓴다(StartOver.tsx) */

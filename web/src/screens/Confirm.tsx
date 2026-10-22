@@ -19,6 +19,8 @@
  * - 칸에 입력 오류가 있거나 서버에 연결되지 않았으면 잠기고, 잠긴 이유를 버튼 아래에 적는다
  * - 기다리는 동안 두 번 누름은 버튼과 busy가 막는다. 그사이 화면을 떠났으면 늦게 온 답은 버린다(useAlive)
  *
+ * 이 탭에서 시작하지 않은 세션이면 제목 아래 S8 이어서 하기 배너(ResumeBanner.tsx).
+ *
  * ← 문장 다시 쓰기: 고친 값이 있으면 확인 창(M1), 없으면 바로 S1. 적은 문장은 앱 메모리에 있어 그대로 남는다.
  * 서버 세션은 지우지 않는다 — 이 탭에서 연 세션 목록에 있어 '내 기록 지우기'로 지울 수 있다(AppState.tsx).
  */
@@ -30,6 +32,7 @@ import type { FieldCatalog, HeldValue } from "../api/types";
 import { Skeleton, SystemError } from "../components/Feedback";
 import { useAlive, useAppState } from "./AppState";
 import { ConfirmForm } from "./ConfirmForm";
+import { ResumeBanner } from "./ResumeBanner";
 import type { ConfirmState } from "./routes";
 import screen from "./Screen.module.css";
 import styles from "./Confirm.module.css";
@@ -102,6 +105,8 @@ export function Confirm() {
           단계에서 하나씩 여쭙니다.
         </p>
       </section>
+      {/* S8. 세션 값이 비었다고 확인됐을 때만 확인 창 없이 떠난다(설계서 M1 — 지울 것이 있을 때만) */}
+      <ResumeBanner sessionId={sessionId} dirty={load.kind !== "ready" || Object.keys(load.held).length > 0} />
       {load.kind === "loading" && <Skeleton />}
       {/* 연결이 끊겼으면 위 상자 하나만. 두 상자가 함께 뜨면 둘 다 초점을 제목으로 끌어가 서로 다투고,
           '다시 연결 확인'이 연결이 돌아온 뒤 목록도 다시 받으므로 아래 상자의 '다시 시도'는 같은 일을 두 번 권한다 */}

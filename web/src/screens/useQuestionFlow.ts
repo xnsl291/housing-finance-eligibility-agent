@@ -16,12 +16,20 @@
  *   '다시 연결 확인'·'다시 시도'를 눌러도 GET /next가 겹쳐 나가지 않는다
  * - 답 저장·모름 기록: 보내는 중이면 새로 보내지 않는다(sendingRef). 카드 버튼은 카드가 막지만 '다시 시도'는
  *   카드 밖에 있어, 여기서 막지 않으면 한 질문에 답과 모름이 둘 다 갈 수 있다
+ *
+ * S7 '지금까지 확인한 항목'(heldItems.ts)에 쓸 세션 값과 기록(trace)도 다음 질문을 받을 때마다 함께 받는다.
+ * 고치기 저장(useValueEdit.ts, Questions.tsx가 부름)이 끝나면 다음 질문을 다시 받는다 — 고친 값에 따라 물을 것이 바뀐다.
+ * 다음 질문을 받는 동안(fetching)은 화면이 고치기를 잠근다. 받는 중에 고치기를 저장하면 위 '받는 중이면 새로 부르지
+ * 않는다' 때문에 고친 뒤의 질문을 받지 못한다
+ *
+ * 다음 질문 받기(useNextQuestion)와 답 보내기(useQuestionFlow)를 두 함수로 나눴다. S7 목록 재료가 붙으며 한 함수가
+ * 150줄을 넘었다. 둘이 맞물리는 곳은 두 군데뿐이다 — 새 질문을 받으면 답 칸을 비우고(onAsk), 답을 보내면 다음 질문을 받는다
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
-import type { Question, SessionState } from "../api/types";
+import type { Question, SessionState, TraceEvent } from "../api/types";
 import { formatRange, formatWon } from "../components/amount";
 import { useAlive, useAppState } from "./AppState";
 import { NO_ANSWER, valueToSend, type Answer } from "./QuestionInput";
@@ -38,10 +46,8 @@ type Load =
 type Send = "answer" | "decline";
 
 export function useQuestionFlow(sessionId: string) {
-  const navigate = useNavigate();
   const { lostConnection, countAnswer } = useAppState();
   const alive = useAlive();
-  const [load, setLoad] = useState<Load>({ kind: "loading" });
   const [answer, setAnswer] = useState<Answer>(NO_ANSWER);
   /** 서버가 답을 거절한 사유(422) */
   const [rejected, setRejected] = useState<string | null>(null);
@@ -51,59 +57,13 @@ export function useQuestionFlow(sessionId: string) {
    */
   const [saveFailure, setSaveFailure] = useState<{ id: number; error: unknown; which: Send } | null>(null);
   const [sending, setSending] = useState(false);
-  /** 세션에 값이 하나라도 있는가. null은 모름(세션 상태를 못 받음) */
-  const [hasValues, setHasValues] = useState<boolean | null>(null);
-  const fetching = useRef(false);
   const sendingRef = useRef(false);
-  const asked = useRef(0);
-
-  // 세션 상태는 '지금 아는 값'과 '처음부터 다시' 확인 창을 띄울지에만 쓴다. 못 받아도 질문은 그린다
-  const fetchNext = useCallback(
-    async (skeleton: boolean) => {
-      if (fetching.current) return;
-      fetching.current = true;
-      if (skeleton) setLoad({ kind: "loading" });
-      try {
-        // 차례로 부른다. 예전에는 서버가 같은 세션을 동시에 두 번 읽으면 500·404를 내서 꼭 차례로 불러야 했으나,
-        // 서버 쪽은 이슈 #36(PR #37, 세션 저장소에 잠금)에서 고쳐졌다. 지금 차례로 두는 것은 단순해서다 —
-        // next가 실패하면 세션 상태는 부를 필요가 없고, 함께 부르면 한쪽만 실패한 경우를 따로 다뤄야 한다
-        const next = await api.next(sessionId);
-        const held = await api.session(sessionId).catch(() => null);
-        if (!alive.current) return;
-        setHasValues(held === null ? null : Object.keys(held.values).length > 0);
-        if (next.action === "RESULT") {
-          // replace: 뒤로 가기로 질문 없는 이 화면에 돌아오지 않게. 멈춘 이유는 넘기지 않는다(Questions.tsx 머리말)
-          navigate(sessionPath(sessionId, "result"), { replace: true });
-          return;
-        }
-        if (!next.question) throw new Error("질문이 없는 ASK 응답");
-        asked.current += 1;
-        setAnswer(NO_ANSWER);
-        setRejected(null);
-        setSaveFailure(null);
-        setLoad({
-          kind: "ask",
-          question: next.question,
-          known: knownText(next.question, held),
-          key: `${next.question.field}:${asked.current}`,
-        });
-      } catch (error) {
-        if (!alive.current) return;
-        if (error instanceof ApiError && error.status === 404) setLoad({ kind: "missing" });
-        else if (error instanceof ApiError && error.kind === "network") {
-          lostConnection();
-          setLoad({ kind: "offline" });
-        } else setLoad({ kind: "failed", error });
-      } finally {
-        fetching.current = false;
-      }
-    },
-    [sessionId, alive, navigate, lostConnection],
-  );
-
-  useEffect(() => {
-    void fetchNext(true);
-  }, [fetchNext]);
+  const next = useNextQuestion(sessionId, () => {
+    setAnswer(NO_ANSWER);
+    setRejected(null);
+    setSaveFailure(null);
+  });
+  const { load, setLoad, fetchNext } = next;
 
   /**
    * 답 저장(answer)이나 모름 기록(decline). 성공하면 확인 수 +1 → 다음 질문(칸은 그대로 둔 채 받아 온다).
@@ -149,13 +109,88 @@ export function useQuestionFlow(sessionId: string) {
     return save(saveFailure.which);
   }
 
-  function changeAnswer(next: Answer) {
-    setAnswer(next);
+  function changeAnswer(value: Answer) {
+    setAnswer(value);
     // 거절 사유는 앞서 보낸 값에 대한 것이다. 답을 바꾸면 지난 일이다
     setRejected(null);
   }
 
-  return { load, answer, changeAnswer, rejected, saveFailure, retry, sending, hasValues, fetchNext, save };
+  const { hasValues, records, fetching } = next;
+  return { load, answer, changeAnswer, rejected, saveFailure, retry, sending, hasValues, fetchNext, save, records, fetching };
+}
+
+/**
+ * 다음 질문 받기와 그때 함께 받는 세션 값·기록. onAsk는 새 질문을 받았을 때(답 칸 비우기). 부를 때마다 새 함수가 와도
+ * 다시 받지 않게 ref로 든다 — fetchNext가 바뀌면 들어올 때의 효과가 다시 돌아 GET /next를 또 부른다
+ */
+function useNextQuestion(sessionId: string, onAsk: () => void) {
+  const navigate = useNavigate();
+  const { lostConnection } = useAppState();
+  const alive = useAlive();
+  const [load, setLoad] = useState<Load>({ kind: "loading" });
+  /** 세션에 값이 하나라도 있는가. null은 모름(세션 상태를 못 받음) */
+  const [hasValues, setHasValues] = useState<boolean | null>(null);
+  /** S7 목록의 재료. null은 처음 받는 중, failed는 세션 값이나 기록을 못 받음(목록 자리에 그렇게 알린다) */
+  const [records, setRecords] = useState<{ held: SessionState; events: TraceEvent[] } | "failed" | null>(null);
+  const [fetchingNow, setFetchingNow] = useState(false);
+  const fetching = useRef(false);
+  const asked = useRef(0);
+  const onAskRef = useRef(onAsk);
+  onAskRef.current = onAsk;
+
+  // 세션 상태는 '지금 아는 값'과 '처음부터 다시' 확인 창을 띄울지, S7 목록에 쓴다. 못 받아도 질문은 그린다
+  const fetchNext = useCallback(
+    async (skeleton: boolean) => {
+      if (fetching.current) return;
+      fetching.current = true;
+      setFetchingNow(true);
+      if (skeleton) setLoad({ kind: "loading" });
+      try {
+        // next를 먼저 부른다. 예전에는 서버가 같은 세션을 동시에 두 번 읽으면 500·404를 내서 꼭 차례로 불러야 했으나,
+        // 서버 쪽은 이슈 #36(PR #37, 세션 저장소에 잠금)에서 고쳐졌다. 지금 먼저 두는 것은 단순해서다 —
+        // next가 실패하면 세션 상태는 부를 필요가 없다. 세션 값과 기록은 둘 다 실패해도 되는 것이라 함께 부른다
+        const next = await api.next(sessionId);
+        const [held, trace] = await Promise.all([
+          api.session(sessionId).catch(() => null),
+          api.trace(sessionId).catch(() => null),
+        ]);
+        if (!alive.current) return;
+        setHasValues(held === null ? null : Object.keys(held.values).length > 0);
+        setRecords(held && trace ? { held, events: trace.events } : "failed");
+        if (next.action === "RESULT") {
+          // replace: 뒤로 가기로 질문 없는 이 화면에 돌아오지 않게. 멈춘 이유는 넘기지 않는다(Questions.tsx 머리말)
+          navigate(sessionPath(sessionId, "result"), { replace: true });
+          return;
+        }
+        if (!next.question) throw new Error("질문이 없는 ASK 응답");
+        asked.current += 1;
+        onAskRef.current();
+        setLoad({
+          kind: "ask",
+          question: next.question,
+          known: knownText(next.question, held),
+          key: `${next.question.field}:${asked.current}`,
+        });
+      } catch (error) {
+        if (!alive.current) return;
+        if (error instanceof ApiError && error.status === 404) setLoad({ kind: "missing" });
+        else if (error instanceof ApiError && error.kind === "network") {
+          lostConnection();
+          setLoad({ kind: "offline" });
+        } else setLoad({ kind: "failed", error });
+      } finally {
+        fetching.current = false;
+        if (alive.current) setFetchingNow(false);
+      }
+    },
+    [sessionId, alive, navigate, lostConnection],
+  );
+
+  useEffect(() => {
+    void fetchNext(true);
+  }, [fetchNext]);
+
+  return { load, setLoad, fetchNext, hasValues, records, fetching: fetchingNow };
 }
 
 /** 기준에 걸쳐 다시 묻는 경우(IMPRECISE)만 지금 아는 값을 억·만으로(설계서 S3 질문 카드). 값을 못 받았으면 줄을 그리지 않는다 */

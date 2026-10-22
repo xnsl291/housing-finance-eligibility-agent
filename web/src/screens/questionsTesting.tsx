@@ -11,6 +11,7 @@ export const NEXT = "GET /v1/sessions/s-1/next";
 export const SESSION = "GET /v1/sessions/s-1";
 export const PUT = "PUT /v1/sessions/s-1/fields";
 export const DECLINE = "POST /v1/sessions/s-1/declined";
+export const TRACE = "GET /v1/sessions/s-1/trace";
 
 /** 서버가 내는 질문 하나. 선택 항목 '세대주 여부'(next_action.py의 why 문구 그대로) */
 export const CHOICE_Q: Question = {
@@ -45,7 +46,7 @@ export function sequence(...responses: Response[]) {
   };
 }
 
-/** 세션 상태(값은 문장에서 읽은 것으로), 답 저장, 모름 기록을 기본으로 정상 응답한다 */
+/** 세션 상태(값은 문장에서 읽은 것으로), 기록(세션 시작만), 답 저장, 모름 기록을 기본으로 정상 응답한다 */
 export function server(routes: Parameters<typeof fakeServer>[0] = {}, values: Record<string, FieldValue> = { age: 29 }) {
   const held = Object.fromEntries(
     Object.entries(values).map(([k, v]) => [k, { value: v, source: "LLM", at: "2026-10-21T00:00:00Z", phrase: null }]),
@@ -54,6 +55,7 @@ export function server(routes: Parameters<typeof fakeServer>[0] = {}, values: Re
     [SESSION]: () => json({ session_id: "s-1", values: held }),
     [PUT]: () => json({ session_id: "s-1", values: held }),
     [DECLINE]: () => json({ session_id: "s-1", declined: [] }),
+    [TRACE]: () => json({ session_id: "s-1", events: [] }),
     ...routes,
   });
 }
