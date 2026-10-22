@@ -11,7 +11,9 @@
  * 2. 한도 계산 근거 3. 아직 다루지 않는 조건 4. 출처
  *
  * 원문 인용은 서식 없이 원문 그대로(G8) — 글자로만 넣어 `*`·`_`가 서식으로 바뀌지 않고, 줄바꿈도 그대로 둔다.
- * 규칙 머리에는 항목 코드 대신 이름표(결함 D4). 규칙 번호는 근거를 되짚을 때 쓰므로 작게 남긴다.
+ * 규칙 머리에는 항목 코드 대신 이름표(결함 D4) — 서버가 규칙마다 준 field_label, 없으면 항목 목록의 이름,
+ * 그것도 없으면 코드를 작게(설계서 S4 상태표). 규칙 번호는 근거를 되짚을 때 쓰므로 작게 남긴다.
+ * 한도 구간도 서버 이름표(tier_label·skipped_tier_labels)로만 말한다.
  */
 import type { ReactNode } from "react";
 
@@ -19,7 +21,7 @@ import type { FieldCatalog, ProgramResult, RuleOutcome } from "../api/types";
 import { formatWon } from "../components/amount";
 import { Icon } from "../components/Icon";
 import { limitCaveat, limitReasonText } from "../components/ProductCard";
-import { fieldLabel, tierLabel } from "./resultText";
+
 import styles from "./RuleDetails.module.css";
 
 /** 설계서 8.2 규칙 결과 이름. 모르는 코드는 코드 그대로(Streamlit labels.outcome_label) */
@@ -146,7 +148,7 @@ function RuleList({ rules, catalog, failed }: { rules: RuleOutcome[]; catalog: F
         <li key={`${i}-${rule.rule_id}`} className={styles.rule}>
           <p className={styles.ruleHead}>
             <span className={styles.ruleId}>{rule.rule_id}</span>
-            {rule.field && <span>{fieldLabel(catalog, rule.field)}</span>}
+            {rule.field && <FieldName rule={rule} catalog={catalog} />}
             {/* 사유는 불충족만 빨간 글자로(설계서 8.2). 다음 줄로 내리면 규칙 하나가 세 줄이 된다 */}
             {failed && rule.failure_message && <span className={styles.failure}>— {rule.failure_message}</span>}
           </p>
@@ -155,6 +157,12 @@ function RuleList({ rules, catalog, failed }: { rules: RuleOutcome[]; catalog: F
       ))}
     </ul>
   );
+}
+
+/** 규칙 머리의 항목 이름. 서버 이름표 → 항목 목록 이름 → 코드(작게) */
+function FieldName({ rule, catalog }: { rule: RuleOutcome; catalog: FieldCatalog | null }) {
+  const label = rule.field_label ?? (rule.field ? catalog?.[rule.field]?.label : undefined);
+  return label ? <span>{label}</span> : <span className={styles.code}>{rule.field}</span>;
 }
 
 /** 원문 인용. 글자 그대로(G8). 없으면 없다고 말한다 */
@@ -176,7 +184,6 @@ function LimitBasis({ result, note, final, unresolved }: { result: ProgramResult
       </section>
     );
   }
-  const tier = tierLabel(limit.tier);
   return (
     <section className={styles.part}>
       <h4 className={styles.partTitle}>한도 계산 근거</h4>
@@ -190,7 +197,16 @@ function LimitBasis({ result, note, final, unresolved }: { result: ProgramResult
             </Fact>
             {!final && <Fact name="단서">{limitCaveat(unresolved)}</Fact>}
             <Fact name="계산">{note}</Fact>
-            {tier && <Fact name="적용 구간">{tier}</Fact>}
+            {(limit.tier_label || limit.tier) && (
+              <Fact name="적용 구간">
+                {limit.tier_label ?? <span className={styles.code}>{limit.tier}</span>}
+              </Fact>
+            )}
+            {limit.skipped_tier_labels.length > 0 && (
+              <Fact name="확인 못 한 구간">
+                {limit.skipped_tier_labels.join(", ")} — 해당 여부를 몰라 계산에 쓰지 않았습니다
+              </Fact>
+            )}
           </>
         )}
         {limit.rule_id && (

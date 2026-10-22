@@ -10,10 +10,23 @@ import { json } from "./testing";
 
 afterEach(() => vi.restoreAllMocks());
 
+/** 서버(api.py)처럼 field_label은 항목 목록의 이름표, 파생 항목도 이름표, field가 null이면 null */
+const LABEL: Record<string, string> = {
+  age: "나이",
+  household_head_status: "세대주 여부",
+  lease_deposit_krw: "임차보증금",
+  net_asset_krw: "순자산",
+  combined_annual_income_krw: "부부합산 총소득",
+  region: "수도권 여부",
+  military_service_years: "병역 복무기간",
+  employment_category: "고용 형태",
+  move_in_date: "전입일",
+};
 const rule = (rule_id: string, outcome: string, field: string | null, citation: string | null, failure_message: string | null = null) => ({
   rule_id,
   outcome,
   field,
+  field_label: field === null ? null : (LABEL[field] ?? field),
   citation,
   failure_message,
 });
@@ -89,16 +102,35 @@ describe("S5 규칙별 판정 — 설계서 표 순서와 기본 펼침/접힘",
     expect(await details()).toHaveTextContent("규칙 결과를 응답에서 받지 못했습니다");
   });
 
-  it("항목 목록을 못 받으면 규칙 머리에 코드가 나온다 (설계서 S4 상태표)", async () => {
-    server({ [ASSESS]: () => assessment(program({ rule_outcomes: OUTCOMES })), "GET /v1/fields": () => json({ detail: "x" }, 500) });
+  it("항목 이름은 서버가 준 field_label — 화면 항목 목록에 없는 파생 항목도 (결함 D4)", async () => {
+    const derived = { ...rule("YJ-12", "PASSED", "household_size_bucket", "세대원 수"), field_label: "세대원 수 구간" };
+    server({ [ASSESS]: () => assessment(program({ rule_outcomes: [derived] })), "GET /v1/fields": () => json({ detail: "x" }, 500) });
     await open();
-    expect(within(await details()).getByText("YJ-04").closest("li")).toHaveTextContent("lease_deposit_krw");
+    const box = await details();
+    expect(within(box).getByText("YJ-12").closest("li")).toHaveTextContent("세대원 수 구간");
+    expect(box).not.toHaveTextContent("household_size_bucket");
+  });
+
+  it("field_label이 없으면 항목 목록의 이름으로", async () => {
+    const bare = [{ ...rule("YJ-04", "FAILED", "lease_deposit_krw", "x", "넘음"), field_label: null }];
+    server({ [ASSESS]: () => assessment(program({ rule_outcomes: bare })) });
+    await open();
+    const box = await details();
+    expect(within(box).getByText("YJ-04").closest("li")).toHaveTextContent("임차보증금");
+    expect(box).not.toHaveTextContent("lease_deposit_krw");
+  });
+
+  it("field_label도 항목 목록도 없으면 코드를 작게 (설계서 S4 상태표)", async () => {
+    const bare = [{ ...rule("YJ-04", "FAILED", "lease_deposit_krw", "x", "넘음"), field_label: null }];
+    server({ [ASSESS]: () => assessment(program({ rule_outcomes: bare })), "GET /v1/fields": () => json({ detail: "x" }, 500) });
+    await open();
+    expect(within(await details()).getByText("lease_deposit_krw").className).toMatch(/code/);
   });
 });
 
 describe("S5 한도 계산 근거·아직 다루지 않는 조건·출처", () => {
-  it("금액·계산·이름표가 있는 적용 구간·근거 규칙·인용", async () => {
-    const limit = { ...program().loan_limit!, tier: "under_25_single" };
+  it("금액·계산·서버 이름표로 적용 구간·근거 규칙·인용", async () => {
+    const limit = { ...program().loan_limit!, tier: "under_25_single", tier_label: "만 25세 미만 단독세대주" };
     server({ [ASSESS]: () => assessment(program({ loan_limit: limit, unresolved: ["증액갱신계약은 다루지 않음"] })) });
     await open();
     const box = await details();
@@ -112,13 +144,29 @@ describe("S5 한도 계산 근거·아직 다루지 않는 조건·출처", () =
     expect(box).toHaveTextContent("증액갱신계약은 다루지 않음");
   });
 
-  it("이름표가 없는 구간 코드는 보이지 않고, 확정이 아니면 단서를 단다", async () => {
+  it("적용 구간 줄은 기본 구간도 이름표로 보이고, 확정이 아니면 단서를 단다", async () => {
     server({ [ASSESS]: () => assessment(program({ status: "INSUFFICIENT_INFORMATION", missing_fields: ["net_asset_krw", "age"] })) });
     await open();
     const box = await details();
-    expect(box).not.toHaveTextContent("적용 구간");
+    expect(box).toHaveTextContent("적용 구간그 밖의 가구");
     expect(box).not.toHaveTextContent("default");
+    expect(box).not.toHaveTextContent("확인 못 한 구간");
     expect(box).toHaveTextContent("단서아직 확인되지 않은 조건이 2개 있어 이 금액은 달라질 수 있습니다");
+  });
+
+  it("해당 여부를 몰라 건너뛴 구간은 서버 이름표로 한 줄", async () => {
+    const limit = {
+      ...program().loan_limit!,
+      skipped_tiers: ["newlywed_or_two_children", "first_time"],
+      skipped_tier_labels: ["신혼 가구 또는 2자녀 이상 가구", "생애최초 주택구입자"],
+    };
+    server({ [ASSESS]: () => assessment(program({ loan_limit: limit })) });
+    await open();
+    const box = await details();
+    expect(box).toHaveTextContent(
+      "확인 못 한 구간신혼 가구 또는 2자녀 이상 가구, 생애최초 주택구입자 — 해당 여부를 몰라 계산에 쓰지 않았습니다",
+    );
+    expect(box).not.toHaveTextContent("newlywed_or_two_children");
   });
 
   it("조건 불충족이면 한도 계산 근거 자리에 '이 판정에서는 한도를 계산하지 않았습니다'", async () => {

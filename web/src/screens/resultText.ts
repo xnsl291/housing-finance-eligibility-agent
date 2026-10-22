@@ -4,9 +4,8 @@
  * 여기서도 판정하지 않는다. 받은 응답을 정렬하고 사람이 읽을 말로 바꾸기만 한다(Streamlit `ui/flow.py`,
  * `ui/screens/results.py`와 같은 일). 값을 반올림하거나 없는 값을 채우지 않는다.
  *
- * 항목 이름의 정본은 서버 항목 목록(GET /v1/fields)이다. 다만 판정에만 쓰는 파생 항목(수도권 여부,
- * 병역 반영 나이)은 그 목록에 없어서(rules.py field_catalog) 규칙 줄에 코드가 그대로 나온다(결함 D4).
- * 그 둘만 rules/field_guides.yaml의 이름표를 옮겨 둔다. 저쪽을 고치면 여기도 고친다.
+ * 이름표는 화면이 만들지 않는다. 항목 이름은 서버 항목 목록(GET /v1/fields)과, 판정 응답이 규칙마다 싣는
+ * field_label(파생 항목 포함), 한도 구간 이름은 판정 응답의 tier_label·skipped_tier_labels가 정본이다.
  */
 import type { FieldCatalog, FieldInfo, FieldValue, LoanLimit, ProgramResult, Status, TraceEvent } from "../api/types";
 import { formatRange, formatWon } from "../components/amount";
@@ -43,30 +42,9 @@ export function limitNote(limit: LoanLimit, tenure: "JEONSE" | "PURCHASE" | null
   return `${base}로 구한 ${formatWon(ratio)}과 금액 상한 ${formatWon(cap)} 중 작은 쪽입니다 — ${hit}에 걸렸습니다`;
 }
 
-/**
- * 한도 구간 이름표. 서버가 응답에 이름표를 싣지 않아 assessment.py _TIER_NAMES를 옮겨 둔다(결함 D4).
- * 저쪽에 없는 구간(single·default·general)은 이름표를 지어내지 않는다 — 판정 근거에서 그 줄을 그리지 않는다
- */
-const TIER_LABEL: Record<string, string> = {
-  newlywed_or_two_children: "신혼 가구 또는 2자녀 이상 가구",
-  under_25_single: "만 25세 미만 단독세대주",
-  first_time: "생애최초 주택구입자",
-  single_first_time: "생애최초 주택구입자",
-};
-
-export function tierLabel(tier: string | null): string | null {
-  return tier ? (TIER_LABEL[tier] ?? null) : null;
-}
-
-/** 파생 항목 이름표(머리말). rules/field_guides.yaml의 region·age_after_service_credit */
-const DERIVED_LABEL: Record<string, string> = {
-  region: "수도권 여부",
-  age_after_service_credit: "병역 복무기간을 반영한 나이",
-};
-
 /** 항목 코드 → 이름표. 항목 목록을 못 받았으면 코드 그대로(설계서 S4 상태표) */
 export function fieldLabel(catalog: FieldCatalog | null, field: string): string {
-  return catalog?.[field]?.label ?? DERIVED_LABEL[field] ?? field;
+  return catalog?.[field]?.label ?? field;
 }
 
 /** 값 한 개를 사람이 읽을 말로(설계서 S6 — 금액은 억·만, 예/아니오, 선택지는 한국어). Streamlit flow._값_보기 */

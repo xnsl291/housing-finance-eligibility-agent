@@ -81,6 +81,8 @@ export interface RuleOutcome {
   rule_id: string;
   outcome: string;
   field: string | null;
+  /** 항목의 한국어 이름(api.py _field_label). 파생 항목(수도권 여부 등)도 있다. field가 null이면 null */
+  field_label: string | null;
   /** 원문 인용. 비어 있으면 인용이 붙어 있지 않은 규칙 */
   citation: string | null;
   failure_message: string | null;
@@ -94,6 +96,11 @@ export interface RuleOutcome {
 export interface LoanLimit {
   amount_krw: number | null;
   tier: string | null;
+  /** 적용 구간의 한국어 이름(규칙 파일의 label). 금액을 못 냈으면 null */
+  tier_label: string | null;
+  /** 해당 여부를 몰라 건너뛴 더 유리한 구간. 이름표는 같은 순서로 skipped_tier_labels에 */
+  skipped_tiers: string[];
+  skipped_tier_labels: string[];
   ratio_amount_krw: number | null;
   cap_amount_krw: number | null;
   citation: string | null;

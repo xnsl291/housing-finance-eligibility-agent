@@ -70,6 +70,12 @@
   border-radius: var(--r-chip);
 }
 
+/* 이름표를 어디서도 받지 못한 항목·구간 코드. 사람이 읽을 말이 아니라서 작게(설계서 S4 상태표) */
+.code {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
 /* 불충족 사유만 no 색(설계서 8.2) */
 .failure {
   font-weight: 600;

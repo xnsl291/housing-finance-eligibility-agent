@@ -26,6 +26,9 @@ export function program(over: Partial<ProgramResult> = {}): ProgramResult {
     loan_limit: {
       amount_krw: 144_000_000,
       tier: "default",
+      tier_label: "그 밖의 가구",
+      skipped_tiers: [],
+      skipped_tier_labels: [],
       ratio_amount_krw: 144_000_000,
       cap_amount_krw: 150_000_000,
       citation: "임차보증금의 80%이내에서 최고 1억 5천만원 이내",
