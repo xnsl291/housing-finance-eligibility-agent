@@ -155,6 +155,7 @@ def create_app(
                             "rule_id": item.rule_id,
                             "outcome": item.outcome,
                             "field": item.field,
+                            "field_label": _field_label(program, item.field),
                             "citation": item.citation,
                             "failure_message": item.failure_message,
                         }
@@ -386,6 +387,10 @@ def _limit_as_json(limit: object) -> dict | None:
     return {
         "amount_krw": limit.amount_krw,
         "tier": limit.tier,
+        "tier_label": limit.tier_label,
+        # 해당 여부를 몰라 건너뛴 유리한 구간. 코드와 이름표는 같은 순서다.
+        "skipped_tiers": list(limit.skipped_tiers),
+        "skipped_tier_labels": list(limit.skipped_tier_labels),
         # 어느 쪽에 걸려 이 금액이 됐는지 보여 주려면 둘 다 있어야 한다.
         "ratio_amount_krw": limit.ratio_amount_krw,
         "cap_amount_krw": limit.cap_amount_krw,
@@ -394,6 +399,13 @@ def _limit_as_json(limit: object) -> dict | None:
         # 못 낸 이유. 사유마다 사용자가 할 일이 다르다.
         "reason": limit.reason,
     }
+
+
+def _field_label(program: dict, field: str | None) -> str | None:
+    """규칙 결과 항목의 한국어 이름. 파생 항목도 field_guides.yaml에 이름이 있다."""
+    if field is None:
+        return None
+    return ((program.get("field_guides") or {}).get(field) or {}).get("label", field)
 
 
 def _db_path() -> str:

@@ -43,6 +43,9 @@ class LoanLimit:
     # 해당 여부를 몰라 건너뛴 유리한 구간. 금액만 낮게 주고 말면 사용자가 받을 수
     # 있는 것보다 적게 알고 계약한다.
     skipped_tiers: tuple[str, ...] = ()
+    # 위 두 값의 한국어 이름표(YAML의 label). skipped_tier_labels는 skipped_tiers와 같은 순서.
+    tier_label: str | None = None
+    skipped_tier_labels: tuple[str, ...] = ()
 
 
 def estimate_loan_limit(program: dict, profile: dict) -> LoanLimit:
@@ -70,6 +73,7 @@ def estimate_loan_limit(program: dict, profile: dict) -> LoanLimit:
         return _못_구함(spec, "BASE_IMPRECISE")
 
     tier, skipped = _pick_tier(spec["tiers"], profile)
+    이름표 = {t["name"]: t["label"] for t in spec["tiers"]}
     if tier is None:
         return _못_구함(spec, "TIER_UNKNOWN")
 
@@ -92,6 +96,8 @@ def estimate_loan_limit(program: dict, profile: dict) -> LoanLimit:
         citation=spec["citation"],
         rule_id=spec["rule_id"],
         skipped_tiers=tuple(skipped),
+        tier_label=tier["label"],
+        skipped_tier_labels=tuple(이름표[name] for name in skipped),
         ratio_field=기준_항목,
     )
 

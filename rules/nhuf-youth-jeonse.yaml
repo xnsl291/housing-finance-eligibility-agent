@@ -280,6 +280,7 @@ limits:
     human_reviewed: true
     tiers:
       - name: under_25_single
+        label: 만 25세 미만 단독세대주
         applies_when:
           all:
             - field: age
@@ -291,6 +292,7 @@ limits:
         ratio: 0.80
         cap_krw: 120000000
       - name: default
+        label: 그 밖의 가구
         ratio: 0.80
         cap_krw: 150000000
 
