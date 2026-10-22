@@ -1,0 +1,30 @@
+/* S8 이어서 하기 배너(시안 S8). 멈춘 이유 배너와 같은 중립색 — 판정 4색을 쓰지 않는다 */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+}
+
+.text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.title {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.body {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-2);
+}

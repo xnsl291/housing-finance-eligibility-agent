@@ -96,7 +96,7 @@ export function ComponentGallery() {
           <StopBanner reason="COMPLETE" />
           <StopBanner reason="ALL_NOT_MATCHED" />
           <StopBanner reason="ONLY_DECLINED_LEFT" declinedLabels={["세대주 여부", "순자산"]} />
-          <StopBanner reason="USER_STOPPED" />
+          <StopBanner reason="MORE_TO_ASK" />
           <StopBanner reason={undefined} />
         </div>
       </Group>

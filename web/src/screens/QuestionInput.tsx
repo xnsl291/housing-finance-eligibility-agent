@@ -17,6 +17,11 @@
  *
  * 금액·숫자 칸은 글을 칸 안에 들고 있다(부품이 그렇게 만들어짐). 같은 항목을 다시 물을 때 앞 답이 남지 않게
  * 부르는 쪽이 질문마다 key를 바꿔 새 칸으로 그린다.
+ *
+ * S7 고치기 칸(HeldList.tsx)도 이 칸을 그대로 쓴다. 칸 안에 '모름'이 없는 S3 열을 고른 이유: 고치기에서
+ * 값을 지우는 것은 '모른다고 함'이 아니라 '비움'이라(서버 session.py declined_of — null은 모름 기록을 만들지
+ * 않는다) 칸 안에 '모름'을 두면 사실과 다른 말이 된다. 비우기는 고치기 줄의 '값 비우기' 버튼이 따로 맡는다.
+ * 고치기는 지금 값을 칸에 채운 채 시작한다 — answer의 처음 값을 금액·숫자 칸의 처음 글로 쓴다(S3는 늘 빈 답으로 시작).
  */
 import type { FieldValue, Question } from "../api/types";
 import { AmountField } from "../components/AmountFields";
@@ -33,8 +38,14 @@ export interface Answer {
 
 export const NO_ANSWER: Answer = { value: null, problem: null };
 
+/** 칸을 그리는 데 필요한 것만. S3는 서버 질문(Question)을, S7 고치기는 항목 목록의 한 줄(FieldInfo)을 넘긴다 */
+type InputSpec = Pick<Question, "label" | "kind"> & {
+  choices?: string[] | null;
+  choice_labels?: Record<string, string> | null;
+};
+
 interface QuestionInputProps {
-  question: Question;
+  question: InputSpec;
   /** 선택지 묶음 이름으로 쓸 카드 제목 id */
   titleId: string;
   /** 칸의 설명에 더할 줄의 id(카드 맨 아래 서버 거절 사유). 없으면 undefined */
@@ -76,6 +87,7 @@ export function QuestionInput({ question, titleId, describedBy, answer, onChange
           label={label}
           help="만원 단위로 적어 주세요. 예: 4800, 3억 2천"
           describedBy={describedBy}
+          defaultWon={typeof answer.value === "number" ? answer.value : null}
           onChange={(won, p) => set(won, p)}
         />
       ) : kind === "DATE" ? (
@@ -92,6 +104,7 @@ export function QuestionInput({ question, titleId, describedBy, answer, onChange
           help="숫자로 적어 주세요"
           integer={kind === "INT"}
           describedBy={describedBy}
+          defaultValue={typeof answer.value === "number" ? answer.value : null}
           onChange={(n, p) => set(n, p)}
         />
       ) : (

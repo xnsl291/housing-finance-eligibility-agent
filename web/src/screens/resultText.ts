@@ -47,8 +47,8 @@ export function fieldLabel(catalog: FieldCatalog | null, field: string): string 
   return catalog?.[field]?.label ?? field;
 }
 
-/** 값 한 개를 사람이 읽을 말로(설계서 S6 — 금액은 억·만, 예/아니오, 선택지는 한국어). Streamlit flow._값_보기 */
-function valueText(value: FieldValue, info: FieldInfo | undefined): string {
+/** 값 한 개를 사람이 읽을 말로(설계서 S6 — 금액은 억·만, 예/아니오, 선택지는 한국어). Streamlit flow._값_보기. S7 조건 요약도 쓴다 */
+export function valueText(value: FieldValue, info: FieldInfo | undefined): string {
   if (typeof value === "object") return formatRange(value.low, value.high);
   if (typeof value === "boolean") return value ? "예" : "아니오";
   if (info?.kind === "AMOUNT" && typeof value === "number") return formatWon(value);

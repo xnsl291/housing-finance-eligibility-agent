@@ -66,6 +66,8 @@ interface SystemErrorProps {
    * 주 버튼으로(시안 E2)
    */
   retryVariant?: "primary" | "secondary";
+  /** 있으면 다시 시도 버튼을 잠근다(예: 고친 값을 저장하는 중 — 끝나면 화면이 다시 받는다) */
+  lockedReason?: string;
 }
 
 /**
@@ -86,6 +88,7 @@ export function SystemError({
   icon = "serverOff",
   retryLabel = "다시 시도",
   retryVariant = "secondary",
+  lockedReason,
 }: SystemErrorProps) {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const titleId = useId();
@@ -100,7 +103,7 @@ export function SystemError({
         {title}
       </h2>
       <div className={styles.systemBody}>{children}</div>
-      <Button variant={retryVariant} onClick={onRetry}>
+      <Button variant={retryVariant} lockedReason={lockedReason} onClick={onRetry}>
         {retryLabel}
       </Button>
     </section>

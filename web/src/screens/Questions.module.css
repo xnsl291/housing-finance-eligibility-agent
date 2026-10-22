@@ -60,3 +60,38 @@
   align-items: center;
   min-height: 52px;
 }
+
+/* S7 지금까지 확인한 항목(접힘, 시안 S3-e). 접기 모양은 결과 화면 확인 과정(.trace)과 같게 */
+.held {
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.held summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.held summary::-webkit-details-marker {
+  display: none;
+}
+
+.held[open] summary svg {
+  transform: rotate(90deg);
+}
+
+.heldBody {
+  margin-top: 16px;
+}
+
+.heldNote {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-3);
+}

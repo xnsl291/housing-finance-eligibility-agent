@@ -10,34 +10,16 @@ import { App } from "../App";
 
 import { ask, CHOICE_Q, result } from "./questionsTesting";
 import { ASSESS, assessment, event, NEXT, open, PATH, program, server, TRACE, traceOf } from "./resultTesting";
-import { callsTo, json, renderApp } from "./testing";
+import { callsTo, json, renderApp, settle } from "./testing";
 
 afterEach(() => vi.restoreAllMocks());
 
 const location = () => screen.getByTestId("location");
 
-/**
- * 붙잡아 둔 응답을 내주고, 화면 코드가 그 본문을 다 읽은 뒤 이어지는 일까지 끝날 때까지 기다린다.
- * 본문을 읽은 뒤의 일(떠났는지 확인 → 다음 호출 또는 상태 바꾸기)은 모두 마이크로태스크라,
- * 그다음 매크로태스크(setTimeout 0)가 돌 때는 이미 끝나 있다. 시간을 재며 기다리지 않는다
- */
-async function settle(release: (r: Response) => void, response: Response) {
-  let read: () => void = () => {};
-  const consumed = new Promise<void>((resolve) => (read = resolve));
-  const json = response.json.bind(response);
-  response.json = () =>
-    json().then((body: unknown) => {
-      read();
-      return body;
-    });
-  release(response);
-  await consumed;
-  await new Promise((resolve) => setTimeout(resolve, 0));
-}
 const actions = () => screen.getByRole("region", { name: "다음 할 일" });
 
-describe("질문 이어서 하기 — 사용자가 멈췄을 때만", () => {
-  it("next가 ASK(사용자가 멈춤)면 주 버튼으로 보이고, 누르면 판정을 다시 부르지 않고 바로 S3로 간다", async () => {
+describe("질문 이어서 하기 — 물을 것이 남았을 때(ASK)만", () => {
+  it("next가 ASK(물을 것이 남음)면 주 버튼으로 보이고, 누르면 판정을 다시 부르지 않고 바로 S3로 간다", async () => {
     const user = userEvent.setup();
     const spy = server({ [NEXT]: () => ask(CHOICE_Q) });
     await open();
