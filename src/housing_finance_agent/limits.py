@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 from housing_finance_agent.eligibility import applies_to
 
@@ -79,7 +80,10 @@ def estimate_loan_limit(program: dict, profile: dict) -> LoanLimit:
     # 원문이 "임차보증금의 N% 이내에서 최고 M원 이내"라고 적어 두 상한이 함께 걸린다.
     # 매매도 같은 모양이다 — "LTV 70%" 안에서 "최고 2억원 이내".
     # 소수점은 버린다. 원 단위 아래 반올림 규칙은 원문에 없어 정하지 않았다.
-    ratio_amount = int(기준_금액 * tier["ratio"])
+    # 곱셈은 십진수로 한다. 0.70 같은 비율은 이진 소수로 정확히 담기지 않아, 1억 8천의
+    # 70%가 125999999.99…로 계산되고 버리면 1원이 깎였다. 비율을 YAML에 적힌 글자 그대로
+    # (`str`) 십진수로 바꿔야 그 오차가 처음부터 생기지 않는다.
+    ratio_amount = int(Decimal(str(기준_금액)) * Decimal(str(tier["ratio"])))
     return LoanLimit(
         amount_krw=min(ratio_amount, cap),
         tier=tier["name"],
