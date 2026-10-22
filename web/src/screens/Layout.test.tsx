@@ -27,11 +27,10 @@ describe("단계 표시는 주소로 정한다", () => {
     expect(screen.queryByRole("list", { name: "진행 단계" })).not.toBeInTheDocument();
   });
 
-  it("S2~S4는 아직 자리표시 화면이다", () => {
+  it("S4 주소에는 판정 결과 화면이 그려진다", () => {
     fakeServer();
     renderApp("/s/abc/result");
-    expect(screen.getByRole("heading", { level: 1, name: "판정 결과" })).toBeInTheDocument();
-    expect(screen.getByText("이 화면은 다음 단계에서 만듭니다.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "이 조건으로 본 결과" })).toBeInTheDocument();
   });
 });
 
