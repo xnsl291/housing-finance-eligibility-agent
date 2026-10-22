@@ -1,0 +1,84 @@
+/* S7 목록과 고치기 줄. 시안 S3-e·S4-k·S4-v2 — 머리줄 아래 2px 먹선, 줄 사이 가는 선, 값은 굵게 */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.table thead th {
+  padding: 0 12px 8px 0;
+  border-bottom: 2px solid var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+  text-align: left;
+}
+
+.row th,
+.row td {
+  padding: 12px 12px 12px 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.row th {
+  width: 22%;
+  font-weight: 600;
+}
+
+.value {
+  width: 24%;
+  font-weight: 700;
+}
+
+.none {
+  width: 24%;
+  color: var(--ink-3);
+}
+
+.source {
+  color: var(--ink-3);
+}
+
+.action {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.editRow td {
+  padding: 4px 0 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.edit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 700px;
+  padding: 18px 20px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+}
+
+.buttons {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.note,
+.lock,
+.empty {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 20px;
+  color: var(--ink-3);
+}
+
+.lock {
+  margin-bottom: 8px;
+}

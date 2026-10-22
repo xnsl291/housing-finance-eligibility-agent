@@ -55,6 +55,7 @@ export function Layout() {
     setAnswered((counts) => ({ ...counts, [id]: (counts[id] ?? 0) + 1 }));
   }, []);
   const answeredCount = (id: string) => answered[id] ?? 0;
+  const knowsSession = (id: string) => opened.includes(id);
 
   useEffect(() => {
     let alive = true;
@@ -128,6 +129,7 @@ export function Layout() {
         setDraft,
         programs,
         rememberSession,
+        knowsSession,
         connected,
         recheckConnection,
         lostConnection,

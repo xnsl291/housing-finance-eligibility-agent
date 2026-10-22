@@ -86,6 +86,13 @@ const PATHS = {
       <circle cx="12" cy="14" r="8" />
     </>
   ),
+  // S8 이어서 하기 배너, S7 다시 판정함 안내(시안 S8·S4-k)
+  rotateCcw: (
+    <>
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
+    </>
+  ),
 } as const;
 
 export type IconName = keyof typeof PATHS;

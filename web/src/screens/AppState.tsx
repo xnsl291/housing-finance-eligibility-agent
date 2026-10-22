@@ -30,6 +30,8 @@ export interface AppState {
   programs: ProgramsState;
   /** 세션을 열어 번호를 받으면 곧바로 부른다. 같은 번호는 한 번만 모인다 */
   rememberSession: (id: string) => void;
+  /** 이 탭에서 연(또는 이어 받은) 세션인가. 아니면 새로 고침·주소로 들어온 것이다 — S8 이어서 하기 배너(ResumeBanner.tsx) */
+  knowsSession: (id: string) => boolean;
   /** 판정 서버 연결 상태. null은 아직 확인 전 */
   connected: boolean | null;
   /** 연결 확인(GET /health)을 다시 부른다. E1의 '다시 연결 확인' */

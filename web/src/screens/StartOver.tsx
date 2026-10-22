@@ -3,6 +3,7 @@
  * 자리마다 다른 창을 만들면 사용자가 매번 새로 읽어야 한다.
  *
  * - 지울 것이 있을 때만(dirty) 창을 띄운다. 없으면 바로 S1로
+ * - S8 이어서 하기 배너의 '새로 시작'도 같은 창을 쓴다(label·variant만 다름). 하는 일이 같은데 창이 다르면 다른 일로 읽힌다
  * - 떠나면 주소에서 이 세션이 빠진다. 새로 고친 뒤라 이 탭의 연 세션 목록에 없으면 '내 기록 지우기'가 더는
  *   이 세션을 못 지우므로, 떠나기 전에 목록에 넣는다(창이 "'내 기록 지우기'로 지울 수 있습니다"라고 약속함)
  */
@@ -13,7 +14,15 @@ import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useAppState } from "./AppState";
 
-export function StartOver({ sessionId, dirty }: { sessionId: string; dirty: boolean }) {
+interface StartOverProps {
+  sessionId: string;
+  dirty: boolean;
+  /** 버튼 글. 기본은 맨 아래 글자 버튼 '처음부터 다시', S8 배너는 보조 버튼 '새로 시작' */
+  label?: string;
+  variant?: "text" | "secondary";
+}
+
+export function StartOver({ sessionId, dirty, label = "처음부터 다시", variant = "text" }: StartOverProps) {
   const navigate = useNavigate();
   const { draft, rememberSession } = useAppState();
   const [ask, setAsk] = useState(false);
@@ -23,8 +32,12 @@ export function StartOver({ sessionId, dirty }: { sessionId: string; dirty: bool
   }
   return (
     <>
-      <Button variant="text" icon="arrowLeft" onClick={() => (dirty ? setAsk(true) : backToWrite())}>
-        처음부터 다시
+      <Button
+        variant={variant}
+        icon={variant === "text" ? "arrowLeft" : undefined}
+        onClick={() => (dirty ? setAsk(true) : backToWrite())}
+      >
+        {label}
       </Button>
       <ConfirmDialog
         open={ask}
