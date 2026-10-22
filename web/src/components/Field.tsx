@@ -8,7 +8,8 @@
  *   화면 읽기 프로그램이 같이 읽는다(설계서 11.3)
  * - 칸 밖에 있는 설명(질문 카드 맨 아래 서버 거절 사유 등)은 describedBy로 받아 칸의 설명에 더한다
  * - help는 칸 쓰는 법(예: '숫자로 적어 주세요')이라 칸 아래에 늘 보인다. term은 서버가 준 용어 설명(how_to_check)이라
- *   이름 옆 '?'로 연다(S10, TermHelp.tsx). 없으면 '?'를 두지 않는다. 둘 다 칸의 설명(aria-describedby)이 된다
+ *   이름 옆 '?'로 연다(S10, TermHelp.tsx). 없으면 '?'를 두지 않는다. 둘 다 칸의 설명(aria-describedby)이 된다.
+ *   숫자를 적는 칸(금액·정수·소수)은 서버 설명이 단위 안내라 term이 아니라 help로 받는다(ConfirmFields.tsx FieldInput)
  * - 글을 숫자로 바꾸는 칸(숫자·금액·범위)은 onChange(값, 오류)로 알린다. 못 알아본 글을
  *   빈칸으로 바꿔 넘기면 사용자가 적은 값이 조용히 사라지므로, 부모가 보내기를 막을 수 있게
  *   오류를 같이 넘긴다. 칸 스스로는 칸을 떠난 뒤에만 오류를 보인다(치는 중에 빨갛게 하지 않음).
@@ -166,8 +167,6 @@ interface NumberFieldProps {
   onChange: (value: number | null, problem: string | null) => void;
   unit?: string;
   help?: string;
-  /** 서버가 준 용어 설명(how_to_check). 있으면 이름 옆 '?'(S10, Field.tsx) */
-  term?: string;
   error?: string | null;
   describedBy?: string;
 }
@@ -176,13 +175,13 @@ interface NumberFieldProps {
  * 정수·소수 칸. type="number"를 쓰지 않는 이유: 브라우저가 못 알아본 글을 조용히 ""로
  * 바꿔 넘겨서, 사용자가 적은 값과 빈칸이 구분되지 않는다.
  */
-export function NumberField({ label, defaultValue, integer, onChange, unit, help, term, error, describedBy }: NumberFieldProps) {
+export function NumberField({ label, defaultValue, integer, onChange, unit, help, error, describedBy }: NumberFieldProps) {
   const [text, setText] = useState(defaultValue == null ? "" : String(defaultValue));
   const [left, setLeft] = useState(false);
   const problem = numberProblem(text, integer);
 
   return (
-    <FieldFrame label={label} help={help} term={term} error={error ?? (left ? problem : null)} describedBy={describedBy}>
+    <FieldFrame label={label} help={help} error={error ?? (left ? problem : null)} describedBy={describedBy}>
       {(a) => (
         <div className={styles.box} data-invalid={a.invalid}>
           <input

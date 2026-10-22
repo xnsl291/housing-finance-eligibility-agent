@@ -36,7 +36,11 @@ export const FIELDS: FieldCatalog = {
     choices: ["HEAD", "PROSPECTIVE_HEAD"],
     choice_labels: { HEAD: "세대주임", PROSPECTIVE_HEAD: "세대주 예정" },
   },
-  is_first_time_buyer: { label: "생애최초 주택구입", kind: "BOOL" },
+  is_first_time_buyer: {
+    label: "생애최초 주택구입",
+    kind: "BOOL",
+    how_to_check: "본인과 배우자 모두 과거에 주택을 소유한 적이 없어야 합니다",
+  },
   region_name: { label: "주택 소재지", kind: "TEXT" },
   housing_area_m2: {
     label: "전용면적",
