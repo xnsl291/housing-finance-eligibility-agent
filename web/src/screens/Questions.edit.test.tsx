@@ -208,3 +208,23 @@ describe("S3 받는 중에 들어온 저장 뒤 다시 받기", () => {
     expect(callsTo(spy, NEXT)).toHaveLength(2);
   });
 });
+
+describe("S3 가짜 서버 — 고친 값이 세션 값에 남는다", () => {
+  it("고쳐 저장하면 목록이 서버의 새 값으로 바뀐다", async () => {
+    const user = userEvent.setup();
+    server({ [NEXT]: () => ask(CHOICE_Q) });
+    await open();
+    await saveAge(user, "31");
+    await waitFor(() => expect(screen.getByRole("rowheader", { name: "나이" }).closest("tr")).toHaveTextContent("31"));
+    expect(screen.getByRole("rowheader", { name: "나이" }).closest("tr")).toHaveTextContent("직접 넣은 값");
+  });
+
+  it("답 저장에서 세션이 없어졌으면(404) E2로 — 다음 질문 받기가 같은 404를 받는다", async () => {
+    const user = userEvent.setup();
+    server({ [NEXT]: sequence(ask(CHOICE_Q), json({ detail: "없는 세션입니다" }, 404)), [PUT]: () => json({ detail: "없는 세션입니다" }, 404) });
+    await open();
+    await user.click(screen.getByRole("radio", { name: "세대주임" }));
+    await user.click(screen.getByRole("button", { name: "답하기" }));
+    expect(await screen.findByRole("heading", { name: "이전 확인 기록을 찾을 수 없습니다" })).toBeInTheDocument();
+  });
+});

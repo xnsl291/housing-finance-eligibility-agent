@@ -4,7 +4,7 @@
  * 가는지 한눈에 안 보인다.
  *
  * 실패 나누기(설계서 6절 S3 동작표·상태표, C-ERROR)
- * - 404 세션 없음 → missing(E2)
+ * - 404 세션 없음 → missing(E2). 답 저장이 404면 다음 질문을 다시 받는다 — 같은 404를 받아 E2가 된다(useValueEdit.ts와 같음)
  * - 연결 안 됨 → Layout 연결 상태를 끊김으로(lostConnection). 다음 질문을 받다가였으면 offline
  * - 답을 서버가 거절함(422) → rejected. 같은 질문에 머물고 카드 안에 사유
  * - 그 밖(서버 오류·시간 초과) → 다음 질문이면 failed, 답 저장이면 saveFailure. 둘 다 다시 시도를 준다(결함 D15)
@@ -69,7 +69,7 @@ export function useQuestionFlow(sessionId: string) {
     setRejected(null);
     setSaveFailure(null);
   });
-  const { load, setLoad, fetchNext } = next;
+  const { load, fetchNext } = next;
 
   /**
    * 답 저장(answer)이나 모름 기록(decline). 성공하면 확인 수 +1 → 다음 질문(칸은 그대로 둔 채 받아 온다).
@@ -84,21 +84,25 @@ export function useQuestionFlow(sessionId: string) {
     setSending(true);
     setRejected(null);
     setSaveFailure(null);
+    let missing = false;
     try {
       await (which === "answer" ? api.setFields(sessionId, { [field]: value }) : api.decline(sessionId, field));
     } catch (error) {
       if (!alive.current) return;
-      if (error instanceof ApiError && error.status === 422) setRejected(error.message);
-      else if (error instanceof ApiError && error.status === 404) setLoad({ kind: "missing" });
-      else if (error instanceof ApiError && error.kind === "network") lostConnection();
-      else setSaveFailure((f) => ({ id: (f?.id ?? 0) + 1, error, which }));
-      return;
+      // 세션이 없어졌으면(404) 세지 않고 다음 질문을 다시 받는다 — 같은 404를 받아 E2가 된다(머리말)
+      missing = error instanceof ApiError && error.status === 404;
+      if (!missing) {
+        if (error instanceof ApiError && error.status === 422) setRejected(error.message);
+        else if (error instanceof ApiError && error.kind === "network") lostConnection();
+        else setSaveFailure((f) => ({ id: (f?.id ?? 0) + 1, error, which }));
+        return;
+      }
     } finally {
       sendingRef.current = false;
       if (alive.current) setSending(false);
     }
     if (!alive.current) return;
-    countAnswer(sessionId);
+    if (!missing) countAnswer(sessionId);
     await fetchNext("answered");
   }
 
@@ -209,7 +213,7 @@ function useNextQuestion(sessionId: string, onAsk: () => void) {
     void fetchNext("enter");
   }, [fetchNext]);
 
-  return { load, setLoad, fetchNext, hasValues, records, fetching: fetchingNow };
+  return { load, fetchNext, hasValues, records, fetching: fetchingNow };
 }
 
 /** 기준에 걸쳐 다시 묻는 경우(IMPRECISE)만 지금 아는 값을 억·만으로(설계서 S3 질문 카드). 값을 못 받았으면 줄을 그리지 않는다 */

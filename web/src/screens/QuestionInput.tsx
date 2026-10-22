@@ -39,7 +39,7 @@ export interface Answer {
 export const NO_ANSWER: Answer = { value: null, problem: null };
 
 /** 칸을 그리는 데 필요한 것만. S3는 서버 질문(Question)을, S7 고치기는 항목 목록의 한 줄(FieldInfo)을 넘긴다 */
-export type InputSpec = Pick<Question, "label" | "kind"> & {
+type InputSpec = Pick<Question, "label" | "kind"> & {
   choices?: string[] | null;
   choice_labels?: Record<string, string> | null;
 };

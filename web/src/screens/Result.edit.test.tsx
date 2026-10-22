@@ -7,7 +7,7 @@ import userEvent from "@testing-library/user-event";
 
 import { ask, CHOICE_Q, result, sentBodies, sequence } from "./questionsTesting";
 import { ASSESS, assessment, NEXT, open, program, PUT, server, SESSION, sessionOf, TRACE, VALUES } from "./resultTesting";
-import { callsTo, json } from "./testing";
+import { callsTo, json, settle } from "./testing";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -261,8 +261,8 @@ describe("S4 고치기 — 잠금과 늦은 응답", () => {
     await user.click(screen.getByRole("button", { name: "처음으로" }));
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/));
 
-    finish(json({ session_id: "s-1", values: {} }));
-    await new Promise((r) => setTimeout(r, 20));
+    // 붙잡아 둔 저장 응답을 풀고, 그 뒤 이어질 일까지 끝나기를 기다린다(시간을 재지 않음)
+    await settle(finish, json({ session_id: "s-1", values: {} }));
     expect(callsTo(spy, NEXT)).toHaveLength(1);
     expect(callsTo(spy, ASSESS)).toHaveLength(1);
   });

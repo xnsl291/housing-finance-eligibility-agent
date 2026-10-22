@@ -46,14 +46,25 @@ export function sequence(...responses: Response[]) {
   };
 }
 
-/** 세션 상태(값은 문장에서 읽은 것으로), 기록(세션 시작만), 답 저장, 모름 기록을 기본으로 정상 응답한다 */
+/**
+ * 세션 상태(값은 문장에서 읽은 것으로), 기록(세션 시작만), 답 저장, 모름 기록을 기본으로 정상 응답한다.
+ * 답 저장(PUT)은 실제 서버처럼 세션 값에 남긴다 — 직접 넣은 값(USER)으로, null이면 지운다. 그래야 고친 뒤 목록이
+ * 바뀌는지 볼 수 있다
+ */
 export function server(routes: Parameters<typeof fakeServer>[0] = {}, values: Record<string, FieldValue> = { age: 29 }) {
-  const held = Object.fromEntries(
+  const held: Record<string, { value: FieldValue; source: string; at: string; phrase: null }> = Object.fromEntries(
     Object.entries(values).map(([k, v]) => [k, { value: v, source: "LLM", at: "2026-10-21T00:00:00Z", phrase: null }]),
   );
   return fakeServer({
     [SESSION]: () => json({ session_id: "s-1", values: held }),
-    [PUT]: () => json({ session_id: "s-1", values: held }),
+    [PUT]: (init) => {
+      const sent: Record<string, FieldValue | null> = JSON.parse(String(init?.body)).values;
+      for (const [field, value] of Object.entries(sent)) {
+        if (value === null) delete held[field];
+        else held[field] = { value, source: "USER", at: "2026-10-22T00:00:00Z", phrase: null };
+      }
+      return json({ session_id: "s-1", values: held });
+    },
     [DECLINE]: () => json({ session_id: "s-1", declined: [] }),
     [TRACE]: () => json({ session_id: "s-1", events: [] }),
     ...routes,
