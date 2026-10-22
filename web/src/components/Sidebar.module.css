@@ -162,3 +162,12 @@
 .fail:empty {
   margin: 0;
 }
+
+/* 개인정보 안내 아래 S11 링크. 시안 jJwW4 사이드바 '개인정보·이용 안내 자세히' */
+.more {
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--line);
+  text-decoration: underline;
+}

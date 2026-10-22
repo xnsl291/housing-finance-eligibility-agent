@@ -16,7 +16,7 @@
  * 모았으므로 '내 기록 지우기'로 지울 수 있다.
  */
 import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
 import { Button } from "../components/Button";
@@ -143,11 +143,13 @@ export function Start() {
         )}
         {/* 사이드바 개인정보 안내(PRIVACY_NOTE)를 줄인 것. 줄여도 남는 것을 빠뜨리면 "그것만 남는다"로 읽혀
             사실과 어긋난다(G12, C-COPY). 남는 것은 다 적고, 저장 위치·가림·지우는 방법은 사이드바로 넘긴다.
-            Start.test.tsx가 필수 구절이 여기와 PRIVACY_NOTE 양쪽에 있는지 대조한다 */}
+            Start.test.tsx가 필수 구절이 여기와 PRIVACY_NOTE 양쪽에 있는지 대조한다.
+            S11 화면 링크는 PR #34에서 미뤄 둔 것. 같은 탭에서 연다 — 새로 고침 없이 옮겨야 이 탭에서 연 세션 목록(D-39)이 남는다 */}
         <p className={styles.privacy}>
           <Icon name="lock" size={14} />
           입력한 문장 전체는 저장하지 않지만, 읽어 낸 값과 그 근거가 된 문장 일부, 직접 넣거나 답한 값, 모른다고 한
-          항목은 서버에 저장되어 서버를 다시 켜도 남습니다. 자세한 내용과 지우는 방법은 왼쪽 '개인정보 안내'에 있습니다.
+          항목은 서버에 저장되어 서버를 다시 켜도 남습니다. 자세한 내용과 지우는 방법은 왼쪽 '개인정보 안내'와{" "}
+          <Link to="/privacy">개인정보·이용 안내</Link>에 있습니다.
         </p>
       </section>
     </>

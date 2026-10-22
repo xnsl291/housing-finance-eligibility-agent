@@ -7,12 +7,14 @@
  * /s/:sessionId/confirm   S2 읽은 내용 확인
  * /s/:sessionId/questions S3 하나씩 확인 (직접 입력으로 시작하면 S2를 건너뛰고 여기로 — Q8)
  * /s/:sessionId/result    S4 판정 결과
+ * /privacy               S11 개인정보·이용 안내(단계 없음)
  */
 import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
 
 import { Confirm } from "./screens/Confirm";
 import { Layout } from "./screens/Layout";
+import { Privacy } from "./screens/Privacy";
 import { Questions } from "./screens/Questions";
 import { Result } from "./screens/Result";
 import { Start } from "./screens/Start";
@@ -33,6 +35,7 @@ export function App() {
         <Route path="/s/:sessionId/confirm" element={<Confirm />} />
         <Route path="/s/:sessionId/questions" element={<Questions />} />
         <Route path="/s/:sessionId/result" element={<Result />} />
+        <Route path="/privacy" element={<Privacy />} />
         <Route path="*" element={<h1>없는 화면입니다</h1>} />
       </Route>
       {ComponentGallery && (
