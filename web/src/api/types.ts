@@ -76,12 +76,29 @@ export interface NextAction {
 /** `eligibility.py`. 확정 표현(ELIGIBLE·APPROVED)은 일부러 없다. */
 export type Status = "PRECHECK_MATCH" | "CONDITIONAL" | "NOT_MATCHED" | "INSUFFICIENT_INFORMATION";
 
+/** 규칙 하나의 결과(`api.py` rule_outcomes). outcome은 7가지지만 새 종류가 생겨도 화면이 숨기지 않게 string으로 받는다(설계서 8.2) */
 export interface RuleOutcome {
   rule_id: string;
   outcome: string;
   field: string | null;
-  citation: unknown;
+  /** 원문 인용. 비어 있으면 인용이 붙어 있지 않은 규칙 */
+  citation: string | null;
   failure_message: string | null;
+}
+
+/**
+ * 예상 한도(`api.py` _limit_as_json). 조건 불충족이면 통째로 null.
+ * amount_krw가 null이면 못 낸 것이고 reason에 사유 코드(limits.py)가 있다.
+ * 비율을 어느 값에 걸었는지(ratio_field)는 응답에 없다.
+ */
+export interface LoanLimit {
+  amount_krw: number | null;
+  tier: string | null;
+  ratio_amount_krw: number | null;
+  cap_amount_krw: number | null;
+  citation: string | null;
+  rule_id: string | null;
+  reason: string | null;
 }
 
 export interface ProgramResult {
@@ -92,11 +109,13 @@ export interface ProgramResult {
   failed_rules: string[];
   missing_fields: string[];
   imprecise_fields: string[];
-  next_actions: unknown[];
-  loan_limit: Record<string, unknown> | null;
+  /** 판정에 따라 뜻이 다른 문장 목록(assessment.py _next_actions) — 불충족 사유, 알려 줘야 할 것, 참고 */
+  next_actions: string[];
+  loan_limit: LoanLimit | null;
   rule_outcomes: RuleOutcome[];
-  unresolved: unknown[];
-  rule_version: number | null;
+  /** 이 상품에서 아직 다루지 않는 조건(규칙 파일의 unresolved 문장들) */
+  unresolved: string[];
+  rule_version: number | string | null;
   source_url: string;
   source_checked_at: string;
 }
