@@ -9,7 +9,7 @@
  * - 주소가 바뀌면 초점을 새 화면 제목(h1)으로 옮긴다(시안 C0 1절). 화면 읽기 프로그램 사용자가
  *   화면이 바뀐 것을 알게 하려고
  * - 전체 초기화(적은 문장만 비움, 서버 기록과 연 세션 목록은 그대로)와 내 기록 지우기(이 탭에서 연
- *   세션과 주소의 세션을 서버에서 삭제)
+ *   세션과 주소의 세션을 서버에서 삭제). 주소로 들어온 세션도 처음 본 순간 연 세션 목록에 넣는다
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useMatch, useNavigate } from "react-router-dom";
@@ -55,6 +55,12 @@ export function Layout() {
     setAnswered((counts) => ({ ...counts, [id]: (counts[id] ?? 0) + 1 }));
   }, []);
   const answeredCount = (id: string) => answered[id] ?? 0;
+  // 주소의 세션을 처음 보면 연 세션 목록에 넣는다. 새로 고친 뒤나 주소로 들어와 이 탭에서 연 세션도 다른 화면(S11 등)으로
+  // 옮긴 뒤 '내 기록 지우기'로 지울 수 있게. 효과는 화면이 그려진 뒤 돌아서, S8 배너(ResumeBanner)는 처음 그릴 때
+  // 아직 모르는 세션으로 보고 배너를 띄운다. 같은 탭에서 다음 단계로 가면 이미 알고 있어 다시 띄우지 않는다
+  useEffect(() => {
+    if (sessionId !== undefined) rememberSession(sessionId);
+  }, [sessionId, rememberSession]);
   const knowsSession = (id: string) => opened.includes(id);
 
   useEffect(() => {
