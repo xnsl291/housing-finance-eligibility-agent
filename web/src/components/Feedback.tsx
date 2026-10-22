@@ -121,10 +121,16 @@ export function Toast({
   message,
   onClose,
   icon = "check",
+  id,
 }: {
   message: string | null;
   onClose: () => void;
   icon?: IconName;
+  /**
+   * 같은 글을 다시 띄울 때 바꾼다. 글이 같으면 알림 영역의 글이 그대로라 화면 읽기 프로그램이 다시 읽지 않고, 닫히는
+   * 시간도 처음 띄운 때부터 잰다. id가 바뀌면 알림 줄을 새로 그리고(새 줄이 들어온 것으로 읽힘) 시간을 다시 잰다
+   */
+  id?: number;
 }) {
   // 부모가 onClose를 매 렌더 새 함수로 넘겨도(`() => setMessage(null)`) 타이머가 다시 시작되면
   // 알림이 사라지지 않는다. 타이머는 message에만 걸고, 닫을 때는 그때의 최신 onClose를 부른다
@@ -136,12 +142,12 @@ export function Toast({
     if (!message) return;
     const t = setTimeout(() => closeRef.current(), TOAST_MS);
     return () => clearTimeout(t);
-  }, [message]);
+  }, [message, id]);
 
   return (
     <div role="status" aria-live="polite" className={styles.toastArea}>
       {message && (
-        <div className={styles.toast}>
+        <div key={id} className={styles.toast}>
           <Icon name={icon} />
           {message}
         </div>

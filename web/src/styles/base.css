@@ -62,7 +62,9 @@ body {
 
   aside,
   button,
-  [role="status"] {
+  [role="status"],
+  .screen-only,
+  main summary svg {
     display: none !important;
   }
 
@@ -72,7 +74,8 @@ body {
     word-break: break-all;
   }
 
-  article,
+  /* 카드(article)는 쪽을 넘어가도 된다. 통째로 다음 쪽으로 밀면 1쪽 아래가 크게 빈다. 카드 제목과 첫 줄만 붙여 둔다
+     (ProductCard.module.css의 머리 break-after) */
   table,
   tr {
     break-inside: avoid;

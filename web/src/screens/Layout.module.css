@@ -63,3 +63,13 @@
     gap: 24px;
   }
 }
+
+/* 인쇄: 쪽마다 바닥에 고지(Result.tsx data-print-footer)가 찍히는 화면은 쪽마다 아래 여백을 남긴다.
+   box-decoration-break: clone이라 여백이 마지막 쪽에만이 아니라 쪽이 끊기는 곳마다 생겨 본문이 고지와 겹치지 않는다 */
+@media print {
+  .page:has([data-print-footer]) {
+    padding-bottom: 12mm;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+}

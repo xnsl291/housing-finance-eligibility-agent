@@ -4,17 +4,25 @@
  * - 클립보드 실패 알림, 인쇄 호출, 인쇄 동안만 접힌 것을 펼침
  * - 주 버튼: 물을 것이 남았으면 '질문 이어서 하기', 아니면 '결과 인쇄'
  */
-import { act, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 
 import { NOTICE } from "../components/Notice";
+import { AppStateContext, type AppState } from "./AppState";
 import { ask, CHOICE_Q } from "./questionsTesting";
-import { COPIED, COPY_FAILED } from "./ResultActions";
+import { COPIED, COPY_FAILED, ResultActions } from "./ResultActions";
 import { copyText } from "./resultCopy";
 import { ASSESS, assessment, NEXT, open, PATH, program, server } from "./resultTesting";
 import { renderApp } from "./testing";
 
-afterEach(() => vi.restoreAllMocks());
+// 테스트가 navigator.clipboard를 바꾼다. 다른 테스트로 새지 않게 원래 것(jsdom은 없음)으로 되돌린다
+const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+afterEach(() => {
+  vi.restoreAllMocks();
+  if (originalClipboard) Object.defineProperty(navigator, "clipboard", originalClipboard);
+  else delete (navigator as { clipboard?: unknown }).clipboard;
+});
 
 const MATCH = program({ program_id: "p-a", program_name: "상품 가" });
 const MAYBE = program({
@@ -46,10 +54,14 @@ function clipboard(fail = false) {
   return writeText;
 }
 
+const SCOPE = "전세를 구하신다고 해서 매매 상품은 빼고 봤습니다";
+
 describe("결과 복사 글 (S12)", () => {
   const text = copyText({
     reason: "COMPLETE",
     declinedLabels: [],
+    scope: SCOPE,
+    copiedAt: new Date(2026, 9, 22, 9, 5),
     results: [FAIL, MAYBE, MATCH],
     programs: null,
     items: [
@@ -63,6 +75,16 @@ describe("결과 복사 글 (S12)", () => {
     expect(lines[0]).toBe(NOTICE.header);
     expect(lines[1]).toBe(NOTICE.result);
     expect(lines.at(-1)).toBe(NOTICE.result);
+  });
+
+  it("고지 다음 제목 줄 아래에 복사 일시를 적는다 — 언제 본 결과인지", () => {
+    expect(lines[3]).toBe("주거금융 지원가능성 판정 결과");
+    expect(lines[4]).toBe("복사 일시 2026-10-22 09:05");
+  });
+
+  it("'왜 이 상품만 보이나' 한 줄을 판정 상품 목록 앞에 둔다(화면의 scope 줄과 같은 말)", () => {
+    expect(text.indexOf(SCOPE)).toBeGreaterThan(0);
+    expect(text.indexOf(SCOPE)).toBeLessThan(text.indexOf("[상품 가]"));
   });
 
   it("조건 불충족 상품은 한도 줄이 없다 — 금액을 보이지 않는다(G7)", () => {
@@ -115,6 +137,25 @@ describe("결과 복사·인쇄 버튼", () => {
     expect(screen.queryByText(COPIED)).not.toBeInTheDocument();
   });
 
+  it("클립보드가 아예 없으면(주소가 https·localhost가 아님 등) 실패를 알린다", async () => {
+    Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+    server();
+    await open();
+    await userEvent.click(button("결과 복사"));
+    expect(await screen.findByText(COPY_FAILED)).toBeInTheDocument();
+  });
+
+  it("같은 알림을 곧바로 다시 띄우면 알림 줄을 새로 그린다 — 화면 읽기 프로그램이 다시 읽게", async () => {
+    clipboard(true);
+    server();
+    await open();
+    await userEvent.click(button("결과 복사"));
+    const first = await screen.findByText(COPY_FAILED);
+    await userEvent.click(button("결과 복사"));
+    await vi.waitFor(() => expect(first).not.toBeInTheDocument());
+    expect(screen.getByText(COPY_FAILED)).not.toBe(first);
+  });
+
   it("결과 인쇄는 브라우저 인쇄를 부른다", async () => {
     const print = vi.spyOn(window, "print").mockImplementation(() => {});
     server();
@@ -137,24 +178,93 @@ describe("결과 복사·인쇄 버튼", () => {
     expect(all[0].open).toBe(true);
     expect(all.slice(1).every((d) => !d.open)).toBe(true);
   });
+
+  it("인쇄할 때 머리에 인쇄 일시를 적는다. 인쇄 전에는 화면에 없다", async () => {
+    server();
+    await open();
+    const main = screen.getByRole("main");
+    expect(main).not.toHaveTextContent("인쇄 일시");
+    act(() => void window.dispatchEvent(new Event("beforeprint")));
+    expect(main.textContent).toMatch(/인쇄 일시 \d{4}-\d{2}-\d{2} \d{2}:\d{2}/);
+    // 제목보다 앞(머리)
+    const stamp = within(main).getByText(/^인쇄 일시/);
+    const h1 = screen.getByRole("heading", { level: 1 });
+    expect(stamp.compareDocumentPosition(h1) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("인쇄하는 동안 맨 위로 올렸다가 끝나면 보던 자리로 돌려놓는다 — 내려 본 채로 인쇄하면 Chrome이 바닥 고지를 쪽마다 찍지 않는다", async () => {
+    server();
+    await open();
+    const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    vi.spyOn(window, "scrollY", "get").mockReturnValue(800);
+    act(() => void window.dispatchEvent(new Event("beforeprint")));
+    act(() => void window.dispatchEvent(new Event("beforeprint")));
+    act(() => void window.dispatchEvent(new Event("afterprint")));
+    expect(scrollTo.mock.calls).toEqual([[0, 0], [0, 0], [0, 800]]);
+  });
+
+  it("쪽마다 바닥에 반복할 고지는 기존 결과 고지 문구 그대로다(화면에서는 CSS로 숨김, 화면 읽기 프로그램도 읽지 않음)", async () => {
+    server();
+    await open();
+    const footer = document.querySelector("[data-print-footer]")!;
+    expect(footer.textContent).toBe(NOTICE.result);
+    expect(footer).toHaveAttribute("aria-hidden", "true");
+  });
+});
+
+describe("결과 복사 — 글 만들기에서 난 예외", () => {
+  const state: AppState = {
+    draft: "",
+    setDraft: () => {},
+    programs: [],
+    rememberSession: () => {},
+    knowsSession: () => true,
+    connected: true,
+    recheckConnection: async () => {},
+    lostConnection: () => {},
+    answeredCount: () => 0,
+    countAnswer: () => {},
+  };
+
+  it("복사할 글을 만들다 던져도 실패를 알린다 — 조용히 넘어가 복사된 줄 알지 않게", async () => {
+    const writeText = clipboard();
+    render(
+      <MemoryRouter>
+        <AppStateContext.Provider value={state}>
+          <ResultActions
+            sessionId="s-1"
+            moreToAsk={false}
+            copy={() => {
+              throw new Error("글 만들기 실패");
+            }}
+            dirty={false}
+            continueLock={undefined}
+            savingLock={undefined}
+          />
+        </AppStateContext.Provider>
+      </MemoryRouter>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "결과 복사" }));
+    expect(await screen.findByText(COPY_FAILED)).toBeInTheDocument();
+    expect(writeText).not.toHaveBeenCalled();
+  });
 });
 
 describe("행동 영역의 주 버튼 (설계서 S4 제안 배치 8)", () => {
-  it("물을 것이 남지 않았으면 '결과 인쇄'가 주 버튼, '결과 복사'는 보조, 주 버튼은 하나", async () => {
+  // 주 버튼은 행동 영역의 맨 앞(왼쪽, 탭 순서 첫째)에 온다. 색(CSS 클래스)은 vitest가 CSS를 읽지 않아 볼 수 없으므로
+  // 사용자가 보고 누르는 순서로 확인한다. 처음부터 다시는 늘 맨 뒤 글자 버튼
+  const order = () => within(actions()).getAllByRole("button").map((b) => b.textContent);
+
+  it("물을 것이 남지 않았으면 '결과 인쇄'가 맨 앞(주 버튼), 다음이 '결과 복사'", async () => {
     server();
     await open();
-    expect(button("결과 인쇄").className).toMatch(/primary/);
-    expect(button("결과 복사").className).toMatch(/secondary/);
-    expect(within(actions()).queryByRole("button", { name: "질문 이어서 하기" })).not.toBeInTheDocument();
-    expect(within(actions()).getAllByRole("button").filter((b) => /primary/.test(b.className))).toHaveLength(1);
+    expect(order()).toEqual(["결과 인쇄", "결과 복사", "처음부터 다시"]);
   });
 
-  it("물을 것이 남았으면 '질문 이어서 하기'가 주 버튼, '결과 인쇄'는 보조", async () => {
+  it("물을 것이 남았으면 '질문 이어서 하기'가 맨 앞(주 버튼), 인쇄·복사는 그 뒤", async () => {
     server({ [NEXT]: () => ask(CHOICE_Q) });
     await open();
-    expect(button("질문 이어서 하기").className).toMatch(/primary/);
-    expect(button("결과 인쇄").className).toMatch(/secondary/);
-    expect(within(actions()).getAllByRole("button").filter((b) => /primary/.test(b.className))).toHaveLength(1);
+    expect(order()).toEqual(["질문 이어서 하기", "결과 인쇄", "결과 복사", "처음부터 다시"]);
   });
 
   it("결과를 못 받았으면 인쇄·복사를 두지 않는다", async () => {

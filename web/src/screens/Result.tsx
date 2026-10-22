@@ -15,6 +15,8 @@
  * 4-1. 상품 카드 — 판정 순(13절 Q2). 카드 안에 판정 근거(S5). 비교표의 '자세히'가 카드 id로 찾아온다
  * 5. 이 조건으로 판정했습니다 — 항목 · 값 · 출처 + 줄마다 고치기(S7). 저장하면 그 값만 PUT → next → assess로 다시 판정
  * 6. 확인 과정(S6, 접힘)
+ * 인쇄(S12)에만 보이는 것: 머리(제목 위)의 인쇄 일시, 쪽마다 바닥에 반복하는 결과 고지(NOTICE.result 그대로 —
+ * 시안 ixam0. 고지를 1쪽 맨 위에만 두면 2쪽만 떼어 쓸 수 있다). 바닥 고지는 화면 읽기 프로그램에 숨긴다(화면의 고지와 같은 말)
  * 7. 행동 영역(ResultActions.tsx) — 아직 물을 것이 남았으면(next가 ASK) 주 버튼 '질문 이어서 하기', 아니면 '결과 인쇄'(S12).
  *    '결과 복사'는 보조, '처음부터 다시'는 글자 버튼. 의견 보내기(S13)는 받을 곳이 정해지지 않아 두지 않는다
  *
@@ -28,10 +30,10 @@
 import { useParams } from "react-router-dom";
 
 import { ApiError } from "../api/client";
-import type { FieldCatalog, ProgramResult } from "../api/types";
+import type { FieldCatalog, Program, ProgramResult } from "../api/types";
 import { Skeleton, SystemError } from "../components/Feedback";
 import { Icon } from "../components/Icon";
-import { Notice } from "../components/Notice";
+import { Notice, NOTICE } from "../components/Notice";
 import { ProductCard } from "../components/ProductCard";
 import { StopBanner } from "../components/StopBanner";
 import { useAppState } from "./AppState";
@@ -40,8 +42,8 @@ import { ChangeNotice, ConditionSummary, DeclinedLinks, RefreshFailed, useSummar
 import { Missing } from "./Confirm";
 import { describeFailure } from "./failure";
 import type { HeldItem } from "./heldItems";
-import { ResultActions } from "./ResultActions";
-import { copyText, type CopyInput } from "./resultCopy";
+import { ResultActions, usePrintPrep } from "./ResultActions";
+import { copyText, stampText, type CopyInput } from "./resultCopy";
 import { fieldLabel, hasRecords, limitNote, scopeLine, sortByVerdict, unresolvedCount } from "./resultText";
 import { ResumeBanner } from "./ResumeBanner";
 import { RuleDetails } from "./RuleDetails";
@@ -67,6 +69,7 @@ function SessionResult({ sessionId }: { sessionId: string }) {
   const { load, catalog, fetchAll, refresh, refreshFailure, retryRefresh, retryRecords } = useResult(sessionId);
   const ready = load.kind === "ready" ? load : null;
   const summary = useSummaryEdit(sessionId, ready?.held ?? null, ready?.trace ?? null, catalog, refresh);
+  const printedAt = usePrintPrep();
 
   if (load.kind === "missing") return <Missing />;
 
@@ -98,6 +101,7 @@ function SessionResult({ sessionId }: { sessionId: string }) {
         </SystemError>
       )}
       <section className={screen.heading}>
+        {printedAt && <p className={styles.printOnly}>인쇄 일시 {stampText(printedAt)}</p>}
         <span className={screen.eyebrow}>판정 결과</span>
         <h1 className={screen.title}>이 조건으로 본 결과</h1>
       </section>
@@ -153,6 +157,11 @@ function SessionResult({ sessionId }: { sessionId: string }) {
         continueLock={editLock ?? savingLock}
         savingLock={savingLock}
       />
+      {ready && (
+        <p className={styles.printFooter} data-print-footer aria-hidden="true">
+          {NOTICE.result}
+        </p>
+      )}
     </>
   );
 }
@@ -166,13 +175,26 @@ function copyInput(
   items: HeldItem[] | null,
   programs: ReturnType<typeof useAppState>["programs"],
 ): CopyInput {
+  const list = Array.isArray(programs) ? programs : null;
   return {
     reason: ready.reason,
     declinedLabels: ready.declinedNeeded.map((f) => fieldLabel(catalog, f)),
+    scope: scopeOf(ready, list),
+    copiedAt: new Date(),
     results: ready.results,
-    programs: Array.isArray(programs) ? programs : null,
+    programs: list,
     items,
   };
+}
+
+/** 왜 이 상품만 보이나 한 줄(머리말 2). 화면(Top)과 복사가 같은 말을 하게 한 곳에서 */
+function scopeOf(ready: Ready, programs: Program[] | null): string | null {
+  return scopeLine(
+    ready.candidates,
+    programs,
+    ready.trace.kind === "ready" ? ready.trace.events : null,
+    ready.declinedNeeded,
+  );
 }
 
 /**
@@ -196,12 +218,7 @@ function Top({
   onRetryRefresh: () => Promise<void>;
 }) {
   const { programs } = useAppState();
-  const scope = scopeLine(
-    ready.candidates,
-    Array.isArray(programs) ? programs : null,
-    ready.trace.kind === "ready" ? ready.trace.events : null,
-    ready.declinedNeeded,
-  );
+  const scope = scopeOf(ready, Array.isArray(programs) ? programs : null);
   return (
     <div className={styles.top}>
       {refreshFailure ? (

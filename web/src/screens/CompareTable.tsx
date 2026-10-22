@@ -124,5 +124,11 @@ function showCard(programId: string) {
   card.removeAttribute("data-flash");
   void card.offsetWidth;
   card.setAttribute("data-flash", "");
-  card.addEventListener("animationend", () => card.removeAttribute("data-flash"), { once: true });
+  // 카드 안 다른 요소의 animationend도 올라온다(버블링). 카드 자신의 애니메이션이 끝났을 때만 거둔다
+  const done = (event: AnimationEvent) => {
+    if (event.target !== card) return;
+    card.removeAttribute("data-flash");
+    card.removeEventListener("animationend", done);
+  };
+  card.addEventListener("animationend", done);
 }

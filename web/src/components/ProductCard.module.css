@@ -157,3 +157,10 @@
 .details[open] > summary svg {
   transform: rotate(180deg);
 }
+
+/* 인쇄: 카드는 쪽을 넘어가도 되지만(styles/base.css) 카드 제목 줄만 쪽 끝에 홀로 남지 않게 한다 */
+@media print {
+  .head {
+    break-after: avoid;
+  }
+}

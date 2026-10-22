@@ -7,7 +7,11 @@ import userEvent from "@testing-library/user-event";
 import { STAR_NOTE, STAR_NOTE_WIDE } from "./CompareTable";
 import { ASSESS, assessment, card, open, program, server } from "./resultTesting";
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  // jsdom에는 scrollIntoView가 없어 '자세히' 테스트가 붙인다. 테스트가 중간에 실패해도 다른 테스트로 새지 않게 여기서 뗀다
+  delete (Element.prototype as Partial<Element>).scrollIntoView;
+});
 
 const MATCH = program({ program_id: "p-a", program_name: "상품 가" });
 const MAYBE = program({
@@ -114,10 +118,11 @@ describe("S9 상품 비교표", () => {
     expect(within(target).getByRole("heading", { level: 3 })).toHaveFocus();
     expect(target).toHaveAttribute("data-flash");
     expect(card("상품 가")).not.toHaveAttribute("data-flash");
-    // 강조는 애니메이션이 끝나면 거둔다
-    target.dispatchEvent(new Event("animationend"));
+    // 카드 안 다른 요소의 애니메이션이 끝난 것(올라온 animationend)으로는 거두지 않는다
+    within(target).getByRole("heading", { level: 3 }).dispatchEvent(new Event("animationend", { bubbles: true }));
+    expect(target).toHaveAttribute("data-flash");
+    // 강조는 카드 자신의 애니메이션이 끝나면 거둔다
+    target.dispatchEvent(new Event("animationend", { bubbles: true }));
     expect(target).not.toHaveAttribute("data-flash");
-    // jsdom에는 scrollIntoView가 없어 테스트가 붙였다. 다른 테스트로 새지 않게 뗀다
-    delete (Element.prototype as Partial<Element>).scrollIntoView;
   });
 });
