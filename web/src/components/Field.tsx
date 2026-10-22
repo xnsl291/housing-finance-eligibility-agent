@@ -7,6 +7,8 @@
  * - 오류는 칸 바로 아래 한 줄이고 칸과 연결한다(aria-describedby). 어느 칸의 오류인지
  *   화면 읽기 프로그램이 같이 읽는다(설계서 11.3)
  * - 칸 밖에 있는 설명(질문 카드 맨 아래 서버 거절 사유 등)은 describedBy로 받아 칸의 설명에 더한다
+ * - help는 칸 쓰는 법(예: '숫자로 적어 주세요')이라 칸 아래에 늘 보인다. term은 서버가 준 용어 설명(how_to_check)이라
+ *   이름 옆 '?'로 연다(S10, TermHelp.tsx). 없으면 '?'를 두지 않는다. 둘 다 칸의 설명(aria-describedby)이 된다
  * - 글을 숫자로 바꾸는 칸(숫자·금액·범위)은 onChange(값, 오류)로 알린다. 못 알아본 글을
  *   빈칸으로 바꿔 넘기면 사용자가 적은 값이 조용히 사라지므로, 부모가 보내기를 막을 수 있게
  *   오류를 같이 넘긴다. 칸 스스로는 칸을 떠난 뒤에만 오류를 보인다(치는 중에 빨갛게 하지 않음).
@@ -16,7 +18,9 @@ import { useId, useState, type ReactNode } from "react";
 
 import { afterPress } from "./afterPress";
 import { Icon } from "./Icon";
+import { HelpPanel, TermHelpButton, useTermHelp } from "./TermHelp";
 import styles from "./Field.module.css";
+import termStyles from "./TermHelp.module.css";
 
 interface A11y {
   id: string;
@@ -27,6 +31,8 @@ interface A11y {
 interface FrameProps {
   label: string;
   help?: string;
+  /** 서버가 준 용어 설명(how_to_check). 있으면 이름 옆 '?'(S10) */
+  term?: string;
   error?: string | null;
   /** 라디오 묶음처럼 칸이 여럿이면 fieldset·legend로 묶는다 */
   group?: boolean;
@@ -37,12 +43,25 @@ interface FrameProps {
   describedBy?: string;
 }
 
-export function FieldFrame({ label, help, error, group, children, below, describedBy: outside }: FrameProps) {
+export function FieldFrame({ label, help, term, error, group, children, below, describedBy: outside }: FrameProps) {
   const id = useId();
   const helpId = `${id}-help`;
   const errorId = `${id}-error`;
+  const termId = `${id}-term`;
+  const termHelp = useTermHelp();
   const describedBy =
-    [error ? errorId : null, outside ?? null, help ? helpId : null].filter(Boolean).join(" ") || undefined;
+    [error ? errorId : null, outside ?? null, help ? helpId : null, term ? termId : null].filter(Boolean).join(" ") ||
+    undefined;
+  const termButton = term && (
+    <TermHelpButton
+      label={label}
+      open={termHelp.open}
+      panelId={termId}
+      onToggle={termHelp.toggle}
+      buttonRef={termHelp.buttonRef}
+    />
+  );
+  const termPanel = term && <HelpPanel text={term} panelId={termId} open={termHelp.open} />;
   const a11y = { id, describedBy, invalid: Boolean(error) };
 
   const body = (
@@ -58,19 +77,34 @@ export function FieldFrame({ label, help, error, group, children, below, describ
     </>
   );
 
+  // '?'는 이름(legend·label) 밖에 둔다. 안에 두면 버튼 이름까지 항목 이름에 섞여 읽힌다.
+  // legend는 옆에 다른 것을 나란히 놓기 어려워, '?'가 있으면 legend는 화면 읽기용으로만 두고 같은 이름을 눈에 보이게 한 번 더 쓴다
   if (group) {
     return (
-      <fieldset className={styles.field} aria-describedby={describedBy}>
-        <legend className={styles.label}>{label}</legend>
+      <fieldset className={styles.field} aria-describedby={describedBy} onKeyDown={termHelp.onKeyDown}>
+        <legend className={termButton ? "sr-only" : styles.label}>{label}</legend>
+        {termButton && (
+          <div className={termStyles.row}>
+            <span className={styles.label} aria-hidden="true">
+              {label}
+            </span>
+            {termButton}
+          </div>
+        )}
+        {termPanel}
         {body}
       </fieldset>
     );
   }
   return (
-    <div className={styles.field}>
-      <label htmlFor={id} className={styles.label}>
-        {label}
-      </label>
+    <div className={styles.field} onKeyDown={termHelp.onKeyDown}>
+      <div className={termStyles.row}>
+        <label htmlFor={id} className={styles.label}>
+          {label}
+        </label>
+        {termButton}
+      </div>
+      {termPanel}
       {body}
     </div>
   );
@@ -99,13 +133,15 @@ interface TextFieldProps {
   value: string | null;
   onChange: (value: string | null) => void;
   help?: string;
+  /** 서버가 준 용어 설명(how_to_check). 있으면 이름 옆 '?'(S10, Field.tsx) */
+  term?: string;
   error?: string | null;
   describedBy?: string;
 }
 
-export function TextField({ label, value, onChange, help, error, describedBy }: TextFieldProps) {
+export function TextField({ label, value, onChange, help, term, error, describedBy }: TextFieldProps) {
   return (
-    <FieldFrame label={label} help={help} error={error} describedBy={describedBy}>
+    <FieldFrame label={label} help={help} term={term} error={error} describedBy={describedBy}>
       {(a) => (
         <div className={styles.box} data-invalid={a.invalid}>
           <input
@@ -130,6 +166,8 @@ interface NumberFieldProps {
   onChange: (value: number | null, problem: string | null) => void;
   unit?: string;
   help?: string;
+  /** 서버가 준 용어 설명(how_to_check). 있으면 이름 옆 '?'(S10, Field.tsx) */
+  term?: string;
   error?: string | null;
   describedBy?: string;
 }
@@ -138,13 +176,13 @@ interface NumberFieldProps {
  * 정수·소수 칸. type="number"를 쓰지 않는 이유: 브라우저가 못 알아본 글을 조용히 ""로
  * 바꿔 넘겨서, 사용자가 적은 값과 빈칸이 구분되지 않는다.
  */
-export function NumberField({ label, defaultValue, integer, onChange, unit, help, error, describedBy }: NumberFieldProps) {
+export function NumberField({ label, defaultValue, integer, onChange, unit, help, term, error, describedBy }: NumberFieldProps) {
   const [text, setText] = useState(defaultValue == null ? "" : String(defaultValue));
   const [left, setLeft] = useState(false);
   const problem = numberProblem(text, integer);
 
   return (
-    <FieldFrame label={label} help={help} error={error ?? (left ? problem : null)} describedBy={describedBy}>
+    <FieldFrame label={label} help={help} term={term} error={error ?? (left ? problem : null)} describedBy={describedBy}>
       {(a) => (
         <div className={styles.box} data-invalid={a.invalid}>
           <input
@@ -187,13 +225,15 @@ interface SelectFieldProps {
   options: { value: string; label: string }[];
   onChange: (value: string | null) => void;
   help?: string;
+  /** 서버가 준 용어 설명(how_to_check). 있으면 이름 옆 '?'(S10, Field.tsx) */
+  term?: string;
   error?: string | null;
 }
 
 /** 드롭다운(확인 화면 S2). 첫 칸이 `— 모름 —`이고, 고르지 않은 것과 모름이 같은 뜻이다(설계서 7.2) */
-export function SelectField({ label, value, options, onChange, help, error }: SelectFieldProps) {
+export function SelectField({ label, value, options, onChange, help, term, error }: SelectFieldProps) {
   return (
-    <FieldFrame label={label} help={help} error={error}>
+    <FieldFrame label={label} help={help} term={term} error={error}>
       {(a) => (
         <div className={styles.box} data-invalid={a.invalid}>
           <select
@@ -223,14 +263,16 @@ interface DateFieldProps {
   value: string | null;
   onChange: (value: string | null) => void;
   help?: string;
+  /** 서버가 준 용어 설명(how_to_check). 있으면 이름 옆 '?'(S10, Field.tsx) */
+  term?: string;
   error?: string | null;
   describedBy?: string;
 }
 
 /** 날짜는 달력으로만 받는다(D-34). 자유 입력이면 형식을 못 맞혀 질문이 그 항목에서 멈춘다 */
-export function DateField({ label, value, onChange, help, error, describedBy }: DateFieldProps) {
+export function DateField({ label, value, onChange, help, term, error, describedBy }: DateFieldProps) {
   return (
-    <FieldFrame label={label} help={help} error={error} describedBy={describedBy}>
+    <FieldFrame label={label} help={help} term={term} error={error} describedBy={describedBy}>
       {(a) => (
         <div className={styles.box} data-invalid={a.invalid}>
           <input

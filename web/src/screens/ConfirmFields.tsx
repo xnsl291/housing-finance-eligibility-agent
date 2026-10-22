@@ -54,7 +54,7 @@ interface FieldInputProps {
 
 /** 종류별 칸 하나(설계서 7.2 S2 열). 숫자 칸은 빈 채로 시작한다 — 처음 값이 없으면 빈칸(G5) */
 export function FieldInput({ info, initial, value, error, onChange }: FieldInputProps) {
-  const common = { label: info.label, help: info.how_to_check, error };
+  const common = { label: info.label, term: info.how_to_check, error };
   switch (info.kind) {
     case "AMOUNT":
       // 범위로 읽힌 값은 범위로 둔다(G6). 한 숫자로 접으면 5천만원 기준을 근거 없이 통과한다
@@ -102,7 +102,7 @@ function TextInput({
   ...common
 }: {
   label: string;
-  help?: string;
+  term?: string;
   error: string | null;
   initial: string | null;
   onChange: (value: Value) => void;
@@ -127,13 +127,13 @@ function TextInput({
  */
 function BoolInput({
   label,
-  help,
+  term,
   error,
   initial,
   onChange,
 }: {
   label: string;
-  help?: string;
+  term?: string;
   error: string | null;
   initial: boolean | null;
   onChange: (value: Value) => void;
@@ -142,7 +142,7 @@ function BoolInput({
   return (
     <YesNoField
       label={label}
-      help={help}
+      term={term}
       error={error}
       withUnknown
       value={picked}

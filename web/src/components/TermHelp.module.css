@@ -1,0 +1,49 @@
+/* 용어 도움말(S10). 시안 uHSUa — 이름 옆 먹색 원 '?', 이름 아래 흰 상자 */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--surface);
+  background: var(--ink);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.panel {
+  padding: 12px 14px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--ink);
+  border-radius: var(--r-sm);
+}
+
+.panel[hidden] {
+  display: none;
+}
+
+@media print {
+  .button {
+    display: none;
+  }
+}
