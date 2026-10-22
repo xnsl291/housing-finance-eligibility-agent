@@ -134,3 +134,19 @@ def test_계산_근거를_함께_돌려준다() -> None:
 
     assert "1억 5천만원" in limit.citation
     assert limit.rule_id == "B-12"
+
+
+def test_비율을_곱할_때_소수_오차로_1원이_깎이지_않는다() -> None:
+    """1억 8천의 70%는 정확히 1억 2,600만원이다. 소수로 곱하면 125999999.99…가 되어
+    버림하면 1원 모자란 금액을 알려 줬다(새 화면 확인 중 발견)."""
+    program = load_program("nhuf-general-jeonse")
+    profile = {
+        "lease_deposit_krw": 180000000,
+        "marital_status": "SINGLE",
+        "minor_children_count": 0,
+        "region": "CAPITAL_AREA",
+    }
+
+    limit = estimate_loan_limit(program, profile)
+
+    assert limit.ratio_amount_krw == 126000000
