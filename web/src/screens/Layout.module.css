@@ -45,3 +45,21 @@
     transform: none;
   }
 }
+
+/* 인쇄(S12): 사이드바가 빠진 자리까지 본문이 쓰고, 크림 바탕과 바깥 여백을 뺀다 */
+@media print {
+  .app {
+    display: block;
+    min-height: 0;
+    background: #fff;
+  }
+
+  .main {
+    padding: 0;
+  }
+
+  .inner,
+  .page {
+    gap: 24px;
+  }
+}

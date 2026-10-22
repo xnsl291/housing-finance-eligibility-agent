@@ -120,3 +120,12 @@
     display: flex;
   }
 }
+
+/* 종이에는 단계 표시와 연결 상태가 뜻이 없다. 제목과 머리 고지는 남긴다(S12) */
+@media print {
+  .steps,
+  .compact,
+  .connection {
+    display: none;
+  }
+}

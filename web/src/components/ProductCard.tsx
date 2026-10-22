@@ -46,7 +46,7 @@ export function isFinal(status: Status, unresolved: number): boolean {
   return status === "PRECHECK_MATCH" && unresolved === 0;
 }
 
-const LIST_TITLE: Record<Status, string> = {
+export const LIST_TITLE: Record<Status, string> = {
   NOT_MATCHED: "맞지 않는 조건",
   CONDITIONAL: "더 알려 주시면 판정할 수 있는 것",
   INSUFFICIENT_INFORMATION: "더 알려 주시면 판정할 수 있는 것",
@@ -77,8 +77,13 @@ interface ProductCardProps {
   id?: string;
 }
 
+/** 판정별 목록에 실제로 보일 줄들(머리말 끝 — 부합인데 금액을 못 냈으면 한도 자리가 같은 사유를 말하므로 비움). 결과 복사도 쓴다 */
+export function cardList(status: Status, won: number | null, items: string[]): string[] {
+  return status === "PRECHECK_MATCH" && won === null ? [] : items;
+}
+
 export function ProductCard({ name, status, limit, unresolved, items, sourceUrl, details, id }: ProductCardProps) {
-  const list = status === "PRECHECK_MATCH" && limit.won === null ? [] : items;
+  const list = cardList(status, limit.won, items);
   return (
     <article id={id} className={styles.card}>
       <div className={styles.head}>

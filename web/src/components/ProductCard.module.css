@@ -22,10 +22,6 @@
   line-height: 1.35;
 }
 
-.name:focus {
-  outline: none;
-}
-
 /* 비교표(S9) '자세히'로 왔을 때 잠깐 강조. 테두리 색만 바뀌어 움직임이 없으므로 움직임 줄이기 설정과 무관하게 둔다.
    끝나면(animationend) 화면이 표시를 거둔다(CompareTable.tsx) */
 .card[data-flash] {

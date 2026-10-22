@@ -28,3 +28,10 @@
   font-size: 13.5px;
   color: var(--ink-2);
 }
+
+/* '이어서 보여 드립니다'와 새로 시작 버튼은 화면 안내라 종이에 남기지 않는다(S12) */
+@media print {
+  .banner {
+    display: none;
+  }
+}

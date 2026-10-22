@@ -43,3 +43,38 @@ body {
 [tabindex="-1"]:focus-visible {
   outline: none;
 }
+
+/*
+ * 인쇄(S12 결과 인쇄). 설계서 S12, 시안 ixam0.
+ * 종이에 남길 것: 고지(머리·결과), 멈춘 이유, 비교표, 상품 카드(판정·한도·근거), 이 조건으로 판정했습니다, 확인 과정, 출처.
+ * 뺄 것: 사이드바, 단계 표시와 연결 상태, 누르는 것(버튼 전부 — 종이에서는 누를 수 없다), 알림.
+ * 접힌 판정 근거·확인 과정은 인쇄 직전에 화면이 펼친다(ResultActions.tsx). 링크는 종이에서 주소가 보이게 뒤에 적는다.
+ * 판정 배지의 바탕색은 흑백 인쇄에서 빠질 수 있으나 글자가 남는다(G10 — 색만으로 구분하지 않음).
+ */
+@media print {
+  @page {
+    margin: 14mm 12mm;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  aside,
+  button,
+  [role="status"] {
+    display: none !important;
+  }
+
+  main a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.9em;
+    word-break: break-all;
+  }
+
+  article,
+  table,
+  tr {
+    break-inside: avoid;
+  }
+}
