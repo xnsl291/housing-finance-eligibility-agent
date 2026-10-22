@@ -139,7 +139,12 @@ class SessionStore:
                     name: scrub(str(phrase))
                     for name, phrase in (extracted.get("sources") or {}).items()
                 },
-                "unreadable": extracted.get("unreadable") or {},
+                # 읽지 못한 값도 문장 조각(원문)이라 같은 이유로 거른다. 2026-10-22까지
+                # 이쪽만 빠져 있어 "가린 뒤 저장합니다"라는 안내가 이 경로에서는 거짓이었다.
+                "unreadable": {
+                    name: scrub(str(text))
+                    for name, text in (extracted.get("unreadable") or {}).items()
+                },
             },
         )
 

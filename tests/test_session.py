@@ -152,6 +152,26 @@ def test_근거_구절에서_민감정보를_가린다(store) -> None:
     assert "만 30세" in 남은_구절, "가리느라 근거까지 지우면 안 된다"
 
 
+def test_읽지_못한_원문에서도_민감정보를_가린다(store) -> None:
+    """읽지 못한 값은 원문을 남겨 확인 화면이 "그대로 쓸 수 없습니다"를 보이게 한다.
+    근거 구절과 같은 문장 조각인데 이쪽만 가리지 않고 저장하고 있었다."""
+    session_id = store.start()
+    store.record_extraction(
+        session_id,
+        {
+            "values": {},
+            "sources": {},
+            "unreadable": {"move_in_date": "주민번호 900101-1234567 다음 달 초 전입"},
+        },
+    )
+
+    저장된 = store.events(session_id)[-1].payload["unreadable"]["move_in_date"]
+
+    assert "900101" not in 저장된
+    assert "가림" in 저장된
+    assert "다음 달 초 전입" in 저장된, "가리느라 원문까지 지우면 안 된다"
+
+
 def test_기록_순서가_어긋나지_않는다(store) -> None:
     """번호가 1부터 빠짐없이 올라가야 순서를 믿고 상태를 만들 수 있다."""
     session_id = store.start()

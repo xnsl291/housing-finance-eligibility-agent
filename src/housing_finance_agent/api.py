@@ -239,8 +239,8 @@ def create_app(
             {"values": 읽은_값, "sources": result.sources, "unreadable": 못_쓴_값},
         )
         응답 = _상태_응답(session_id)
-        # 경고와 못 읽은 값은 이번 문장에 대한 것이라 상태가 아니다. 저장하지 않고
-        # 이 응답에만 실어 보낸다.
+        # 경고와 못 읽은 값은 이번 문장에 대한 것이라 상태(값 목록)에 넣지 않고 이 응답에
+        # 실어 보낸다. 못 읽은 값은 기록(추출 이벤트)에는 가린 뒤 남는다 — `record_extraction`.
         응답["warnings"] = result.warnings
         응답["unreadable"] = 못_쓴_값
         return 응답
