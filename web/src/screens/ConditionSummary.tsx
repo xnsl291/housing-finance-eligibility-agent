@@ -71,7 +71,8 @@ export function ConditionSummary({ held, items, onRetry, lockedReason, ...list }
         <h2 id="summary-title" className={styles.title}>
           이 조건으로 판정했습니다
         </h2>
-        <p className={styles.lead}>값을 고치면 그 값으로 다시 판정합니다.</p>
+        {/* 종이에서는 고칠 수 없어 인쇄에서 뺀다(screen-only — styles/base.css) */}
+        <p className={`${styles.lead} screen-only`}>값을 고치면 그 값으로 다시 판정합니다.</p>
       </div>
       {items ? (
         <HeldList items={items} lockedReason={lockedReason} afterSave="저장하면 이 값으로 다시 판정합니다." {...list} />
@@ -188,7 +189,7 @@ export function DeclinedLinks({ fields, items, catalog, lockedReason, onOpen }: 
   if (targets.length === 0) return null;
   return (
     <div className={styles.links}>
-      <span>값을 알게 되셨으면 여기서 넣을 수 있습니다. 넣으면 다시 판정합니다.</span>
+      <span className="screen-only">값을 알게 되셨으면 여기서 넣을 수 있습니다. 넣으면 다시 판정합니다.</span>
       <div className={styles.linkButtons}>
         {targets.map((f) => (
           <Button key={f} variant="secondary" icon="pencil" lockedReason={lockedReason} onClick={() => onOpen(f)}>

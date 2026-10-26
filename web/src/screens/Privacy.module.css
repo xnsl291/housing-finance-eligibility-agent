@@ -1,0 +1,39 @@
+/* S11 개인정보·이용 안내. 시안 jJwW4 — 흰 카드가 세로로, 카드마다 아이콘 + 제목 + 굵은 첫 줄 + 보통 줄 */
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 860px;
+}
+
+.card {
+  padding: 22px 24px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding-left: 24px;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+
+.lead {
+  font-weight: 700;
+  color: var(--ink);
+}

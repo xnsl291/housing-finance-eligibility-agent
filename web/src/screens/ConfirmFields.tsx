@@ -52,16 +52,24 @@ interface FieldInputProps {
   onChange: (value: Value, problem?: string | null) => void;
 }
 
-/** 종류별 칸 하나(설계서 7.2 S2 열). 숫자 칸은 빈 채로 시작한다 — 처음 값이 없으면 빈칸(G5) */
+/**
+ * 종류별 칸 하나(설계서 7.2 S2 열). 숫자 칸은 빈 채로 시작한다 — 처음 값이 없으면 빈칸(G5)
+ *
+ * 서버 설명(how_to_check)을 어디에 두나
+ * - 숫자를 적는 칸(금액·정수·소수)은 칸 아래에 늘 보인다(help). 이 칸들의 설명은 '10%를 냈으면 0.1로', '평이 아니라
+ *   제곱미터로' 같은 단위 안내다. 서버는 숫자인지만 보므로 안내를 '?' 안에 숨기면 10을 적어 1000%로 판정된다(설계서 7.1)
+ * - 선택·예아니오·날짜·글 칸은 이름 옆 '?'로 연다(S10, term)
+ */
 export function FieldInput({ info, initial, value, error, onChange }: FieldInputProps) {
-  const common = { label: info.label, help: info.how_to_check, error };
+  const common = { label: info.label, term: info.how_to_check, error };
+  const numeric = { label: info.label, help: info.how_to_check, error };
   switch (info.kind) {
     case "AMOUNT":
       // 범위로 읽힌 값은 범위로 둔다(G6). 한 숫자로 접으면 5천만원 기준을 근거 없이 통과한다
       return isRange(initial) ? (
         <RangeField label={info.label} defaultValue={initial} error={error} onChange={onChange} />
       ) : (
-        <AmountField {...common} defaultWon={typeof initial === "number" ? initial : null} onChange={onChange} />
+        <AmountField {...numeric} defaultWon={typeof initial === "number" ? initial : null} onChange={onChange} />
       );
     case "CHOICE":
       return (
@@ -80,7 +88,7 @@ export function FieldInput({ info, initial, value, error, onChange }: FieldInput
     case "FLOAT":
       return (
         <NumberField
-          {...common}
+          {...numeric}
           integer={info.kind === "INT"}
           defaultValue={typeof initial === "number" ? initial : null}
           onChange={onChange}
@@ -102,7 +110,7 @@ function TextInput({
   ...common
 }: {
   label: string;
-  help?: string;
+  term?: string;
   error: string | null;
   initial: string | null;
   onChange: (value: Value) => void;
@@ -127,13 +135,13 @@ function TextInput({
  */
 function BoolInput({
   label,
-  help,
+  term,
   error,
   initial,
   onChange,
 }: {
   label: string;
-  help?: string;
+  term?: string;
   error: string | null;
   initial: boolean | null;
   onChange: (value: Value) => void;
@@ -142,7 +150,7 @@ function BoolInput({
   return (
     <YesNoField
       label={label}
-      help={help}
+      term={term}
       error={error}
       withUnknown
       value={picked}

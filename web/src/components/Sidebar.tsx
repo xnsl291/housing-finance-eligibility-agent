@@ -23,6 +23,7 @@
  * 먹색 바탕 위 회색(side-muted)은 이 안에서만 쓴다. 흰 바탕에서는 대비가 모자란다(시안 C0 4절).
  */
 import { useId, useState } from "react";
+import { Link } from "react-router-dom";
 
 import type { Program } from "../api/types";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -139,6 +140,11 @@ export function Sidebar({ programs, apiBase, connected, onReset, confirmReset = 
       <section className={styles.group}>
         <h2 className={styles.label}>개인정보 안내</h2>
         <p className={styles.small}>{NOTICE.privacy}</p>
+        {/* S11 화면(시안 '개인정보·이용 안내 자세히'). 같은 탭 안에서 옮긴다 — 새로 고치면 이 탭에서 연 세션 목록이 사라져
+            '내 기록 지우기'가 지울 수 있는 범위가 줄어든다(D-39) */}
+        <Link to="/privacy" className={styles.more}>
+          개인정보·이용 안내 자세히
+        </Link>
         {/* 잠김은 disabled가 아니라 aria-disabled로. 초점이 머물러 잠긴 이유를 읽을 수 있다(Button.tsx와 같은 방식) */}
         <button
           type="button"

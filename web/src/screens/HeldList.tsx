@@ -163,7 +163,7 @@ function Row({ item, action, panel }: { item: HeldItem; action: ReactNode; panel
 }
 
 /** 어디서 온 값인가. 직접 넣은 값은 S2에서 고친 값과 S3 답을 서버가 나누지 않아 '직접 넣은 값'으로만 쓴다(heldItems.ts) */
-function sourceText(item: HeldItem): string {
+export function sourceText(item: HeldItem): string {
   if (item.source === "declined") return "모른다고 함 · 다시 묻지 않습니다";
   if (item.source === "direct") return "직접 넣은 값";
   return item.phrase === null ? "문장에서 읽음" : `“${item.phrase}”에서 읽음`;

@@ -21,6 +21,8 @@ interface YesNoFieldProps {
   /** 확인 화면(S2)은 칸 안에 모름을 둔다. 질문 화면(S3)은 카드의 '모르겠어요'가 따로 있어 뺀다(설계서 7.2) */
   withUnknown: boolean;
   help?: string;
+  /** 서버가 준 용어 설명(how_to_check). 있으면 이름 옆 '?'(S10, Field.tsx) */
+  term?: string;
   error?: string | null;
   /** 칸 밖에 있는 설명 줄의 id(Field.tsx 공통 약속) */
   describedBy?: string;
@@ -32,11 +34,11 @@ const YES_NO: { value: Exclude<YesNo, null>; label: string }[] = [
   { value: "unknown", label: "모름" },
 ];
 
-export function YesNoField({ label, value, onChange, withUnknown, help, error, describedBy }: YesNoFieldProps) {
+export function YesNoField({ label, value, onChange, withUnknown, help, term, error, describedBy }: YesNoFieldProps) {
   const name = useId();
   const options = withUnknown ? YES_NO : YES_NO.slice(0, 2);
   return (
-    <FieldFrame label={label} help={help} error={error} describedBy={describedBy} group>
+    <FieldFrame label={label} help={help} term={term} error={error} describedBy={describedBy} group>
       {() => (
         <div className={styles.radios}>
           {options.map((o) => (

@@ -254,3 +254,37 @@ describe("내 기록 지우기 — 이 탭에서 연 세션을 모두 지운다"
     expect(screen.getByText("내 기록을 서버에서 지웠습니다.")).toBeInTheDocument();
   });
 });
+
+describe("내 기록 지우기 — 주소로 들어와 이 탭에서 연 세션", () => {
+  it("새로 고친 뒤 주소로 연 세션도 목록에 남아, S11로 옮겨도 잠기지 않고 그 세션을 지운다", async () => {
+    const user = userEvent.setup();
+    const server = fakeServer({
+      "GET /v1/sessions/s-9": () => json({ session_id: "s-9", values: {} }),
+      "DELETE /v1/sessions/s-9": () => json({ session_id: "s-9", deleted: true }),
+    });
+    // 주소로 바로 연다(새로 고침과 같음) — 이 탭에서 세션을 연 적이 없다
+    renderApp("/s/s-9/confirm");
+    await screen.findByRole("heading", { level: 1, name: "이렇게 읽었습니다" });
+    const side = screen.getByRole("complementary", { name: "이 도구에 대해" });
+    await user.click(within(side).getByRole("link", { name: "개인정보·이용 안내 자세히" }));
+    await screen.findByRole("heading", { level: 1, name: "개인정보·이용 안내" });
+
+    const button = screen.getByRole("button", { name: "내 기록 지우기" });
+    expect(button).not.toHaveAttribute("aria-disabled");
+    await user.click(button);
+    await user.click(screen.getByRole("button", { name: "지우기" }));
+    await vi.waitFor(() => expect(callsTo(server, "DELETE /v1/sessions/s-9")).toHaveLength(1));
+  });
+
+  it("세션 화면이 아닌 주소(/s/:id/아무거나)로 열어도 주소의 세션을 목록에 넣는다", async () => {
+    const user = userEvent.setup();
+    const server = fakeServer({ "DELETE /v1/sessions/s-8": () => json({ session_id: "s-8", deleted: true }) });
+    renderApp("/s/s-8/other");
+    const side = screen.getByRole("complementary", { name: "이 도구에 대해" });
+    await user.click(within(side).getByRole("link", { name: "개인정보·이용 안내 자세히" }));
+    await screen.findByRole("heading", { level: 1, name: "개인정보·이용 안내" });
+    await user.click(screen.getByRole("button", { name: "내 기록 지우기" }));
+    await user.click(screen.getByRole("button", { name: "지우기" }));
+    await vi.waitFor(() => expect(callsTo(server, "DELETE /v1/sessions/s-8")).toHaveLength(1));
+  });
+});

@@ -46,7 +46,7 @@ export function isFinal(status: Status, unresolved: number): boolean {
   return status === "PRECHECK_MATCH" && unresolved === 0;
 }
 
-const LIST_TITLE: Record<Status, string> = {
+export const LIST_TITLE: Record<Status, string> = {
   NOT_MATCHED: "맞지 않는 조건",
   CONDITIONAL: "더 알려 주시면 판정할 수 있는 것",
   INSUFFICIENT_INFORMATION: "더 알려 주시면 판정할 수 있는 것",
@@ -73,14 +73,23 @@ interface ProductCardProps {
   sourceUrl: string;
   /** 판정 근거 상세(S5). 접힘 안에 넣는다 */
   details: ReactNode;
+  /** 비교표(S9)의 '자세히'가 찾아오는 id. 제목은 초점을 받을 수 있다(tabIndex -1) */
+  id?: string;
 }
 
-export function ProductCard({ name, status, limit, unresolved, items, sourceUrl, details }: ProductCardProps) {
-  const list = status === "PRECHECK_MATCH" && limit.won === null ? [] : items;
+/** 판정별 목록에 실제로 보일 줄들(머리말 끝 — 부합인데 금액을 못 냈으면 한도 자리가 같은 사유를 말하므로 비움). 결과 복사도 쓴다 */
+export function cardList(status: Status, won: number | null, items: string[]): string[] {
+  return status === "PRECHECK_MATCH" && won === null ? [] : items;
+}
+
+export function ProductCard({ name, status, limit, unresolved, items, sourceUrl, details, id }: ProductCardProps) {
+  const list = cardList(status, limit.won, items);
   return (
-    <article className={styles.card}>
+    <article id={id} className={styles.card}>
       <div className={styles.head}>
-        <h3 className={styles.name}>{name}</h3>
+        <h3 className={styles.name} tabIndex={-1}>
+          {name}
+        </h3>
         <VerdictBadge status={status} />
       </div>
 

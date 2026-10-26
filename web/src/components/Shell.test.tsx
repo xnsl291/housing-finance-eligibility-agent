@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 
 import type { Program } from "../api/types";
@@ -41,7 +42,7 @@ describe("사이드바", () => {
   ];
 
   it("상품은 이름과 전세·매매로 보이고, id는 개발자 정보 안에만 있다 (결함 D4)", () => {
-    render(<Sidebar programs={programs} apiBase="http://127.0.0.1:8000" connected onReset={() => {}} onDeleteRecords={async () => {}} />);
+    render(<Sidebar programs={programs} apiBase="http://127.0.0.1:8000" connected onReset={() => {}} onDeleteRecords={async () => {}} />, { wrapper: MemoryRouter });
     const item = screen.getByText("내집마련디딤돌대출");
     expect(item).toHaveTextContent("매매");
     expect(screen.getByText("nhuf-didimdol").closest("details")).not.toHaveAttribute("open");
@@ -50,7 +51,7 @@ describe("사이드바", () => {
   it("내 기록 지우기는 확인 창을 거치고, 취소하면 지우지 않는다", async () => {
     const user = userEvent.setup();
     const onDelete = vi.fn(async () => {});
-    render(<Sidebar programs={programs} apiBase="" connected onReset={() => {}} onDeleteRecords={onDelete} />);
+    render(<Sidebar programs={programs} apiBase="" connected onReset={() => {}} onDeleteRecords={onDelete} />, { wrapper: MemoryRouter });
 
     await user.click(screen.getByRole("button", { name: "내 기록 지우기" }));
     expect(screen.getByRole("button", { name: "취소" })).toHaveFocus();
@@ -66,7 +67,7 @@ describe("사이드바", () => {
   it("지우기가 실패하면 창을 닫지 않고 창 안에 다시 누르라는 문구를 보인다", async () => {
     const user = userEvent.setup();
     const onDelete = vi.fn().mockRejectedValueOnce(new Error("서버 꺼짐")).mockResolvedValueOnce(undefined);
-    render(<Sidebar programs={programs} apiBase="" connected onReset={() => {}} onDeleteRecords={onDelete} />);
+    render(<Sidebar programs={programs} apiBase="" connected onReset={() => {}} onDeleteRecords={onDelete} />, { wrapper: MemoryRouter });
 
     await user.click(screen.getByRole("button", { name: "내 기록 지우기" }));
     await user.click(screen.getByRole("button", { name: "지우기" }));
@@ -85,21 +86,21 @@ describe("사이드바", () => {
   });
 
   it("상품 목록이 비어 있으면(받지 못함) 상품 묶음 제목도, 개발자 정보의 '상품 id' 항목도 그리지 않는다", () => {
-    render(<Sidebar programs={[]} apiBase="http://127.0.0.1:8000" connected={false} onReset={() => {}} />);
+    render(<Sidebar programs={[]} apiBase="http://127.0.0.1:8000" connected={false} onReset={() => {}} />, { wrapper: MemoryRouter });
     expect(screen.queryByText("판정에 쓰는 상품")).not.toBeInTheDocument();
     const dev = screen.getByText("http://127.0.0.1:8000").closest("details")!;
     expect(dev).not.toHaveTextContent("상품 id");
   });
 
   it("연결을 확인하기 전에는 연결됐다고 말하지 않는다", () => {
-    render(<Sidebar programs={programs} apiBase="" connected={null} onReset={() => {}} />);
+    render(<Sidebar programs={programs} apiBase="" connected={null} onReset={() => {}} />, { wrapper: MemoryRouter });
     expect(screen.getByText("판정 서버 연결 확인 중")).toBeInTheDocument();
     expect(screen.queryByText("판정 서버에 연결됨")).not.toBeInTheDocument();
   });
 
   it("지울 세션이 없으면(onDeleteRecords 없음) 내 기록 지우기를 숨기지 않고 잠근 채 이유를 보인다", async () => {
     const user = userEvent.setup();
-    render(<Sidebar programs={programs} apiBase="" connected onReset={() => {}} />);
+    render(<Sidebar programs={programs} apiBase="" connected onReset={() => {}} />, { wrapper: MemoryRouter });
     const button = screen.getByRole("button", { name: "내 기록 지우기" });
     expect(button).toHaveAttribute("aria-disabled", "true");
     expect(button).toHaveAccessibleDescription("아직 지울 기록이 없습니다");
@@ -112,7 +113,7 @@ describe("사이드바", () => {
   it("전체 초기화는 지울 것이 있으면 초기화 확인 창을 거치고, 계속하기가 기본 초점이다", async () => {
     const user = userEvent.setup();
     const onReset = vi.fn();
-    render(<Sidebar programs={programs} apiBase="" connected confirmReset onReset={onReset} />);
+    render(<Sidebar programs={programs} apiBase="" connected confirmReset onReset={onReset} />, { wrapper: MemoryRouter });
 
     await user.click(screen.getByRole("button", { name: "전체 초기화" }));
     const dialog = screen.getByRole("alertdialog", { name: "처음으로 돌아갈까요?" });
@@ -133,7 +134,7 @@ describe("사이드바", () => {
   it("전체 초기화는 지울 것이 없으면 묻지 않고 바로 처음으로 간다", async () => {
     const user = userEvent.setup();
     const onReset = vi.fn();
-    render(<Sidebar programs={programs} apiBase="" connected onReset={onReset} />);
+    render(<Sidebar programs={programs} apiBase="" connected onReset={onReset} />, { wrapper: MemoryRouter });
 
     await user.click(screen.getByRole("button", { name: "전체 초기화" }));
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();

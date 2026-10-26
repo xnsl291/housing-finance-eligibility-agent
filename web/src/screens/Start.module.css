@@ -163,11 +163,20 @@
   gap: 12px;
 }
 
+/* 글 사이에 S11 링크가 끼어 있어 flex로 두면 글 조각마다 칸이 되어 벌어진다. 아이콘을 글줄 안에 둔다 */
 .privacy {
-  display: flex;
-  align-items: center;
-  gap: 7px;
   margin: 0;
   font-size: 12.5px;
+  line-height: 1.6;
   color: var(--ink-3);
+}
+
+.privacy svg {
+  margin-right: 7px;
+  vertical-align: -2px;
+}
+
+.privacy a {
+  color: var(--ink-2);
+  text-decoration: underline;
 }

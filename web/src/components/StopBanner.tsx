@@ -45,16 +45,22 @@ interface StopBannerProps {
   children?: ReactNode;
 }
 
-export function StopBanner({ reason, declinedLabels = [], children }: StopBannerProps) {
+/** 배너의 제목과 본문. 결과 복사(S12)도 같은 말을 쓴다 */
+export function stopText(reason: string | undefined, declinedLabels: string[] = []) {
   const key = reason && reason in BANNER ? (reason as StopReason) : "OTHER";
   const b = BANNER[key];
   const body =
     key === "ONLY_DECLINED_LEFT" ? `${declinedLabels.join(", ") || "일부 항목"}${b.body}` : b.body;
+  return { icon: b.icon, title: b.title, body };
+}
+
+export function StopBanner({ reason, declinedLabels = [], children }: StopBannerProps) {
+  const { icon, title, body } = stopText(reason, declinedLabels);
   return (
     <div className={styles.banner}>
-      <Icon name={b.icon} size={19} />
+      <Icon name={icon} size={19} />
       <div className={styles.text}>
-        <strong className={styles.title}>{b.title}</strong>
+        <strong className={styles.title}>{title}</strong>
         <span className={styles.body}>{body}</span>
         {children}
       </div>

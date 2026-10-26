@@ -22,6 +22,23 @@
   line-height: 1.35;
 }
 
+/* 비교표(S9) '자세히'로 왔을 때 잠깐 강조. 테두리 색만 바뀌어 움직임이 없으므로 움직임 줄이기 설정과 무관하게 둔다.
+   끝나면(animationend) 화면이 표시를 거둔다(CompareTable.tsx) */
+.card[data-flash] {
+  animation: flash 1.6s ease-out;
+}
+
+@keyframes flash {
+  from {
+    border-color: var(--ink);
+    box-shadow: 0 0 0 3px var(--ink);
+  }
+  to {
+    border-color: var(--line-strong);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
 .limit {
   display: flex;
   flex-direction: column;
@@ -139,4 +156,11 @@
 
 .details[open] > summary svg {
   transform: rotate(180deg);
+}
+
+/* 인쇄: 카드는 쪽을 넘어가도 되지만(styles/base.css) 카드 제목 줄만 쪽 끝에 홀로 남지 않게 한다 */
+@media print {
+  .head {
+    break-after: avoid;
+  }
 }
