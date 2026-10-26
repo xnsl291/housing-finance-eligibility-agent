@@ -104,6 +104,8 @@ describe("S11 개인정보·이용 안내", () => {
     const masked = section("가리는 것과 가리지 못하는 것");
     expect(masked).toHaveTextContent(MASK_SHAPES);
     expect(masked).toHaveTextContent(MASK_SCOPE);
+    // 서버가 글 칸 값도 가린다(#47). 이 처리가 사라지면 MASK_SCOPE가 거짓이 된다.
+    expect(sessionPy).toMatch(/scrub\(value\) if isinstance\(value, str\) and kind_of\(name\) == "TEXT"/);
     for (const phrase of ["6자리-7자리", "2~3자리-2~6자리-2~6자리", "이름·주소·이메일", "010-1234-5678"]) {
       expect(MASK_SHAPES).toContain(phrase);
     }
