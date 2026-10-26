@@ -41,6 +41,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from housing_finance_agent.extraction import scrub
+from housing_finance_agent.fields import kind_of
 
 # 기록의 종류. **늘리기 전에 한 번 더 생각한다** — 종류가 늘면 상태를 만드는 규칙도
 # 늘고, 옛 세션을 다시 계산할 때 고려할 경우의 수가 는다.
@@ -133,7 +134,7 @@ class SessionStore:
             session_id,
             EXTRACTED,
             {
-                "values": extracted.get("values") or {},
+                "values": _scrub_text_values(extracted.get("values") or {}),
                 # 근거 구절에도 민감정보가 섞일 수 있다. 한 번 더 거른다.
                 "sources": {
                     name: scrub(str(phrase))
@@ -150,7 +151,7 @@ class SessionStore:
 
     def record_fields(self, session_id: str, values: dict) -> None:
         """사용자가 직접 넣거나 고친 값. `None`은 지우라는 뜻이다."""
-        self._append(session_id, FIELD_SET, {"values": values})
+        self._append(session_id, FIELD_SET, {"values": _scrub_text_values(values)})
 
     def record_assessment(
         self, session_id: str, summary: list[dict], question_policy_version: int | None = None
@@ -224,6 +225,19 @@ class SessionStore:
                 ),
             )
             self._db.commit()
+
+
+def _scrub_text_values(values: dict) -> dict:
+    """글로 받는 항목(예: 시·군·구 이름)의 값에서 민감정보를 가린다.
+
+    숫자·선택지·날짜는 정해진 모양만 받아 주민등록번호나 계좌번호가 들어갈 수 없지만, 글
+    칸에는 무엇이든 적을 수 있다. 화면 안내는 "가린 뒤 저장합니다"라고 하므로 근거 구절·
+    읽지 못한 원문과 같이 글 값도 거른다(2026-10-26까지 빠져 있었음).
+    """
+    return {
+        name: scrub(value) if isinstance(value, str) and kind_of(name) == "TEXT" else value
+        for name, value in values.items()
+    }
 
 
 def replay(events: list[Event]) -> dict[str, Held]:
