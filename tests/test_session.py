@@ -172,6 +172,29 @@ def test_읽지_못한_원문에서도_민감정보를_가린다(store) -> None:
     assert "다음 달 초 전입" in 저장된, "가리느라 원문까지 지우면 안 된다"
 
 
+def test_글로_받는_값에서도_민감정보를_가린다(store) -> None:
+    """글 칸(시·군·구 이름)에는 무엇이든 적을 수 있다. 직접 넣든 문장에서 읽든 가린다."""
+    session_id = store.start()
+    store.record_fields(session_id, {"region_name": "성남시 900101-1234567"})
+    store.record_extraction(
+        session_id,
+        {"values": {"region_name": "분당구 900101-1234567"}, "sources": {}},
+    )
+
+    for event in store.events(session_id)[1:]:
+        저장된 = event.payload["values"]["region_name"]
+        assert "900101" not in 저장된
+        assert "가림" in 저장된
+
+
+def test_정해진_모양의_값은_가리기에_건드리지_않는다(store) -> None:
+    """날짜를 계좌번호 모양으로 잘못 가리면 판정이 망가진다."""
+    session_id = store.start()
+    store.record_fields(session_id, {"move_in_date": "2026-04-20", "age": 31})
+
+    assert store.state(session_id)["move_in_date"].value == "2026-04-20"
+
+
 def test_기록_순서가_어긋나지_않는다(store) -> None:
     """번호가 1부터 빠짐없이 올라가야 순서를 믿고 상태를 만들 수 있다."""
     session_id = store.start()
