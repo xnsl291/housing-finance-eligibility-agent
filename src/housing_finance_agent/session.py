@@ -28,6 +28,23 @@
 
 수도권 여부와 병역 반영 나이는 판정 직전에 만든다(D-20). 저장하면 사용자가 원본을
 고쳤을 때 옛 파생값이 남아 판정을 뒤집는다. 그래서 **출처는 사용자와 LLM 둘뿐**이다.
+
+**4. 마지막으로 쓴 때로부터 7일이 지나면 지운다(`RETENTION`, 2026-10-29 결정).**
+
+"마지막으로 쓴 때"는 그 세션의 마지막 기록 시각이다. 기록이 쌓이는 것은 값을 넣거나
+고치거나, 모른다고 답하거나, 판정할 때다. 읽기(GET)는 기록을 쓰지 않으므로 기간을
+늘리지 않는다 — 읽기가 기간을 늘리면 주소만 아는 사람이 열어 보기만 해도 지워질 기록이
+계속 남는다.
+
+지우는 일을 따로 돌리지 않아도 약속이 지켜지게 두 겹으로 막는다. 기간이 지난 세션은
+`exists`가 없다고 답해 모든 세션 경로가 404를 내고, 그 자리에서 파일에서도 지운다. 그리고
+저장소를 열 때(서버를 켤 때)와 새 세션을 열 때, 서버가 켜져 있는 동안에는 한 시간마다
+(`SWEEP_EVERY`, api.py 앱 수명) 기간이 지난 세션을 한꺼번에 지운다. 마지막 것이 없으면
+번호를 받지 못해 아무도 다시 부르지 않는 세션이 서버가 켜져 있는 내내 남는다.
+
+확인(`exists`)과 쓰기 사이에 세션이 지워질 수 있어 쓰기 직전에 잠금 안에서 다시 보고,
+없으면 `SessionGone`을 낸다(API는 404). 외래키 검사도 켜서 세션 없는 기록은 어떤 길로도
+파일에 들어가지 못한다.
 """
 
 from __future__ import annotations
@@ -36,8 +53,9 @@ import json
 import sqlite3
 import threading
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from housing_finance_agent.extraction import scrub
@@ -54,9 +72,20 @@ ASSESSED = "ASSESSED"
 # 나오고, GET 요청이 기록을 쓰면 새로고침만 해도 "물었다"가 쌓인다.
 FIELD_DECLINED = "FIELD_DECLINED"
 
+# 마지막으로 기록이 쌓인 때로부터 이만큼 지나면 지운다(위 4번). 화면 S11 문구가 이 줄을
+# 읽어 대조한다(web/src/screens/Privacy.test.tsx). 바꾸면 화면 문구도 함께 고친다.
+RETENTION = timedelta(days=7)
+# 서버가 켜져 있는 동안 기간이 지난 세션을 지우는 간격. 화면 문구("한 시간 안에")가 이
+# 줄을 읽어 대조한다.
+SWEEP_EVERY = timedelta(hours=1)
+
 # 값이 어디서 왔는가. 파생값은 저장하지 않으므로 둘뿐이다.
 BY_USER = "USER"
 BY_LLM = "LLM"
+
+
+class SessionGone(LookupError):
+    """쓰려는 세션이 없다(지웠거나 기간이 지남). API는 404로 낸다."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,7 +114,16 @@ class SessionStore:
     기록에서 만들 수 있는 것을 또 저장하면 둘이 어긋날 수 있다.
     """
 
-    def __init__(self, db_path: str | Path = ":memory:") -> None:
+    def __init__(
+        self,
+        db_path: str | Path = ":memory:",
+        *,
+        retention: timedelta = RETENTION,
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    ) -> None:
+        # 시계를 바꿔 끼울 수 있게 한 것은 테스트가 7일을 기다리지 않게 하려는 것이다.
+        self._retention = retention
+        self._clock = clock
         self._db = sqlite3.connect(str(db_path), check_same_thread=False)
         # API는 요청마다 다른 스레드에서 이 연결 하나를 쓴다. 연결을 함께 쓰는 것만
         # 허락하고(check_same_thread=False) 차례를 지키게 하지 않으면, 같은 세션을 동시에
@@ -99,6 +137,9 @@ class SessionStore:
         # 지운 행을 "빈 자리"로 표시만 하고 내용은 그대로 둬서, 파일을 열어 보면 지웠다고
         # 한 값이 읽힌다. 연결마다 켜야 하는 설정이다.
         self._db.execute("PRAGMA secure_delete = ON")
+        # 세션 줄이 없는 기록은 파일에 들어가지 못하게 한다. SQLite는 `REFERENCES`를 적어
+        # 둬도 이 설정 없이는 검사하지 않는다. 이것도 연결마다 켠다.
+        self._db.execute("PRAGMA foreign_keys = ON")
         self._db.executescript(
             """
             CREATE TABLE IF NOT EXISTS sessions (
@@ -115,14 +156,20 @@ class SessionStore:
             );
             """
         )
+        # 외래키 검사를 켜기 전(2026-10-29 전) 코드가 남겼을 수 있는 세션 없는 기록을 한 번
+        # 지운다. 외래키는 새로 넣는 줄만 막고 이미 있는 줄은 보지 않는다.
+        self._db.execute("DELETE FROM events WHERE session_id NOT IN (SELECT id FROM sessions)")
         self._db.commit()
+        self.sweep()
 
     # ── 쓰기 ──────────────────────────────────────────────────────────
     def start(self) -> str:
         session_id = uuid.uuid4().hex
         with self._lock:
+            # 새 세션을 여는 때가 지우기를 걸기에 싸고 자주 오는 자리다(위 4번).
+            self.sweep()
             self._db.execute(
-                "INSERT INTO sessions (id, created_at) VALUES (?, ?)", (session_id, _now())
+                "INSERT INTO sessions (id, created_at) VALUES (?, ?)", (session_id, self._now())
             )
             self._db.commit()
             self._append(session_id, SESSION_STARTED, {})
@@ -181,13 +228,41 @@ class SessionStore:
             self._db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
             self._db.commit()
 
+    def sweep(self) -> None:
+        """보관 기간이 지난 세션과 그 기록을 파일에서 지운다.
+
+        저장소를 열 때, 새 세션을 열 때, 그리고 서버가 켜져 있는 동안 `SWEEP_EVERY`마다
+        (api.py 앱 수명) 부른다. 마지막이 있어야 번호를 받지 못해 아무도 다시 부르지 않는
+        세션도 서버를 끄지 않고 지울 수 있다.
+        """
+        with self._lock:
+            ids = [
+                (row["id"],)
+                for row in self._db.execute(
+                    f"SELECT id FROM sessions s WHERE {_LAST_USED} < ?", (self._cutoff(),)
+                ).fetchall()
+            ]
+            self._db.executemany("DELETE FROM events WHERE session_id = ?", ids)
+            self._db.executemany("DELETE FROM sessions WHERE id = ?", ids)
+            self._db.commit()
+
     # ── 읽기 ──────────────────────────────────────────────────────────
     def exists(self, session_id: str) -> bool:
+        """있고 보관 기간 안이면 참. **기간이 지났으면 그 자리에서 지우고 거짓을 낸다.**
+
+        API의 모든 세션 경로가 이 함수로 먼저 확인하므로, `sweep`이 돌기 전이라도 기간이
+        지난 세션은 어느 경로에서나 404다.
+        """
         with self._lock:
             row = self._db.execute(
-                "SELECT 1 FROM sessions WHERE id = ?", (session_id,)
+                f"SELECT {_LAST_USED} AS last_used FROM sessions s WHERE id = ?", (session_id,)
             ).fetchone()
-        return row is not None
+            if row is None:
+                return False
+            if row["last_used"] < self._cutoff():
+                self.delete(session_id)
+                return False
+        return True
 
     def events(self, session_id: str) -> list[Event]:
         with self._lock:
@@ -208,8 +283,21 @@ class SessionStore:
         return declined_of(self.events(session_id))
 
     # ── 내부 ──────────────────────────────────────────────────────────
+    def _now(self) -> str:
+        return _stamp(self._clock())
+
+    def _cutoff(self) -> str:
+        """이 시각보다 앞서 마지막으로 쓴 세션은 기간이 지났다. 딱 7일째는 아직 남는다."""
+        return _stamp(self._clock() - self._retention)
+
     def _append(self, session_id: str, kind: str, payload: dict) -> None:
         with self._lock:
+            # API는 `exists`로 확인한 뒤 잠금을 놓고 LLM을 기다린다. 그 사이 다른 요청이
+            # 세션을 지우거나(내 기록 지우기) 기간이 지나 지울 수 있으므로 쓰기 직전에
+            # 같은 잠금 안에서 다시 본다. 확인 없이 쓰면 외래키에 막히지만, 그 오류보다 이
+            # 예외가 뜻이 분명하다.
+            if not self.exists(session_id):
+                raise SessionGone(session_id)
             row = self._db.execute(
                 "SELECT COALESCE(MAX(seq), 0) AS last FROM events WHERE session_id = ?",
                 (session_id,),
@@ -219,7 +307,7 @@ class SessionStore:
                 (
                     session_id,
                     row["last"] + 1,
-                    _now(),
+                    self._now(),
                     kind,
                     json.dumps(payload, ensure_ascii=False),
                 ),
@@ -293,5 +381,10 @@ def profile_of(state: dict[str, Held]) -> dict:
     return {name: held.value for name, held in state.items()}
 
 
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
+# 세션을 마지막으로 쓴 때 — 마지막 기록 시각, 기록이 없으면 연 시각. 시각은 모두 UTC로
+# 같은 모양(`_stamp`)이라 글자 비교가 곧 시간 비교다.
+_LAST_USED = "COALESCE((SELECT MAX(at) FROM events e WHERE e.session_id = s.id), s.created_at)"
+
+
+def _stamp(moment: datetime) -> str:
+    return moment.astimezone(UTC).isoformat(timespec="seconds")

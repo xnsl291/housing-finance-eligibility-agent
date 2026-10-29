@@ -13,9 +13,14 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
+from contextlib import asynccontextmanager, suppress
+from datetime import timedelta
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from housing_finance_agent.amount import Range
@@ -24,9 +29,10 @@ from housing_finance_agent.extraction import ExtractionError, LlmClient, extract
 from housing_finance_agent.fields import problem_of
 from housing_finance_agent.next_action import POLICY_VERSION, next_action
 from housing_finance_agent.rules import available_programs, field_catalog, load_program
-from housing_finance_agent.session import SessionStore, profile_of
+from housing_finance_agent.session import SWEEP_EVERY, SessionGone, SessionStore, profile_of
 
 _DEFAULT_MAX_MESSAGE_CHARS = 1000
+_log = logging.getLogger(__name__)
 
 
 class ExtractRequest(BaseModel):
@@ -56,9 +62,41 @@ def create_app(
     llm: LlmClient,
     max_message_chars: int = _DEFAULT_MAX_MESSAGE_CHARS,
     sessions: SessionStore | None = None,
+    sweep_every: timedelta = SWEEP_EVERY,
 ) -> FastAPI:
-    app = FastAPI(title="주거금융 지원가능성 판정")
     store = sessions if sessions is not None else SessionStore(_db_path())
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        """서버가 켜져 있는 동안 `sweep_every`마다 기간이 지난 세션을 지운다(session.py 4번).
+
+        요청이 오는 때에만 지우면 아무도 다시 부르지 않는 세션이 남는다. 앱 수명에 묶어
+        서버가 꺼지면 함께 멈춘다. 한 번 실패해도 다음 차례에 다시 지운다.
+        """
+
+        async def 지우기() -> None:
+            while True:
+                await asyncio.sleep(sweep_every.total_seconds())
+                try:
+                    await asyncio.to_thread(store.sweep)
+                except Exception:
+                    _log.exception("기간이 지난 세션을 지우지 못했습니다")
+
+        app.state.sweeper = asyncio.create_task(지우기())
+        try:
+            yield
+        finally:
+            app.state.sweeper.cancel()
+            with suppress(asyncio.CancelledError):
+                await app.state.sweeper
+
+    app = FastAPI(title="주거금융 지원가능성 판정", lifespan=lifespan)
+
+    @app.exception_handler(SessionGone)
+    def session_gone(request: Request, error: SessionGone) -> JSONResponse:
+        """확인한 뒤 쓰기 전에 세션이 지워진 경우(session.py `_append`). 처음부터 없던
+        세션과 같은 404로 낸다 — 화면에는 둘의 차이가 없다."""
+        return JSONResponse({"detail": "없는 세션입니다"}, status_code=404)
 
     @app.get("/health")
     def health() -> dict:

@@ -340,3 +340,228 @@ def test_여러_요청이_한꺼번에_읽고_써도_깨지지_않는다(tmp_pat
 
     # 순번이 겹치지 않고 빠짐없이 쌓였다(시작 기록 1 + 값 200).
     assert [e.seq for e in store.events(session_id)] == list(range(1, 202))
+
+
+# ── 보관 기간 ─────────────────────────────────────────────────────────
+#
+# 마지막으로 기록이 쌓인 때(값을 넣거나 고치거나 판정한 때)로부터 7일이 지나면 지운다.
+# 읽기만 한 것은 기간을 늘리지 않는다. 기다리지 않고 시계를 바꿔 끼워 확인한다.
+
+
+class _시계:
+    def __init__(self) -> None:
+        from datetime import UTC, datetime
+
+        self.지금 = datetime(2026, 10, 29, 9, 0, 0, tzinfo=UTC)
+
+    def __call__(self):
+        return self.지금
+
+    def 지남(self, **kwargs) -> None:
+        from datetime import timedelta
+
+        self.지금 += timedelta(**kwargs)
+
+
+def _파일의_줄_수(path, table: str, column: str, value: str) -> int:
+    """저장소를 거치지 않고 파일을 직접 열어 센다. 저장소가 '없다'고 답하는 것과 파일에서
+    실제로 지워진 것은 다르다."""
+    import sqlite3
+
+    db = sqlite3.connect(path)
+    try:
+        sql = f"SELECT COUNT(*) FROM {table} WHERE {column} = ?"
+        return db.execute(sql, (value,)).fetchone()[0]
+    finally:
+        db.close()
+
+
+def test_보관_기간은_7일이다() -> None:
+    from datetime import timedelta
+
+    from housing_finance_agent.session import RETENTION
+
+    assert timedelta(days=7) == RETENTION
+
+
+def test_마지막으로_쓴_뒤_7일이_지나면_없는_세션이다(tmp_path) -> None:
+    시계 = _시계()
+    store = SessionStore(tmp_path / "sessions.db", clock=시계)
+    session_id = store.start()
+    store.record_fields(session_id, {"age": 31})
+
+    시계.지남(days=7)
+    assert store.exists(session_id), "딱 7일째는 아직 남아 있다"
+
+    시계.지남(seconds=1)
+    assert not store.exists(session_id)
+    # 없다고 답한 그 자리에서 파일에서도 지운다 — 지우는 일이 따로 돌지 않아도.
+    assert _파일의_줄_수(tmp_path / "sessions.db", "events", "session_id", session_id) == 0
+
+
+def test_7일_안에_다시_쓰면_그때부터_다시_7일이다(tmp_path) -> None:
+    시계 = _시계()
+    store = SessionStore(tmp_path / "sessions.db", clock=시계)
+    session_id = store.start()
+
+    시계.지남(days=6)
+    store.record_fields(session_id, {"age": 31})
+    시계.지남(days=6)
+
+    assert store.exists(session_id)
+    assert store.state(session_id)["age"].value == 31
+
+
+def test_읽기만_해서는_기간이_늘지_않는다(tmp_path) -> None:
+    시계 = _시계()
+    store = SessionStore(tmp_path / "sessions.db", clock=시계)
+    session_id = store.start()
+
+    시계.지남(days=6)
+    assert store.exists(session_id)
+    store.state(session_id)
+    store.declined(session_id)
+    시계.지남(days=1, seconds=1)
+
+    assert not store.exists(session_id)
+
+
+def test_새_세션을_열면_기간이_지난_기록이_파일에서_지워진다(tmp_path) -> None:
+    path = tmp_path / "sessions.db"
+    시계 = _시계()
+    store = SessionStore(path, clock=시계)
+    오래된 = store.start()
+    표식 = "기간이지나지워져야하는표식"
+    store.record_extraction(
+        오래된, {"values": {"age": 31}, "sources": {"age": 표식}, "unreadable": {}}
+    )
+    시계.지남(days=3)
+    남을 = store.start()
+    시계.지남(days=4, seconds=1)
+
+    store.start()
+
+    assert _파일의_줄_수(path, "sessions", "id", 오래된) == 0
+    assert _파일의_줄_수(path, "events", "session_id", 오래된) == 0
+    assert _파일의_줄_수(path, "events", "session_id", 남을) == 1
+    assert 표식.encode("utf-8") not in path.read_bytes()
+
+
+def test_서버를_다시_켜면_기간이_지난_기록부터_지운다(tmp_path) -> None:
+    path = tmp_path / "sessions.db"
+    시계 = _시계()
+    session_id = SessionStore(path, clock=시계).start()
+    시계.지남(days=8)
+
+    SessionStore(path, clock=시계)
+
+    assert _파일의_줄_수(path, "sessions", "id", session_id) == 0
+    assert _파일의_줄_수(path, "events", "session_id", session_id) == 0
+
+
+def test_확인한_뒤_사이에_지워진_세션에는_쓰지_않는다(tmp_path) -> None:
+    """있는지 확인한 뒤 LLM을 기다리는 사이 다른 요청이 그 세션을 지울 수 있다. 그때 쓰면
+    세션 없는 기록 줄이 남고, 응답은 200인데 다음 요청은 404가 된다(2026-10-29 검토)."""
+    from housing_finance_agent.session import SessionGone
+
+    path = tmp_path / "sessions.db"
+    시계 = _시계()
+    store = SessionStore(path, clock=시계)
+    session_id = store.start()
+    시계.지남(days=7)
+    assert store.exists(session_id)
+    시계.지남(seconds=5)  # LLM을 기다리는 사이
+    store.start()  # 다른 요청이 지난 세션을 지운다
+
+    with pytest.raises(SessionGone):
+        store.record_fields(session_id, {"age": 31})
+
+    assert _파일의_줄_수(path, "events", "session_id", session_id) == 0
+    assert _파일의_줄_수(path, "sessions", "id", session_id) == 0
+
+
+def test_없는_세션에는_어느_쓰기도_기록을_남기지_않는다(tmp_path) -> None:
+    from housing_finance_agent.session import SessionGone
+
+    path = tmp_path / "sessions.db"
+    store = SessionStore(path)
+    session_id = store.start()
+    store.delete(session_id)
+
+    for 쓰기 in (
+        lambda: store.record_fields(session_id, {"age": 31}),
+        lambda: store.record_extraction(session_id, _뽑음(age=31)),
+        lambda: store.record_assessment(session_id, []),
+        lambda: store.record_declined(session_id, "age"),
+    ):
+        with pytest.raises(SessionGone):
+            쓰기()
+    assert _파일의_줄_수(path, "events", "session_id", session_id) == 0
+
+
+_고아_넣기 = (
+    "INSERT INTO events (session_id, seq, at, kind, payload) VALUES ('고아', 1, 't', 'K', '{}')"
+)
+
+
+def test_외래키를_켜서_세션_없는_기록은_파일에_들어가지_않는다(tmp_path) -> None:
+    import sqlite3
+
+    store = SessionStore(tmp_path / "sessions.db")
+    with pytest.raises(sqlite3.IntegrityError):
+        store._db.execute(_고아_넣기)
+
+
+def test_예전_파일에_남은_세션_없는_기록은_열_때_지운다(tmp_path) -> None:
+    import sqlite3
+
+    path = tmp_path / "sessions.db"
+    SessionStore(path)
+    db = sqlite3.connect(path)  # 외래키를 켜지 않은 연결(예전 코드와 같음)로 넣는다
+    db.execute(_고아_넣기)
+    db.commit()
+    db.close()
+
+    SessionStore(path)
+
+    assert _파일의_줄_수(path, "events", "session_id", "고아") == 0
+
+
+def test_기간이_지난_세션을_확인하면_두_표에서_모두_지운다(tmp_path) -> None:
+    path = tmp_path / "sessions.db"
+    시계 = _시계()
+    store = SessionStore(path, clock=시계)
+    session_id = store.start()
+    store.record_fields(session_id, {"age": 31})
+    시계.지남(days=7, seconds=1)
+
+    assert not store.exists(session_id)
+
+    assert _파일의_줄_수(path, "sessions", "id", session_id) == 0
+    assert _파일의_줄_수(path, "events", "session_id", session_id) == 0
+
+
+def test_sweep만_불러도_요청_없이_기간이_지난_세션을_지운다(tmp_path) -> None:
+    """서버가 켜져 있는 동안 주기적으로 부르는 것이 이 함수다. 번호를 받지 못해 아무도
+    다시 부르지 않는 세션도 이것으로 지워진다."""
+    path = tmp_path / "sessions.db"
+    시계 = _시계()
+    store = SessionStore(path, clock=시계)
+    지날 = store.start()
+    시계.지남(days=1)
+    남을 = store.start()
+    시계.지남(days=6, seconds=1)
+
+    store.sweep()
+
+    assert _파일의_줄_수(path, "sessions", "id", 지날) == 0
+    assert _파일의_줄_수(path, "events", "session_id", 지날) == 0
+    assert _파일의_줄_수(path, "sessions", "id", 남을) == 1
+
+
+def test_주기적으로_지우는_간격은_한_시간이다() -> None:
+    from datetime import timedelta
+
+    from housing_finance_agent.session import SWEEP_EVERY
+
+    assert timedelta(hours=1) == SWEEP_EVERY
