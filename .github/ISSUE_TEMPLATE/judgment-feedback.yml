@@ -1,0 +1,60 @@
+# 판정 결과 화면의 '이 판정이 이상해요'(web/src/screens/ReportLink.tsx)가 여는 양식.
+# 화면은 주소로 product·verdict·title만 채운다. 그래서 아래 id(product, verdict)를 바꾸면 ReportLink.tsx도 함께 고친다.
+# 상품 이름은 rules/*.yaml의 program_name, 판정 이름은 web/src/components/VerdictBadge.tsx와 글자가 같아야 채워진다
+# (tests/test_issue_template.py가 대조함).
+# 이슈는 누구나 읽는다. 입력한 값을 받는 칸은 두지 않는다.
+name: 판정 의견
+description: 판정 결과가 이상해 보일 때 알려 주세요. 공개 이슈로 올라갑니다.
+title: "[판정 의견] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        이 이슈는 **누구나 볼 수 있는 공개 글**입니다.
+        주민등록번호·이름·주소·연락처·소득·자산·보증금 같은 **입력한 값이나 개인정보는 적지 마세요.**
+        확인 기록 주소(`/s/...`)도 붙이지 마세요. 그 주소로 입력한 값을 볼 수 있습니다.
+        "소득이 기준보다 조금 낮은데 불충족이 나왔다"처럼 숫자 없이 적어 주셔도 충분합니다.
+  - type: dropdown
+    id: product
+    attributes:
+      label: 어느 상품인가요
+      options:
+        - 청년전용 버팀목전세자금
+        - 버팀목전세자금
+        - 내집마련디딤돌대출
+        - 그 밖의 상품 또는 모름
+    validations:
+      required: true
+  - type: dropdown
+    id: verdict
+    attributes:
+      label: 화면에 나온 판정
+      options:
+        - 사전 조건 부합
+        - 추가 확인 필요
+        - 조건 불충족
+        - 정보 부족
+        - 기억나지 않음
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: 무엇이 이상했나요
+      description: 어떤 판정이 나와야 한다고 보셨는지, 그렇게 본 이유(공고문 문장 등)를 적어 주세요. 금액·나이 같은 입력값은 적지 마세요.
+    validations:
+      required: true
+  - type: input
+    id: rule
+    attributes:
+      label: 관련 조건이나 규칙 (선택)
+      description: '판정 근거에 보인 조건 이름이나 규칙 번호. 예: 순자산, B-05'
+    validations:
+      required: false
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 개인정보 확인
+      options:
+        - label: 주민등록번호·소득·자산 같은 개인정보를 적지 않았습니다
+          required: true
