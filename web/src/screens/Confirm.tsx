@@ -30,6 +30,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import type { FieldCatalog, HeldValue } from "../api/types";
 import { Skeleton, SystemError } from "../components/Feedback";
+import { RETENTION_NOTE } from "../components/Notice";
 import { useAlive, useAppState } from "./AppState";
 import { ConfirmForm } from "./ConfirmForm";
 import { ResumeBanner } from "./ResumeBanner";
@@ -168,6 +169,8 @@ export function Missing() {
       onRetry={() => navigate("/write")}
     >
       <span className={styles.line}>처음부터 다시 시작해 주세요. 조건의 문제가 아닙니다.</span>
+      {/* 기록이 없어지는 흔한 까닭 하나(서버 보관 기간). 지웠거나 주소가 틀린 경우도 있어 '지워졌습니다'로 단정하지 않는다 */}
+      <span className={styles.line}>{RETENTION_NOTE}</span>
       {/* 새로 고친 뒤라면 앱 메모리의 문장도 이미 없다. 없는 것을 '두었습니다'라고 하지 않는다 */}
       {draft.trim() !== "" && <span className={styles.line}>적어 두신 문장은 그대로 두었습니다.</span>}
     </SystemError>

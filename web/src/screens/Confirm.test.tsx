@@ -2,6 +2,7 @@ import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import type { HeldValue } from "../api/types";
+import { RETENTION_NOTE } from "../components/Notice";
 import { changedValues, splitRejection } from "./confirmValues";
 import { callsTo, fakeServer, FIELDS, json, renderApp } from "./testing";
 
@@ -553,6 +554,8 @@ describe("S2 들어오는 길", () => {
 
     expect(await screen.findByRole("heading", { name: "이전 확인 기록을 찾을 수 없습니다" })).toBeInTheDocument();
     expect(screen.getByText("처음부터 다시 시작해 주세요. 조건의 문제가 아닙니다.")).toBeInTheDocument();
+    // 기록이 없어지는 흔한 까닭(서버 7일 보관)을 함께 알린다
+    expect(screen.getByText(RETENTION_NOTE)).toBeInTheDocument();
     // 새로 고친 뒤라 앱 메모리에 문장이 없다 — '두었습니다'라고 하지 않는다
     expect(screen.queryByText("적어 두신 문장은 그대로 두었습니다.")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "처음부터" }));

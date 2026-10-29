@@ -367,3 +367,88 @@ def test_세션을_지우면_다시_부를_수_없다(client) -> None:
     assert 응답.status_code == 200
     assert client.get(f"/v1/sessions/{session_id}").status_code == 404
     assert client.delete(f"/v1/sessions/{session_id}").status_code == 404
+
+
+def test_7일_넘게_쓰지_않은_세션은_모든_경로에서_404다(tmp_path) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    지금 = [datetime(2026, 10, 29, 9, 0, 0, tzinfo=UTC)]
+    store = SessionStore(tmp_path / "sessions.db", clock=lambda: 지금[0])
+    client = TestClient(create_app(FakeLlm("{}"), sessions=store))
+    session_id = _세션(client)
+    client.put(f"/v1/sessions/{session_id}/fields", json={"values": {"age": 31}})
+
+    지금[0] += timedelta(days=7, seconds=1)
+
+    s = f"/v1/sessions/{session_id}"
+    assert client.get(s).status_code == 404
+    assert client.get(f"{s}/next").status_code == 404
+    assert client.get(f"{s}/trace").status_code == 404
+    assert client.put(f"{s}/fields", json={"values": {"age": 32}}).status_code == 404
+    assert client.post(f"{s}/messages", json={"message": "안녕"}).status_code == 404
+    assert client.post(f"{s}/assessment").status_code == 404
+    assert client.post(f"{s}/declined", json={"field": "age"}).status_code == 404
+    assert client.delete(s).status_code == 404
+
+
+def _기록_줄_수(path, session_id: str) -> int:
+    import sqlite3
+
+    db = sqlite3.connect(path)
+    try:
+        sql = "SELECT COUNT(*) FROM events WHERE session_id = ?"
+        return db.execute(sql, (session_id,)).fetchone()[0]
+    finally:
+        db.close()
+
+
+def test_LLM을_기다리는_사이_세션이_지워지면_404이고_기록이_남지_않는다(tmp_path) -> None:
+    """있는지 확인한 뒤 LLM을 부르는 사이 다른 요청이 세션을 지우는 경우. 200으로 답하고
+    세션 없는 기록을 남기면 화면은 저장된 줄 알지만 다음 요청은 404다(2026-10-29 검토)."""
+    path = tmp_path / "sessions.db"
+    store = SessionStore(path)
+
+    class 사이에_지우는_Llm:
+        session_id = ""
+
+        def generate(self, prompt: str) -> str:
+            store.delete(self.session_id)
+            return json.dumps({"age": 29, "_sources": {"age": "만 29세"}}, ensure_ascii=False)
+
+    llm = 사이에_지우는_Llm()
+    client = TestClient(create_app(llm, sessions=store))
+    llm.session_id = _세션(client)
+
+    응답 = client.post(f"/v1/sessions/{llm.session_id}/messages", json={"message": "만 29세"})
+
+    assert 응답.status_code == 404
+    assert 응답.json()["detail"] == "없는 세션입니다"
+    assert _기록_줄_수(path, llm.session_id) == 0
+
+
+def test_서버가_켜져_있는_동안_주기적으로_기간이_지난_세션을_지운다(tmp_path) -> None:
+    """요청이 하나도 없어도 지워져야 한다. 앱 수명(lifespan)이 지우는 일을 띄우고 끈다."""
+    import asyncio
+    from datetime import UTC, datetime, timedelta
+
+    path = tmp_path / "sessions.db"
+    지금 = [datetime(2026, 10, 29, 9, 0, 0, tzinfo=UTC)]
+    store = SessionStore(path, clock=lambda: 지금[0])
+    session_id = store.start()
+    지금[0] += timedelta(days=7, seconds=1)
+    app = create_app(FakeLlm("{}"), sessions=store, sweep_every=timedelta(milliseconds=10))
+
+    async def 켜고_끄기() -> None:
+        # 앱 수명을 이벤트 루프 하나 안에서 직접 돌린다. TestClient로 돌리면 루프가 닫히며
+        # 남은 일을 저절로 취소해, 앱이 스스로 멈추는지 가릴 수 없다.
+        async with app.router.lifespan_context(app):
+            일 = app.state.sweeper
+            assert not 일.done()
+            for _ in range(500):
+                if _기록_줄_수(path, session_id) == 0:
+                    break
+                await asyncio.sleep(0.01)
+            assert _기록_줄_수(path, session_id) == 0
+        assert 일.done(), "앱이 꺼지면 지우는 일도 멈춘다"
+
+    asyncio.run(켜고_끄기())

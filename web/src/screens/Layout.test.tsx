@@ -174,7 +174,7 @@ describe("사이드바 — 전체 초기화와 내 기록 지우기", () => {
     await user.click(screen.getByRole("button", { name: "전체 초기화" }));
     const dialog = screen.getByRole("alertdialog", { name: "처음으로 돌아갈까요?" });
     expect(dialog).toHaveTextContent(
-      "이 화면의 입력과 결과를 지우고 처음으로 돌아갑니다. 서버에 남은 기록은 지워지지 않습니다. 적어 두신 문장도 지워집니다.",
+      "이 화면의 입력과 결과를 지우고 처음으로 돌아갑니다. 서버에 남은 기록은 지금 지우지 않습니다. 마지막으로 쓴 때로부터 7일 뒤 저절로 지워지고, 바로 지우려면 '내 기록 지우기'를 누르세요. 적어 두신 문장도 지워집니다.",
     );
     expect(screen.getByRole("button", { name: "계속하기" })).toHaveFocus();
     await user.click(screen.getByRole("button", { name: "계속하기" }));

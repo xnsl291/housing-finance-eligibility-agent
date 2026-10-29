@@ -10,12 +10,17 @@
  *   PRIVACY_NOTICE(입력 화면) → 가리지 못하는 것과 적지 말 것
  *   DELETE_NOTE·RESET_NOTE → 지우기와 초기화가 하는 일
  * - 주소 공유 주의는 시안 S8(LMNGD)의 문구 그대로
- * - 그 밖의 줄(근거 구절 예시, 읽지 못한 원문, 가리는 모양과 자리, 보관 기간 미정, 지우기의 범위와 한계)은 이 화면이
+ * - 보관 기간 첫 줄은 RETENTION_NOTE(Notice.tsx — 이어서 하기 배너·기록 없음 화면과 같은 말)
+ * - 그 밖의 줄(근거 구절 예시, 읽지 못한 원문, 가리는 모양과 자리, 보관 기간의 뜻, 지우기의 범위와 한계)은 이 화면이
  *   쓴 것이다. 근거:
  *   근거 구절은 세션 값의 phrase(api.py) — 값마다 있지는 않다(직접 넣은 값, 근거를 붙이지 않은 값).
  *   읽지 못한 원문은 추출 기록의 unreadable(session.py record_extraction, #45부터 가린 뒤 저장).
  *   가리는 모양은 extraction.py `_SENSITIVE` 정규식 두 개, 가리는 자리는 record_extraction(근거 구절·읽지 못한 원문에만
- *   scrub, 값은 그대로). 보관 기간은 설계서 13절 Q4 미정 — 서버에 만료 규칙이 없다(지어내지 않음).
+ *   scrub, 값은 그대로). 보관 기간은 session.py RETENTION(7일, 2026-10-29 결정, 설계서 13절 Q4) — 마지막 기록
+ *   시각부터 센다. 기록을 남기는 요청(값 입력·수정, 모른다고 답함, 판정)만 기간을 늘리고 읽기는 늘리지 않는다.
+ *   지난 세션은 곧바로 모든 경로에서 404다. 파일에서는 그 세션을 부른 때, 새 세션을 열 때, 서버가 켜져 있는 동안 한 시간마다
+ *   (SWEEP_EVERY, api.py 앱 수명), 꺼져 있었으면 다음에 켤 때 지운다. Privacy.test.tsx가 서버 상수(7일·1시간)와 지우는
+ *   자리를 읽어 대조한다.
  *   지우기 범위는 기술결정기록 D-39(이 탭에서 연 세션을 모두 지움). 주소로 들어와 연 세션도 Layout이 목록에 넣으므로
  *   새로 고친 뒤에도 그 세션은 지울 수 있고, 새로 고치기 전에 연 다른 세션과 번호를 받지 못한 세션은 지울 수 없다
  *
@@ -26,7 +31,7 @@
 import type { ReactNode } from "react";
 
 import { Icon, type IconName } from "../components/Icon";
-import { DELETE_NOTE, NOTICE } from "../components/Notice";
+import { DELETE_NOTE, NOTICE, RETENTION_NOTE } from "../components/Notice";
 import { usePrivacyPlace } from "../components/Sidebar";
 import screen from "./Screen.module.css";
 import styles from "./Privacy.module.css";
@@ -42,7 +47,22 @@ const [NOT_KEPT, KEPT, MASKED, DELETABLE] = sentences(NOTICE.privacy);
 export const SHARE_WARNING =
   "이 페이지 주소에는 확인 기록을 되찾는 번호가 들어 있습니다. 주소를 다른 사람에게 보내지 마세요 — 받은 사람이 입력하신 값을 그대로 보게 됩니다.";
 
-export const RETENTION_UNDECIDED = "아직 정해지지 않았습니다.";
+/** '쓴 때'가 무엇인지(session.py — 기록을 남기는 요청). 판정 결과 화면은 열 때 다시 판정한다(useResult.ts, 상품이 있을 때) */
+export const RETENTION_WRITES =
+  "'쓴 때'는 문장을 보내거나 값을 넣거나 고친 때, 모른다고 답한 때, 판정한 때입니다. 판정 결과 화면은 열 때 다시 판정하므로, 판정할 상품이 있으면 그때부터 다시 7일입니다.";
+
+/** 읽기는 기간을 늘리지 않는다(session.py — GET은 기록을 남기지 않음). 결과 화면은 열면 다시 판정해 늘 수 있어 두 화면만 말한다 */
+export const RETENTION_READS = "읽은 내용 확인·하나씩 확인 두 화면은 열거나 새로 고치기만 해서는 기간이 늘지 않습니다.";
+
+/**
+ * 파일에서 지우는 때(session.py sweep). 켜져 있으면 SWEEP_EVERY(1시간)마다(api.py 앱 수명), 꺼져 있었으면 다음에 켤 때
+ * 저장소를 열며 지운다. 새 세션을 열 때도 지우지만 그건 더 이를 뿐이라 적지 않는다
+ */
+export const RETENTION_TIMING =
+  "서버가 켜져 있으면 7일이 지난 뒤 한 시간 안에 파일에서도 지워집니다. 서버가 꺼져 있던 동안 7일이 지난 기록은 다음에 켤 때 지웁니다.";
+
+/** '내 기록 지우기'로 못 지우는 기록의 한계 */
+export const UNDELETABLE_BOUND = "이렇게 이 화면에서 지울 수 없게 된 기록도 7일이 지나면 서버에서 저절로 지워집니다.";
 
 /** 서버가 가리는 모양(extraction.py `_SENSITIVE` 정규식 두 개). Privacy.test.tsx가 정규식과 대조한다 */
 export const MASK_SHAPES =
@@ -74,8 +94,11 @@ export function Privacy() {
           <li>{MASK_SHAPES}</li>
           <li>{MASK_SCOPE}</li>
         </Section>
-        <Section icon="timer" title="언제 지워지는가" lead={RETENTION_UNDECIDED}>
-          <li>보관 기간이 정해지면 이 자리에 적겠습니다. 그 전까지 이 도구는 기록을 저절로 지우지 않습니다.</li>
+        <Section icon="timer" title="언제 지워지는가" lead={RETENTION_NOTE}>
+          <li>{RETENTION_WRITES}</li>
+          <li>{RETENTION_READS}</li>
+          <li>{RETENTION_TIMING}</li>
+          <li>7일이 지난 기록의 주소를 열면 '이전 확인 기록을 찾을 수 없습니다'가 뜹니다. 되살릴 수 없습니다.</li>
         </Section>
         <Section icon="eraser" title="지우는 방법" lead={DELETABLE}>
           <li>
@@ -91,6 +114,7 @@ export function Privacy() {
             기록을 여는 요청이 시간 초과로 끊겨 화면이 기록 번호를 받지 못했으면, 서버에 기록이 생겼더라도 이 화면에서는 지울
             수 없습니다.
           </li>
+          <li>{UNDELETABLE_BOUND}</li>
           <li>'전체 초기화'는 지우기와 다릅니다. {NOTICE.reset}</li>
         </Section>
         <Section icon="alertTriangle" title="주소를 다른 사람에게 보내지 마세요" lead={SHARE_WARNING} />
