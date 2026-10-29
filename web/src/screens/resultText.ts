@@ -1,7 +1,7 @@
 /*
  * 판정 결과(S4·S5·S6)에서 쓰는 계산과 문구. 그리지 않는다 — 테스트로 바로 지키려고 화면과 나눴다.
  *
- * 여기서도 판정하지 않는다. 받은 응답을 정렬하고 사람이 읽을 말로 바꾸기만 한다(Streamlit `ui/flow.py`,
+ * 여기서도 판정하지 않는다. 받은 응답을 정렬하고 사람이 읽을 말로 바꾸기만 한다(옛 Streamlit 화면의 `ui/flow.py`,
  * `ui/screens/results.py`와 같은 일). 값을 반올림하거나 없는 값을 채우지 않는다.
  *
  * 이름표는 화면이 만들지 않는다. 항목 이름은 서버 항목 목록(GET /v1/fields)과, 판정 응답이 규칙마다 싣는
@@ -22,7 +22,7 @@ export function sortByVerdict(results: ProgramResult[]): ProgramResult[] {
   return [...results].sort((a, b) => rank(a.status) - rank(b.status));
 }
 
-/** 아직 확인되지 않은 조건 수 = 값 없음 + 기준에 걸침(Streamlit _확인_안_된_조건) */
+/** 아직 확인되지 않은 조건 수 = 값 없음 + 기준에 걸침(옛 Streamlit _확인_안_된_조건) */
 export function unresolvedCount(result: ProgramResult): number {
   return result.missing_fields.length + result.imprecise_fields.length;
 }
@@ -47,7 +47,7 @@ export function fieldLabel(catalog: FieldCatalog | null, field: string): string 
   return catalog?.[field]?.label ?? field;
 }
 
-/** 값 한 개를 사람이 읽을 말로(설계서 S6 — 금액은 억·만, 예/아니오, 선택지는 한국어). Streamlit flow._값_보기. S7 조건 요약도 쓴다 */
+/** 값 한 개를 사람이 읽을 말로(설계서 S6 — 금액은 억·만, 예/아니오, 선택지는 한국어). 옛 Streamlit flow._값_보기. S7 조건 요약도 쓴다 */
 export function valueText(value: FieldValue, info: FieldInfo | undefined): string {
   if (typeof value === "object") return formatRange(value.low, value.high);
   if (typeof value === "boolean") return value ? "예" : "아니오";
@@ -58,7 +58,7 @@ export function valueText(value: FieldValue, info: FieldInfo | undefined): strin
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 
 /**
- * 확인 과정(S6) 줄들. Streamlit flow.trace_lines와 같은 모양.
+ * 확인 과정(S6) 줄들. 옛 Streamlit flow.trace_lines와 같은 모양.
  * 판정에 쓰이지 않는 기록(세션 시작)과 모르는 종류는 줄을 만들지 않는다.
  * 바로 앞 기록도 판정이고 결과가 같으면 '판정함'을 다시 쓰지 않는다. 판정이 시간 초과로 끊겼지만 서버는
  * 마친 뒤 '다시 시도'하면, 같은 값으로 같은 판정이 두 번 기록된다. 사용자가 한 일은 한 번이다

@@ -1,10 +1,10 @@
 /*
  * 고지 한 줄과 개인정보 안내. 시안 B0 묶음 8, 설계서 4절 C-NOTICE·C-COPY.
  *
- * 문구는 서버 쪽 상수(Streamlit 화면)를 글자 그대로 옮긴 것이다. 저장·삭제를 약속하는
+ * 문구는 옛 Streamlit 화면(`ui/`, 지움)의 상수를 글자 그대로 옮긴 것이다. 저장·삭제를 약속하는
  * 문구라 사실과 어긋나면 가장 나쁜 종류의 오류가 된다(G12). 다듬지 말 것.
- * 정본: PRIVACY_NOTICE `ui/screens/input.py`, PRIVACY_NOTE·RESET_NOTE·DELETE_NOTE
- * `ui/screens/sidebar.py`, TRACE_NOTE `ui/app.py`. 저쪽을 고치면 여기도 고친다.
+ * 이제 정본은 이 파일이다. 고칠 때는 서버가 실제로 저장·삭제하는 동작(`session.py`, `api.py`)과
+ * 어긋나지 않는지 본다.
  *
  * 개인정보 안내는 시안의 "지금은 이 기록을 화면에서 지울 수 없습니다"가 아니라 서버의
  * 지금 문구다. 시안 뒤에 서버에 삭제 경로가 생겼다(PR #29).

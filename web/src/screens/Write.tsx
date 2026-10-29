@@ -47,7 +47,7 @@ import styles from "./Write.module.css";
 // 따로 든다. 화면에서 막는 것은 긴 글을 다 쓰고 거절당하지 않게 하려는 것이고, 진짜 상한은 서버가 지킨다
 const MAX_CHARS = 1000;
 
-// 정본: `ui/screens/input.py` EXAMPLES. 주민번호·계좌·주소는 넣지 않는다 — 예시가 곧 입력 요구로 읽힌다
+// 옛 Streamlit 화면(`ui/screens/input.py`)의 EXAMPLES를 옮긴 것, 이제 정본은 여기. 주민번호·계좌·주소는 넣지 않는다 — 예시가 곧 입력 요구로 읽힌다
 export const EXAMPLES = [
   {
     name: "혼자 사는 직장인",

@@ -74,7 +74,7 @@ export function ConfirmForm({ sessionId, catalog, held, warnings, unreadable, of
       problem={e.hasProblem(name)}
       provenance={
         <>
-          {/* 근거 줄 위에 '그대로 쓸 수 없는 원문' 경고(Streamlit confirm.py와 같은 문구). 칸은 빈 채로 둔다 */}
+          {/* 근거 줄 위에 '그대로 쓸 수 없는 원문' 경고(옛 Streamlit confirm.py와 같은 문구). 칸은 빈 채로 둔다 */}
           {warnOf(name) !== undefined && (
             <p className={styles.unreadable}>
               <Icon name="alertTriangle" size={14} />
