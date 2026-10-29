@@ -8,7 +8,7 @@
  * 1. 규칙별 판정 — 불충족·값 없음·걸침은 펼침(급한 것: 왜 안 됐나, 뭘 더 알려 줘야 하나), 모르는 결과 코드도
  *    펼친 쪽에(새 종류가 생긴 것을 숨기지 않으려고). 통과·특례로 대체됨·적용 대상 아님은 접힘(건수는 제목에).
  *    검수 대기는 건수 주의 + 내용 접힘
- * 2. 한도 계산 근거 3. 아직 다루지 않는 조건 4. 출처
+ * 2. 한도 계산 근거 3. 아직 다루지 않는 조건 4. 출처 5. 의견 보내기(S13, ReportLink.tsx — 화면에만)
  *
  * 원문 인용은 서식 없이 원문 그대로(G8) — 글자로만 넣어 `*`·`_`가 서식으로 바뀌지 않고, 줄바꿈도 그대로 둔다.
  * 규칙 머리에는 항목 코드 대신 이름표(결함 D4) — 서버가 규칙마다 준 field_label, 없으면 항목 목록의 이름,
@@ -21,6 +21,7 @@ import type { FieldCatalog, ProgramResult, RuleOutcome } from "../api/types";
 import { formatWon } from "../components/amount";
 import { Icon } from "../components/Icon";
 import { isFinal, limitCaveat, limitReasonText } from "../components/ProductCard";
+import { ReportLink } from "./ReportLink";
 
 import styles from "./RuleDetails.module.css";
 
@@ -83,6 +84,7 @@ export function RuleDetails({ result, catalog, limitNote, unresolved }: RuleDeta
           <li>규칙 버전 {result.rule_version ?? "표시 없음"}</li>
         </ul>
       </section>
+      <ReportLink programName={result.program_name} status={result.status} />
     </div>
   );
 }
