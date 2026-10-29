@@ -15,10 +15,20 @@
  * '자세히'는 그 카드로 스크롤하고, 카드 제목으로 초점을 옮기고, 카드 테두리를 잠깐 강조한다. 초점을 옮겨야 키보드·화면 읽기
  * 프로그램 사용자도 같은 자리에 간다. 강조는 CSS 애니메이션이 끝나면(animationend) 거둔다 — 시간을 재지 않는다.
  * 움직임 줄이기를 켰으면 스크롤도 부드럽게 하지 않는다.
- * 좁은 화면(600px 미만)에서 상품마다 한 줄 카드로 바꾸는 것(11.4)은 다음 작업이다.
+ *
+ * 600px 미만에서는 표 대신 상품마다 한 줄 카드(설계서 S9·11.4, 시안 폭 390 'S4 결과 — 비교표 대신 한 줄 카드'). 다섯 열이
+ * 390px에 들어가지 않아 표를 그대로 두면 가로로 넘친다. 카드도 칸 규칙(한도 '—'·'*'·'계산하지 못함', 표 아래 설명)은 표와 같고,
+ * 카드 전체가 '자세히' 버튼이다(시안에는 버튼이 따로 없음). 남은 확인은 조건 불충족이면 적지 않는다(표의 '—' 대신).
+ *
+ * 표와 카드를 둘 다 그리고 어느 쪽을 보일지는 CSS만으로 정한다(CompareTable.module.css). 카드는 기본으로 숨고, 600px 미만
+ * 화면(`screen and`)에서만 표를 숨기고 카드를 보인다. 그래서 인쇄는 폭과 관계없이 표다 — 폰에서 인쇄해도 표가 찍힌다.
+ * 화면 폭(JS)으로 하나만 그리면 폰에서 인쇄할 때 카드가 찍히는데, 카드는 <button>이라 인쇄 CSS(base.css)가 버튼을 모두 숨겨
+ * 비교가 통째로 빠진다. 인쇄 직전에 다시 그려 표로 바꾸는 것도 브라우저가 기다려 주지 않아 믿을 수 없다.
+ * 숨긴 쪽은 display:none이라 화면 읽기 프로그램도 읽지 않는다 — 같은 내용을 두 번 읽지 않는다.
  */
 import type { ProgramResult } from "../api/types";
 import { formatWon } from "../components/amount";
+import { Icon } from "../components/Icon";
 import { isFinal } from "../components/ProductCard";
 import { VerdictBadge } from "../components/VerdictBadge";
 import { sortByVerdict, unresolvedCount } from "./resultText";
@@ -46,8 +56,9 @@ export function CompareTable({ results }: { results: ProgramResult[] }) {
   const starred = rows.filter((r) => limitCell(r).star);
   const note = starred.length === 0 ? null : starred.every((r) => unresolvedCount(r) > 0) ? STAR_NOTE : STAR_NOTE_WIDE;
 
+  // 구역(section)에는 이름을 붙이지 않는다. 표(caption)와 카드 목록(aria-labelledby)이 같은 이름을 갖고 있어 두 번 읽힌다
   return (
-    <section className={styles.wrap} aria-labelledby="s9-caption">
+    <section className={styles.wrap}>
       <table className={styles.table} aria-describedby={note ? "s9-note" : undefined}>
         <caption id="s9-caption" className={styles.caption}>
           상품 {rows.length}개를 한눈에
@@ -104,12 +115,54 @@ export function CompareTable({ results }: { results: ProgramResult[] }) {
           })}
         </tbody>
       </table>
+      <CompareCards rows={rows} note={note} />
       {note && (
         <p id="s9-note" className={styles.note}>
           {note}
         </p>
       )}
     </section>
+  );
+}
+
+/** 600px 미만에서 표 대신 보이는 한 줄 카드 묶음(머리말). 위 줄 상품·판정, 아래 줄 예상 한도·남은 확인(시안 폭 390) */
+function CompareCards({ rows, note }: { rows: ProgramResult[]; note: string | null }) {
+  return (
+    <div className={styles.cardList}>
+      <p id="s9-cards-caption" className={styles.caption}>
+        상품 {rows.length}개를 한눈에
+      </p>
+      <ul className={styles.cards} aria-labelledby="s9-cards-caption" aria-describedby={note ? "s9-note" : undefined}>
+        {rows.map((r) => {
+          const limit = limitCell(r);
+          return (
+            <li key={r.program_id}>
+              <button type="button" className={styles.card} onClick={() => showCard(r.program_id)}>
+                <span className={styles.cardTop}>
+                  <span className={styles.name}>{r.program_name}</span>
+                  <VerdictBadge status={r.status} />
+                </span>
+                <span className={styles.cardBottom}>
+                  <span className={`${styles.cardLimit} num`}>
+                    {/* 이름표를 눈에도 보인다. 조건 불충족이면 금액 자리가 '—'뿐이라 이름표가 없으면 무엇이 없는지 알 수 없다 */}
+                    <span className={styles.cardLabel}>예상 한도 </span>
+                    {limit.text}
+                    {limit.star && (
+                      <>
+                        <span aria-hidden="true"> *</span>
+                        <span className="sr-only"> (달라질 수 있음 — 목록 아래 설명)</span>
+                      </>
+                    )}
+                  </span>
+                  {r.status !== "NOT_MATCHED" && <span className={styles.cardLeft}>남은 확인 {unresolvedCount(r)}개</span>}
+                  <Icon name="chevronRight" size={16} />
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 
