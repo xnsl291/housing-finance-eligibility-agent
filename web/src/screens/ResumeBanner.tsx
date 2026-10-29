@@ -11,6 +11,7 @@
  *   (S4 멈춘 이유를 제목 아래로 내린 것과 같은 원칙). 시안은 제목 위다
  * - '새로 시작'은 '처음부터 다시'와 같은 확인 창 규칙(설계서 M1, StartOver.tsx)
  * - 시안 본문의 '3개를 확인한 곳부터'는 쓰지 않는다. 확인 수는 앱 메모리라 새로 고치면 모른다(AppState.tsx)
+ * - 보관 기간(RETENTION_NOTE, 서버 7일)을 한 줄 덧붙인다 — 이어 갈 기록이 언제까지 남는지는 이어 가는 자리에서 알아야 한다
  * - 시안의 주소 공유 주의(이 주소를 남에게 보내지 마세요)는 S11 개인정보 안내 몫이라 여기 두지 않는다
  * - 화면이 closed를 켜면 닫고 다시 열지 않는다. S4는 고친 값을 저장하면 켠다 — 이미 이어서 작업하는 중이라
  *   '이전에 하던 확인을 이어서 보여 드립니다'가 지난 말이 되고, 제목과 바뀐 곳 안내 사이를 가로막는다
@@ -18,6 +19,7 @@
 import { useId, useState } from "react";
 
 import { Icon } from "../components/Icon";
+import { RETENTION_NOTE } from "../components/Notice";
 import { useAppState } from "./AppState";
 import { StartOver } from "./StartOver";
 import styles from "./ResumeBanner.module.css";
@@ -49,6 +51,7 @@ export function ResumeBanner({ sessionId, dirty, closed = false, lockedReason }:
         <p className={styles.body}>
           서버에 남아 있는 값으로 이어 갑니다. 처음부터 다시 하시려면 ‘새로 시작’을 눌러 주세요.
         </p>
+        <p className={styles.body}>{RETENTION_NOTE}</p>
       </div>
       <StartOver sessionId={sessionId} dirty={dirty} label="새로 시작" variant="secondary" lockedReason={lockedReason} />
     </section>

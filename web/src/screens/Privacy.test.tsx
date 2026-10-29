@@ -1,16 +1,26 @@
 /*
- * S11 개인정보·이용 안내 — 고지 문구(components/Notice.tsx)와 같은 말을 하는 줄은 그 문장 그대로, 보존 기간은 미정, 주소 공유 주의,
+ * S11 개인정보·이용 안내 — 고지 문구(components/Notice.tsx)와 같은 말을 하는 줄은 그 문장 그대로, 보관 기간은 서버 상수(7일)와 대조, 주소 공유 주의,
  * 첫 화면(S0)·사이드바에서 들어오는 링크.
  * 고지 문구의 정본은 Notice.tsx다(옛 Streamlit 화면을 지우면서 서버 쪽 상수와의 대조는 없어졌다). 서버 파일에서
- * 읽어 대조하는 것은 가리는 정규식(extraction.py)과 가리는 자리(session.py)뿐이다.
+ * 읽어 대조하는 것은 가리는 정규식(extraction.py)과 가리는 자리·보관 기간(session.py)이다.
  */
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import extractionPy from "../../../src/housing_finance_agent/extraction.py?raw";
+import apiPy from "../../../src/housing_finance_agent/api.py?raw";
 import sessionPy from "../../../src/housing_finance_agent/session.py?raw";
 
-import { DELETE_NOTE, NOTICE } from "../components/Notice";
-import { MASK_SCOPE, MASK_SHAPES, RETENTION_UNDECIDED, SHARE_WARNING, sentences } from "./Privacy";
+import { DELETE_NOTE, NOTICE, RETENTION_NOTE } from "../components/Notice";
+import {
+  MASK_SCOPE,
+  MASK_SHAPES,
+  RETENTION_READS,
+  RETENTION_TIMING,
+  RETENTION_WRITES,
+  SHARE_WARNING,
+  UNDELETABLE_BOUND,
+  sentences,
+} from "./Privacy";
 import { fakeServer, renderApp } from "./testing";
 
 afterEach(() => vi.restoreAllMocks());
@@ -102,11 +112,50 @@ describe("S11 개인정보·이용 안내", () => {
     }
   });
 
-  it("보존 기간은 '아직 정해지지 않았습니다'(Q4) — 날짜나 기간을 지어 넣지 않는다", () => {
+  it("보관 기간은 서버 상수(session.py RETENTION)와 같은 7일이고, 쓰기만 기간을 늘린다고 적는다", () => {
+    // 서버 기간이 바뀌면 이 줄이 깨져 문구를 다시 보게 한다
+    expect(sessionPy).toMatch(/^RETENTION = timedelta\(days=7\)\r?$/m);
+    // 서버가 기간을 세는 기준: 마지막 기록 시각(없으면 연 시각)
+    expect(sessionPy).toMatch(/_LAST_USED = "COALESCE\(\(SELECT MAX\(at\) FROM events/);
     openPage();
     const when = section("언제 지워지는가");
-    expect(within(when).getAllByRole("listitem")[0].textContent).toBe(RETENTION_UNDECIDED);
-    expect(when.textContent).not.toMatch(/\d+\s*(일|개월|년|시간)/);
+    const lines = within(when).getAllByRole("listitem").map((li) => li.textContent);
+    expect(lines[0]).toBe(RETENTION_NOTE);
+    expect(lines).toContain(RETENTION_WRITES);
+    expect(lines).toContain(RETENTION_READS);
+    expect(lines).toContain(RETENTION_TIMING);
+    // 기간을 말하는 숫자는 7일뿐이다
+    const periods = [...(when.textContent ?? "").matchAll(/\d+\s*(일|개월|년|시간)/g)].map((m) => m[0]);
+    expect(new Set(periods)).toEqual(new Set(["7일"]));
+    expect(when.textContent).not.toMatch(/정해지지 않|저절로 지우지 않/);
+  });
+
+  it("파일에서 지우는 때는 서버가 실제로 지우는 때와 같다 — 켜져 있으면 한 시간마다, 꺼져 있었으면 켤 때", () => {
+    // 한 시간마다: SWEEP_EVERY 상수와 앱 수명이 그 간격으로 sweep을 부르는 줄
+    expect(sessionPy).toMatch(/^SWEEP_EVERY = timedelta\(hours=1\)\r?$/m);
+    expect(apiPy).toMatch(/sweep_every: timedelta = SWEEP_EVERY/);
+    expect(apiPy).toMatch(/await asyncio\.sleep\(sweep_every\.total_seconds\(\)\)/);
+    expect(apiPy).toMatch(/await asyncio\.to_thread\(store\.sweep\)/);
+    // 켤 때: 저장소를 열면(서버를 켜면) 곧바로 sweep
+    expect(sessionPy).toMatch(/self\._db\.commit\(\)\r?\n\s+self\.sweep\(\)/);
+    expect(RETENTION_TIMING).toContain("한 시간 안에");
+    expect(RETENTION_TIMING).toContain("다음에 켤 때");
+    // 열 수 없게 되는 것은 곧바로다(exists가 기간을 본다) — 첫 줄이 그 말을 한다
+    expect(RETENTION_NOTE).toContain("열 수 없게 되고");
+  });
+
+  it("'쓴 때'에 문장 보내기가 들어간다 — 읽어 낸 값이 없어도 문장을 보내면 기록이 남는다(record_extraction)", () => {
+    expect(RETENTION_WRITES).toMatch(/^'쓴 때'는 문장을 보내거나 값을 넣거나 고친 때/);
+    // 다시 판정해 기간이 느는 결과 화면과 어긋나지 않게, 읽기는 두 화면으로만 말한다
+    expect(RETENTION_READS).toContain("읽은 내용 확인·하나씩 확인 두 화면은");
+    expect(RETENTION_READS).not.toMatch(/판정 결과/);
+  });
+
+  it("사이드바 개인정보 안내와 전체 초기화 안내도 7일을 말한다 — '지워지지 않습니다'로 영영 남는 것처럼 읽히지 않게", () => {
+    expect(sentences(PRIVACY_NOTE)[3]).toContain("7일이 지나면 저절로 지워집니다");
+    expect(RESET_NOTE).toContain("지금 지우지 않습니다");
+    expect(RESET_NOTE).toContain("7일 뒤 저절로 지워지고");
+    expect(RESET_NOTE).not.toContain("지워지지 않습니다");
   });
 
   it("지우는 방법은 이 탭에서 연 기록을 모두 지운다는 것과 새로 고친 뒤의 한계를 말하고, DELETE_NOTE·RESET_NOTE를 그대로 쓴다", () => {
@@ -120,6 +169,8 @@ describe("S11 개인정보·이용 안내", () => {
     expect(how.textContent).not.toContain("그 주소의 기록만 지웁니다");
     // D-39의 남은 빈틈 — 번호를 받지 못한 기록
     expect(how).toHaveTextContent("시간 초과로 끊겨 화면이 기록 번호를 받지 못했으면");
+    // 그 빈틈도 서버 보관 기간(7일)으로 끝이 있다
+    expect(within(how).getAllByRole("listitem").map((li) => li.textContent)).toContain(UNDELETABLE_BOUND);
     expect(how.textContent).toContain(DELETE_NOTE);
     expect(how.textContent).toContain(RESET_NOTE);
     // 가리키는 버튼과 제목이 실제로 사이드바에 있다

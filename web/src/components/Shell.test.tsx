@@ -83,6 +83,6 @@ describe("사이드바", () => {
     await user.click(button);
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     // 개인정보 안내 문구는 그대로 둔다
-    expect(screen.getByText(/'내 기록 지우기'로 서버에서 지울 수 있습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/'내 기록 지우기'로 서버에서 지울 수 있고, 마지막으로 쓴 때로부터 7일이 지나면 저절로 지워집니다/)).toBeInTheDocument();
   });
 });

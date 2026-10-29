@@ -5,6 +5,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { RETENTION_NOTE } from "../components/Notice";
 import { ask, CHOICE_Q, NEXT, open, server } from "./questionsTesting";
 import * as resultTesting from "./resultTesting";
 import { fakeServer, json, renderApp } from "./testing";
@@ -22,6 +23,8 @@ describe("S8 배너 — 보일 때", () => {
     await open();
     const b = banner()!;
     expect(b).toHaveTextContent("서버에 남아 있는 값으로 이어 갑니다. 처음부터 다시 하시려면 ‘새로 시작’을 눌러 주세요.");
+    // 이어 갈 기록이 언제까지 남는지(서버 7일, Privacy.test.tsx가 서버 상수와 대조)
+    expect(b).toHaveTextContent(RETENTION_NOTE);
     expect(within(b).getByRole("button", { name: "새로 시작" })).toBeInTheDocument();
     // 제목 아래 — 화면이 바뀌면 초점이 h1로 가므로 위에 두면 건너뛴다
     const h1 = screen.getByRole("heading", { level: 1 });
@@ -78,7 +81,7 @@ describe("S8 새로 시작", () => {
     await open();
     await user.click(within(banner()!).getByRole("button", { name: "새로 시작" }));
     const dialog = screen.getByRole("alertdialog", { name: "처음부터 다시 할까요?" });
-    expect(dialog).toHaveTextContent("서버에 남은 기록은 지워지지 않으며, ‘내 기록 지우기’로 지울 수 있습니다.");
+    expect(dialog).toHaveTextContent("서버에 남은 기록은 지금 지우지 않으며, 마지막으로 쓴 때로부터 7일 뒤 저절로 지워집니다. 바로 지우려면 ‘내 기록 지우기’를 누르세요.");
     await user.click(within(dialog).getByRole("button", { name: "처음부터" }));
     expect(screen.getByTestId("location")).toHaveTextContent("/write");
   });

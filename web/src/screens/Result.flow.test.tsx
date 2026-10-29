@@ -46,7 +46,7 @@ describe("처음부터 다시 (M1) — S3와 같은 확인 창", () => {
     await user.click(within(actions()).getByRole("button", { name: "처음부터 다시" }));
     const dialog = screen.getByRole("alertdialog", { name: "처음부터 다시 할까요?" });
     expect(dialog).toHaveTextContent(
-      "처음부터 다시 시작합니다. 지금까지 고치고 답한 값은 새 판정에 쓰지 않습니다. 서버에 남은 기록은 지워지지 않으며, ‘내 기록 지우기’로 지울 수 있습니다.",
+      "처음부터 다시 시작합니다. 지금까지 고치고 답한 값은 새 판정에 쓰지 않습니다. 서버에 남은 기록은 지금 지우지 않으며, 마지막으로 쓴 때로부터 7일 뒤 저절로 지워집니다. 바로 지우려면 ‘내 기록 지우기’를 누르세요.",
     );
     expect(dialog).not.toHaveTextContent("사라집니다");
     expect(location()).toHaveTextContent(PATH);
