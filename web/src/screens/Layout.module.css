@@ -46,6 +46,30 @@
   }
 }
 
+/* 600~1,023px(설계서 11.4, 시안 폭 900): 사이드바가 머리 메뉴로 들어가 본문이 한 단으로 화면을 다 쓴다. 바깥 여백 28px */
+@media screen and (max-width: 1023px) {
+  .main {
+    padding: 28px 28px 40px;
+  }
+
+  .inner,
+  .page {
+    gap: 32px;
+  }
+}
+
+/* 600px 미만(시안 폭 390): 바깥 여백 20px, 묶음 사이도 줄인다 */
+@media screen and (max-width: 599px) {
+  .main {
+    padding: 20px 20px 32px;
+  }
+
+  .inner,
+  .page {
+    gap: 24px;
+  }
+}
+
 /* 인쇄(S12): 사이드바가 빠진 자리까지 본문이 쓰고, 크림 바탕과 바깥 여백을 뺀다 */
 @media print {
   .app {
@@ -72,4 +96,15 @@
     -webkit-box-decoration-break: clone;
     box-decoration-break: clone;
   }
+}
+
+/* '내 기록 지우기' 실패 문구. 확인 창(흰 바탕) 안의 오류색 문구 */
+.fail {
+  margin: 8px 0 0;
+  color: var(--err-fg);
+  font-weight: 600;
+}
+
+.fail:empty {
+  margin: 0;
 }

@@ -154,7 +154,7 @@ export function ComponentGallery() {
           apiBase="http://127.0.0.1:8000"
           connected
           onReset={() => {}}
-          onDeleteRecords={() => wait(1000)}
+          onDeleteRecords={() => {}}
         />
       </Group>
 

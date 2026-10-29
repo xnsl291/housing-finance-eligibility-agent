@@ -152,17 +152,6 @@
   outline-color: var(--surface);
 }
 
-/* '내 기록 지우기' 실패 문구. 확인 창(흰 바탕) 안에 그려지므로 사이드바 회색이 아니라 오류색 */
-.fail {
-  margin: 8px 0 0;
-  color: var(--err-fg);
-  font-weight: 600;
-}
-
-.fail:empty {
-  margin: 0;
-}
-
 /* 개인정보 안내 아래 S11 링크. 시안 jJwW4 사이드바 '개인정보·이용 안내 자세히' */
 .more {
   align-self: flex-start;
@@ -170,4 +159,19 @@
   font-weight: 700;
   color: var(--line);
   text-decoration: underline;
+}
+
+/* 좁은 화면에서는 사이드바가 머리 메뉴 안에 들어가 손가락으로 누른다. 누르는 자리를 44px 이상으로(설계서 11.3에 값이 없어
+   WCAG 2.5.5 값). 넓은 화면의 사이드바 모양은 그대로 둔다 */
+@media screen and (max-width: 1023px) {
+  .outline {
+    min-height: 44px;
+  }
+
+  .dev summary,
+  .more {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
 }

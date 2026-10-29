@@ -28,8 +28,9 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test-setup.ts"],
-    // vitest는 기본으로 CSS를 빈 글로 바꾼다(?raw 포함). 색 대비 테스트(styles/tokens.test.ts)가
-    // tokens.css 글을 읽어야 해서 이 파일만 그대로 둔다
-    css: { include: [/tokens\.css/] },
+    // vitest는 기본으로 CSS를 빈 글로 바꾼다(?raw 포함). 아래 파일은 테스트가 규칙 글을 읽어야 해서 그대로 둔다
+    // - tokens.css: 색 대비(styles/tokens.test.ts)
+    // - HeaderMenu.module.css: 좁은 화면에서 메뉴 버튼 글을 숨기지 않는지(screens/Layout.narrow.test.tsx)
+    css: { include: [/tokens\.css/, /HeaderMenu\.module\.css/] },
   },
 });

@@ -107,9 +107,43 @@
   background: var(--ink);
 }
 
-@media (max-width: 599px) {
+/* 600~1,023px(시안 폭 900): 제목 줄에 머리 메뉴가 붙는다. 제목이 길면 줄을 바꾼다 */
+@media screen and (max-width: 1023px) {
   .header {
-    padding: 16px;
+    gap: 12px;
+    padding-bottom: 18px;
+  }
+
+  .title {
+    flex: 1;
+    min-width: 0;
+    font-size: 17px;
+  }
+
+  .steps {
+    gap: 6px;
+    padding: 0;
+  }
+
+  .stepItem {
+    gap: 6px;
+  }
+}
+
+/* 600px 미만(시안 폭 390): 네 칸을 가로로 늘어놓으면 글자가 잘려 'N / 4 단계 + 막대'로 */
+@media screen and (max-width: 599px) {
+  .header {
+    gap: 10px;
+    padding-bottom: 14px;
+  }
+
+  .titleRow {
+    gap: 10px;
+  }
+
+  .title {
+    font-size: 14px;
+    line-height: 20px;
   }
 
   .steps {

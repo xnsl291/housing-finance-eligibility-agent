@@ -126,15 +126,69 @@ describe("사이드바 — 전체 초기화와 내 기록 지우기", () => {
     expect(screen.getByRole("textbox", { name: "상황을 자유롭게 적어 주세요" })).toHaveValue("");
   });
 
-  it("지우기가 실패하면 첫 화면으로 가지 않고 창 안에 다시 누르라고 알린다", async () => {
+  it("지우기가 실패하면 첫 화면으로 가지 않고 창 안에 다시 누르라고 알린다. 다시 눌러 성공하면 닫히고, 다시 열면 지난 문구가 없다", async () => {
     const user = userEvent.setup();
-    fakeServer({ "DELETE /v1/sessions/s-7": () => json({ detail: "고장" }, 500) }, { emptySession: true });
+    let fail = true;
+    fakeServer(
+      {
+        "DELETE /v1/sessions/s-7": () => (fail ? json({ detail: "고장" }, 500) : json({ session_id: "s-7", deleted: true })),
+      },
+      { emptySession: true },
+    );
     renderApp("/s/s-7/confirm");
     await user.click(screen.getByRole("button", { name: "내 기록 지우기" }));
     await user.click(screen.getByRole("button", { name: "지우기" }));
 
-    expect(await screen.findByText("지우지 못했습니다. 잠시 뒤 다시 눌러 주세요")).toBeInTheDocument();
+    const dialog = await screen.findByRole("alertdialog", { name: "내 기록을 지울까요?" });
+    await vi.waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("지우지 못했습니다. 잠시 뒤 다시 눌러 주세요"));
     expect(screen.getByTestId("location")).toHaveTextContent("/s/s-7/confirm");
+
+    // 취소로 닫았다가 다시 열면 지난 실패 문구가 남아 있지 않다
+    await user.click(screen.getByRole("button", { name: "취소" }));
+    await user.click(screen.getByRole("button", { name: "내 기록 지우기" }));
+    expect(within(screen.getByRole("alertdialog")).getByRole("alert")).toHaveTextContent("");
+
+    fail = false;
+    await user.click(screen.getByRole("button", { name: "지우기" }));
+    // 주소 이동은 창 닫기보다 늦게 그려질 수 있어(라우터가 transition으로 옮김) 주소를 기다린다
+    await vi.waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("내 기록 지우기는 확인 창을 거치고, 취소하면 지우지 않는다. 기본 초점은 취소", async () => {
+    const user = userEvent.setup();
+    const server = fakeServer({}, { emptySession: true });
+    renderApp("/s/s-7/confirm");
+    await user.click(screen.getByRole("button", { name: "내 기록 지우기" }));
+    expect(screen.getByRole("button", { name: "취소" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "취소" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(callsTo(server, "DELETE /v1/sessions/s-7")).toHaveLength(0);
+  });
+
+  it("전체 초기화 확인 창: 본문은 RESET_NOTE에 적은 문장도 지워진다는 말을 더하고, 기본 초점은 계속하기, 계속하기면 그대로 둔다", async () => {
+    const user = userEvent.setup();
+    fakeServer();
+    renderApp("/write");
+    await user.type(screen.getByRole("textbox", { name: "상황을 자유롭게 적어 주세요" }), SENTENCE);
+    await user.click(screen.getByRole("button", { name: "전체 초기화" }));
+    const dialog = screen.getByRole("alertdialog", { name: "처음으로 돌아갈까요?" });
+    expect(dialog).toHaveTextContent(
+      "이 화면의 입력과 결과를 지우고 처음으로 돌아갑니다. 서버에 남은 기록은 지워지지 않습니다. 적어 두신 문장도 지워집니다.",
+    );
+    expect(screen.getByRole("button", { name: "계속하기" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "계속하기" }));
+    expect(screen.getByTestId("location")).toHaveTextContent("/write");
+    expect(screen.getByRole("textbox", { name: "상황을 자유롭게 적어 주세요" })).toHaveValue(SENTENCE);
+  });
+
+  it("전체 초기화는 지울 것이 없으면 묻지 않고 바로 처음으로 간다", async () => {
+    const user = userEvent.setup();
+    fakeServer();
+    renderApp("/write");
+    await user.click(screen.getByRole("button", { name: "전체 초기화" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/);
   });
 });
 

@@ -27,6 +27,7 @@ import type { ReactNode } from "react";
 
 import { Icon, type IconName } from "../components/Icon";
 import { DELETE_NOTE, NOTICE } from "../components/Notice";
+import { usePrivacyPlace } from "../components/Sidebar";
 import screen from "./Screen.module.css";
 import styles from "./Privacy.module.css";
 
@@ -51,6 +52,7 @@ export const MASK_SHAPES =
 export const MASK_SCOPE = "가리는 자리는 문장에서 가져온 조각(근거 구절, 값으로 바꾸지 못한 원문)과 글로 적는 칸(시·군·구 이름)의 값입니다. 숫자·선택·날짜 칸은 정해진 모양만 받아 이런 번호가 들어가지 않습니다.";
 
 export function Privacy() {
+  const privacyPlace = usePrivacyPlace();
   return (
     <>
       <section className={screen.heading}>
@@ -77,7 +79,7 @@ export function Privacy() {
         </Section>
         <Section icon="eraser" title="지우는 방법" lead={DELETABLE}>
           <li>
-            '내 기록 지우기'는 왼쪽 '개인정보 안내' 아래에 있습니다. 누르면 확인 창이 뜨고, 지우면 이 탭에서 연 확인 기록을
+            '내 기록 지우기'는 {privacyPlace} 아래에 있습니다. 누르면 확인 창이 뜨고, 지우면 이 탭에서 연 확인 기록을
             모두 서버에서 지웁니다. {DELETE_NOTE}
           </li>
           <li>
