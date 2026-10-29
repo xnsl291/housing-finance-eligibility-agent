@@ -19,7 +19,7 @@ import { Icon } from "./Icon";
 import { Notice } from "./Notice";
 import styles from "./AppHeader.module.css";
 
-/** 서버 쪽 화면의 STEPS(`ui/app.py`)와 같은 순서·이름 */
+/** 옛 Streamlit 화면(지움)의 STEPS와 같은 순서·이름 */
 const STEPS = ["조건 입력", "읽은 내용 확인", "하나씩 확인", "판정 결과"] as const;
 
 export type Step = 0 | 1 | 2 | 3;

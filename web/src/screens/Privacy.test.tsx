@@ -1,32 +1,23 @@
 /*
- * S11 개인정보·이용 안내 — 서버 상수와 같은 말을 하는 줄은 상수 문장 그대로, 보존 기간은 미정, 주소 공유 주의,
+ * S11 개인정보·이용 안내 — 고지 문구(components/Notice.tsx)와 같은 말을 하는 줄은 그 문장 그대로, 보존 기간은 미정, 주소 공유 주의,
  * 첫 화면(S0)·사이드바에서 들어오는 링크.
- * 상수는 서버 파이썬 파일에서 직접 읽어 대조한다(Feedback.test.tsx와 같은 방식). 화면 쪽 사본(NOTICE)만 보면
- * 사본과 이 화면이 함께 틀려도 통과한다.
+ * 고지 문구의 정본은 Notice.tsx다(옛 Streamlit 화면을 지우면서 서버 쪽 상수와의 대조는 없어졌다). 서버 파일에서
+ * 읽어 대조하는 것은 가리는 정규식(extraction.py)과 가리는 자리(session.py)뿐이다.
  */
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import inputPy from "../../../src/housing_finance_agent/ui/screens/input.py?raw";
-import sidebarPy from "../../../src/housing_finance_agent/ui/screens/sidebar.py?raw";
 import extractionPy from "../../../src/housing_finance_agent/extraction.py?raw";
 import sessionPy from "../../../src/housing_finance_agent/session.py?raw";
 
+import { DELETE_NOTE, NOTICE } from "../components/Notice";
 import { MASK_SCOPE, MASK_SHAPES, RETENTION_UNDECIDED, SHARE_WARNING, sentences } from "./Privacy";
 import { fakeServer, renderApp } from "./testing";
 
 afterEach(() => vi.restoreAllMocks());
 
-/** 파이썬 상수 하나(한 줄 또는 괄호로 이은 여러 줄)를 글로 */
-function pyConstant(src: string, name: string): string {
-  const m = new RegExp(String.raw`^${name} = (\([\s\S]*?\r?\n\)|"[^\r\n]*")`, "m").exec(src);
-  if (!m) throw new Error(`${name}이 없음`);
-  return [...m[1].matchAll(/"([^"]*)"/g)].map((x) => x[1]).join("");
-}
-
-const PRIVACY_NOTE = pyConstant(sidebarPy, "PRIVACY_NOTE");
-const PRIVACY_NOTICE = pyConstant(inputPy, "PRIVACY_NOTICE");
-const DELETE_NOTE = pyConstant(sidebarPy, "DELETE_NOTE");
-const RESET_NOTE = pyConstant(sidebarPy, "RESET_NOTE");
+const PRIVACY_NOTE = NOTICE.privacy;
+const PRIVACY_NOTICE = NOTICE.input;
+const RESET_NOTE = NOTICE.reset;
 
 function openPage() {
   fakeServer();
@@ -43,7 +34,7 @@ describe("S11 개인정보·이용 안내", () => {
     expect(sentences(PRIVACY_NOTICE).join(" ")).toBe(PRIVACY_NOTICE);
   });
 
-  it("남지 않는 것·남는 것·가리는 것·지우는 방법의 첫 줄은 서버 PRIVACY_NOTE의 문장 그대로", () => {
+  it("남지 않는 것·남는 것·가리는 것·지우는 방법의 첫 줄은 PRIVACY_NOTE의 문장 그대로", () => {
     openPage();
     const [notKept, kept, masked, deletable] = sentences(PRIVACY_NOTE);
     expect(within(section("무엇이 남지 않는가")).getAllByRole("listitem")[0].textContent).toBe(notKept);
@@ -75,7 +66,7 @@ describe("S11 개인정보·이용 안내", () => {
     expect(sessionPy).toMatch(/"unreadable": \{\s*name: scrub\(str\(text\)\)/);
   });
 
-  it("가리지 못하는 것은 서버 PRIVACY_NOTICE의 문장 그대로 — 주소는 가리지 못한다는 뜻이 남는다(D8)", () => {
+  it("가리지 못하는 것은 PRIVACY_NOTICE의 문장 그대로 — 주소는 가리지 못한다는 뜻이 남는다(D8)", () => {
     openPage();
     const notice = sentences(PRIVACY_NOTICE);
     const lines = within(section("가리는 것과 가리지 못하는 것"))
@@ -118,7 +109,7 @@ describe("S11 개인정보·이용 안내", () => {
     expect(when.textContent).not.toMatch(/\d+\s*(일|개월|년|시간)/);
   });
 
-  it("지우는 방법은 이 탭에서 연 기록을 모두 지운다는 것과 새로 고친 뒤의 한계를 말하고, 서버 DELETE_NOTE·RESET_NOTE를 그대로 쓴다", () => {
+  it("지우는 방법은 이 탭에서 연 기록을 모두 지운다는 것과 새로 고친 뒤의 한계를 말하고, DELETE_NOTE·RESET_NOTE를 그대로 쓴다", () => {
     openPage();
     const how = section("지우는 방법");
     expect(how).toHaveTextContent("이 탭에서 연 확인 기록을 모두 서버에서 지웁니다");

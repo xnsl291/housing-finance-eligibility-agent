@@ -1,7 +1,7 @@
 /*
  * S2 읽은 내용 확인의 계산. 화면을 그리지 않는 조각만 모아 따로 시험한다.
  *
- * 정본은 Streamlit 화면의 `ui/flow.py` confirm_updates와 `ui/screens/confirm.py`의 근거 문구다.
+ * 옛 Streamlit 화면(지움)의 `ui/flow.py` confirm_updates와 `ui/screens/confirm.py`의 근거 문구를 옮긴 것이다.
  * - 바뀐 값만 보낸다. 그대로 둔 값을 다시 보내면 서버 기록에서 그 값의 출처가 '문장에서 읽음'에서
  *   '직접 넣음'으로 바뀌어, 결과 화면의 확인 과정(S6)이 사실과 달라진다(설계서 S2)
  * - 비운 값은 null로 보낸다. 서버는 null을 "지움 → 모름"으로 받는다(`session.py` replay)

@@ -102,7 +102,7 @@ export const api = {
   decline: (id: string, field: string) =>
     call<{ session_id: string; declined: string[] }>("POST", `${s(id)}/declined`, { field }),
   /**
-   * 판정. programIds를 주면 그 상품만(본문에 id 목록을 그대로 — api.py assess_session, Streamlit api_client와 같은 모양).
+   * 판정. programIds를 주면 그 상품만(본문에 id 목록을 그대로 — api.py assess_session, 옛 Streamlit api_client와 같은 모양).
    * 결과 화면은 next가 준 후보만 보낸다. 빈 목록은 서버가 '전부'로 읽으므로 본문에 싣지 않는다 —
    * 후보가 하나도 없을 때는 이 함수를 부르지 말 것(useResult.ts)
    */

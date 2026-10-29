@@ -1,5 +1,5 @@
 /*
- * S5 판정 근거 상세(카드 안 펼침). 설계서 6절 S5, 8.2, 시안 S4-a·S4-i·S4-l. Streamlit results.render_detail과 같은 순서.
+ * S5 판정 근거 상세(카드 안 펼침). 설계서 6절 S5, 8.2, 시안 S4-a·S4-i·S4-l. 옛 Streamlit results.render_detail과 같은 순서.
  *
  * 이 도구의 주장("모든 조건에 출처가 붙는다")을 증명하는 자리다(G9). 그래서 판정에 쓰이지 않은 규칙,
  * 아직 다루지 않는 조건, 검수 대기 건수까지 드러낸다. 접어 둘 수는 있어도 건수는 늘 보인다.
@@ -24,7 +24,7 @@ import { isFinal, limitCaveat, limitReasonText } from "../components/ProductCard
 
 import styles from "./RuleDetails.module.css";
 
-/** 설계서 8.2 규칙 결과 이름. 모르는 코드는 코드 그대로(Streamlit labels.outcome_label) */
+/** 설계서 8.2 규칙 결과 이름. 모르는 코드는 코드 그대로(옛 Streamlit labels.outcome_label) */
 const OUTCOME_LABEL: Record<string, string> = {
   FAILED: "불충족",
   MISSING_VALUE: "값 없음",
@@ -172,7 +172,7 @@ function Quote({ text }: { text: string | null }) {
 
 /**
  * 한도 계산 근거. 카드에만 단서를 달면 상세를 펼친 사람에게는 금액이 다시 확정처럼 보인다 — 같은 금액을
- * 두 번 보여 주므로 단서도 두 곳에 있어야 한다(Streamlit _한도_근거)
+ * 두 번 보여 주므로 단서도 두 곳에 있어야 한다(옛 Streamlit _한도_근거)
  */
 function LimitBasis({ result, note, final, unresolved }: { result: ProgramResult; note: string; final: boolean; unresolved: number }) {
   const limit = result.loan_limit;

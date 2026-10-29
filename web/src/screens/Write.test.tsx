@@ -1,9 +1,6 @@
 import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-// 예시 문장이 서버 쪽 화면 상수와 같은지 대조한다(Feedback.test.tsx와 같은 방식)
-import inputPy from "../../../src/housing_finance_agent/ui/screens/input.py?raw";
-
 import { callsTo, fakeServer, json, renderApp } from "./testing";
 import { EXAMPLES } from "./Write";
 
@@ -86,15 +83,6 @@ describe("S1 글자 수와 잠김", () => {
 });
 
 describe("S1 예시 버튼", () => {
-  it("예시 문장은 서버 쪽 화면 상수와 글자 그대로 같다", () => {
-    const pyStrings = (inputPy.split("EXAMPLES")[1] ?? "").match(/"[^"]*"/g) ?? [];
-    const joined = pyStrings.map((s) => s.slice(1, -1)).join("");
-    for (const ex of EXAMPLES) {
-      expect(joined).toContain(ex.name);
-      expect(joined).toContain(ex.text);
-    }
-  });
-
   it("칸이 비어 있으면 묻지 않고 바로 넣는다", async () => {
     const user = userEvent.setup();
     fakeServer();
