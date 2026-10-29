@@ -127,3 +127,18 @@
 .line {
   display: block;
 }
+
+/* 600px 미만(설계서 11.4 '예시 버튼 → 세로로', 시안 폭 390 'S1 조건 입력') */
+@media screen and (max-width: 599px) {
+  .exampleRow {
+    grid-template-columns: 1fr;
+  }
+
+  .example {
+    padding: 11px 13px;
+  }
+
+  .actions {
+    align-items: stretch;
+  }
+}

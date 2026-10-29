@@ -29,6 +29,18 @@
   color: var(--ink-2);
 }
 
+/* 600px 미만: 버튼이 폭을 채우므로(Button.module.css) 글 아래 줄로 내린다. 한 줄에 두면 글이 한 글자 폭으로 눌린다 */
+@media screen and (max-width: 599px) {
+  .banner {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .text {
+    flex: 1 1 calc(100% - 40px);
+  }
+}
+
 /* '이어서 보여 드립니다'와 새로 시작 버튼은 화면 안내라 종이에 남기지 않는다(S12) */
 @media print {
   .banner {

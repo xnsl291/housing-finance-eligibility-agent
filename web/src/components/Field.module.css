@@ -196,7 +196,7 @@
 }
 
 /* 좁은 화면에서는 범위 두 칸을 세로로(설계서 11.4) */
-@media (max-width: 599px) {
+@media screen and (max-width: 599px) {
   .pair {
     grid-template-columns: 1fr;
   }

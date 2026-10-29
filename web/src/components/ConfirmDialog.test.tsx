@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 
 import { ConfirmDialog } from "./ConfirmDialog";
+import dialogCss from "./ConfirmDialog.module.css?raw";
 
 function Page({ onConfirm = () => {} }: { onConfirm?: () => void | Promise<unknown> }) {
   const [open, setOpen] = useState(false);
@@ -181,5 +182,13 @@ describe("확인 창 (설계서 11.3)", () => {
     await user.click(screen.getByRole("button", { name: "처음부터" }));
 
     expect(screen.getByRole("heading", { name: "주거금융 지원가능성 판정" })).toHaveFocus();
+  });
+});
+
+describe("확인 창 높이(CSS 규칙 글을 읽어 본다 — jsdom은 배치를 계산하지 않음)", () => {
+  it("창 높이 상한을 배경 높이(%)가 아니라 화면 높이로 정한다. dvh를 모르는 브라우저를 위해 vh 줄을 먼저 둔다", () => {
+    const box = /\.box\s*\{([^}]*)\}/.exec(dialogCss)?.[1] ?? "";
+    const heights = [...box.matchAll(/max-height:\s*([^;]+);/g)].map((m) => m[1].trim());
+    expect(heights).toEqual(["calc(100vh - 32px)", "calc(100dvh - 32px)"]);
   });
 });

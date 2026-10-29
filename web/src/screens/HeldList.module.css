@@ -82,3 +82,57 @@
 .lock {
   margin-bottom: 8px;
 }
+
+/* 600px 미만: 네 열이 390px에 들어가면 글이 한두 글자씩 꺾인다. 줄마다 왼쪽에 이름·값·어디서 온 값인가를 위아래로,
+   오른쪽에 고치기를 둔다(시안 폭 390 'S2 읽은 항목'과 같은 배치). 열 이름 줄은 눈으로만 숨기고 화면 읽기 프로그램에는 남긴다 */
+@media screen and (max-width: 599px) {
+  .table,
+  .table tbody {
+    display: block;
+  }
+
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 12px;
+    row-gap: 2px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .row th,
+  .row td {
+    display: block;
+    width: auto;
+    padding: 0;
+    border-bottom: 0;
+    grid-column: 1;
+  }
+
+  .row .action {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    align-self: center;
+  }
+
+  .editRow {
+    display: block;
+  }
+
+  .editRow td {
+    display: block;
+  }
+
+  .edit {
+    padding: 14px;
+  }
+}
