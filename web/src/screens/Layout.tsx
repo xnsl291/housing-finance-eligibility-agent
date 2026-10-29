@@ -8,6 +8,10 @@
  * - 단계는 주소로 정한다(routes.ts). 단계가 바뀐 순간에만 본문이 위에서 내려온다(C-HEADER, 420ms)
  * - 주소가 바뀌면 초점을 새 화면 제목(h1)으로 옮긴다(시안 C0 1절). 화면 읽기 프로그램 사용자가
  *   화면이 바뀐 것을 알게 하려고
+ * - 화면 폭이 1,023px 이하이면(설계서 11.4) 사이드바를 왼쪽에 두지 않고 머리 영역 메뉴(HeaderMenu) 안에 넣는다. 같은 Sidebar
+ *   하나를 자리만 옮겨 그린다(좁은 화면에서는 메뉴를 연 동안만 그린다). 메뉴는 열고 닫는 창이라 늘 그려 두는 사이드바와
+ *   한 벌로 CSS만 바꿔 쓸 수 없다. 자리를 옮기면 사이드바는 새로 그려져 그 안의 상태가 사라진다. 그래서 사이드바 버튼이 띄우는 확인 창(초기화 확인·M2)과
+ *   그 상태(열림·지우는 중·실패 문구)는 여기에 둔다. 창을 연 채 폭이 바뀌어도 창과 지우기 결과 알림이 남는다
  * - 전체 초기화(적은 문장만 비움, 서버 기록과 연 세션 목록은 그대로)와 내 기록 지우기(이 탭에서 연
  *   세션과 주소의 세션을 서버에서 삭제). 주소로 들어온 세션도 처음 본 순간 연 세션 목록에 넣는다
  */
@@ -16,8 +20,12 @@ import { Outlet, useLocation, useMatch, useNavigate } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
 import { AppHeader } from "../components/AppHeader";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Toast } from "../components/Feedback";
+import { HeaderMenu } from "../components/HeaderMenu";
+import { DELETE_NOTE, NOTICE } from "../components/Notice";
 import { Sidebar } from "../components/Sidebar";
+import { NARROW, useMediaQuery } from "../components/useMediaQuery";
 import { AppStateContext, type ProgramsState } from "./AppState";
 import { stepOf } from "./routes";
 import styles from "./Layout.module.css";
@@ -27,6 +35,11 @@ export function Layout() {
   const { pathname } = useLocation();
   const sessionId = useMatch("/s/:sessionId/*")?.params.sessionId;
   const step = stepOf(pathname);
+  const narrow = useMediaQuery(NARROW);
+  // 좁은 화면 머리 메뉴가 열렸는지. 전체 초기화·내 기록 지우기가 끝나면 닫는다(HeaderMenu.tsx 머리말)
+  const [menuOpen, setMenuOpen] = useState(false);
+  // 메뉴를 연 채 넓은 화면으로 바뀌면 메뉴는 사라진다. 다시 좁아졌을 때 저절로 열리지 않게 닫힘으로 되돌린다
+  if (!narrow && menuOpen) setMenuOpen(false);
 
   const [draft, setDraft] = useState("");
   const [programs, setPrograms] = useState<ProgramsState>("loading");
@@ -38,6 +51,10 @@ export function Layout() {
   const [gone, setGone] = useState<ReadonlySet<string>>(new Set());
   // 세션별 S3 확인 수(AppState.tsx 머리말)
   const [answered, setAnswered] = useState<Record<string, number>>({});
+  // 사이드바 버튼이 띄우는 확인 창(머리말 — 사이드바가 다시 그려져도 남게 여기 둔다)
+  const [askingReset, setAskingReset] = useState(false);
+  const [askingDelete, setAskingDelete] = useState(false);
+  const [deleteFailed, setDeleteFailed] = useState(false);
 
   const rememberSession = useCallback((id: string) => {
     setOpened((list) => (list.includes(id) ? list : [...list, id]));
@@ -100,6 +117,8 @@ export function Layout() {
   }, [pathname]);
 
   function reset() {
+    setAskingReset(false);
+    setMenuOpen(false);
     setDraft("");
     navigate("/");
   }
@@ -109,7 +128,13 @@ export function Layout() {
     (id) => !gone.has(id),
   );
 
+  function closeDeleteDialog() {
+    setAskingDelete(false);
+    setDeleteFailed(false);
+  }
+
   async function deleteRecords() {
+    setDeleteFailed(false);
     const results = await Promise.allSettled(
       targets.map((id) =>
         api.deleteSession(id).catch((error) => {
@@ -121,12 +146,29 @@ export function Layout() {
     const done = targets.filter((_, i) => results[i].status === "fulfilled");
     setGone((set) => new Set([...set, ...done]));
     setOpened((list) => list.filter((id) => !done.includes(id)));
-    // 하나라도 못 지웠으면 실패로 알린다(Sidebar가 창 안에 문구를 보임). 다시 누르면 남은 것만 지운다
-    if (done.length < targets.length) throw new Error("일부 기록을 지우지 못했습니다");
+    // 하나라도 못 지웠으면 창을 닫지 않고 창 안에 다시 누르라는 문구를 보인다. 닫아 버리면 지워졌는지 아닌지 알 수 없다.
+    // 다시 누르면 남은 것만 지운다
+    if (done.length < targets.length) {
+      setDeleteFailed(true);
+      return;
+    }
+    closeDeleteDialog();
+    setMenuOpen(false);
     setDraft("");
     navigate("/");
     setToast("내 기록을 서버에서 지웠습니다.");
   }
+
+  const sidebar = (
+    <Sidebar
+      programs={Array.isArray(programs) ? programs : []}
+      apiBase={window.location.origin}
+      connected={connected}
+      // 지울 것(적은 문장·세션)이 있을 때만 초기화 확인 창을 띄운다(Sidebar.tsx 머리말)
+      onReset={() => (draft !== "" || sessionId !== undefined ? setAskingReset(true) : reset())}
+      onDeleteRecords={targets.length === 0 ? undefined : () => setAskingDelete(true)}
+    />
+  );
 
   return (
     <AppStateContext.Provider
@@ -144,17 +186,20 @@ export function Layout() {
       }}
     >
       <div className={styles.app}>
-        <Sidebar
-          programs={Array.isArray(programs) ? programs : []}
-          apiBase={window.location.origin}
-          connected={connected}
-          onReset={reset}
-          confirmReset={draft !== "" || sessionId !== undefined}
-          onDeleteRecords={targets.length === 0 ? undefined : deleteRecords}
-        />
+        {!narrow && sidebar}
         <main className={styles.main}>
           <div className={styles.inner}>
-            <AppHeader step={step} connected={connected} />
+            <AppHeader
+              step={step}
+              connected={connected}
+              menu={
+                narrow ? (
+                  <HeaderMenu open={menuOpen} onOpenChange={setMenuOpen}>
+                    {sidebar}
+                  </HeaderMenu>
+                ) : undefined
+              }
+            />
             {/* key가 단계라서 단계가 바뀔 때만 새로 그려지며 내려온다. 글자를 칠 때는 움직이지 않는다 */}
             <div key={step ?? "none"} className={styles.page}>
               <Outlet />
@@ -162,6 +207,30 @@ export function Layout() {
           </div>
         </main>
         <Toast message={toast} onClose={() => setToast(null)} />
+        <ConfirmDialog
+          open={askingReset}
+          title="처음으로 돌아갈까요?"
+          confirmLabel="처음으로"
+          cancelLabel="계속하기"
+          onConfirm={reset}
+          onCancel={() => setAskingReset(false)}
+        >
+          {NOTICE.reset} 적어 두신 문장도 지워집니다.
+        </ConfirmDialog>
+        <ConfirmDialog
+          open={askingDelete}
+          title="내 기록을 지울까요?"
+          confirmLabel="지우기"
+          cancelLabel="취소"
+          onConfirm={deleteRecords}
+          onCancel={closeDeleteDialog}
+        >
+          {DELETE_NOTE}
+          {/* 영역은 늘 두고 글만 바꾼다. 실패하면 바로 읽힌다 */}
+          <p role="alert" className={styles.fail}>
+            {deleteFailed ? "지우지 못했습니다. 잠시 뒤 다시 눌러 주세요" : ""}
+          </p>
+        </ConfirmDialog>
       </div>
     </AppStateContext.Provider>
   );

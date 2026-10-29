@@ -118,6 +118,9 @@
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
+  /* 좁은 화면에서 긴 알림이 화면 밖으로 나가지 않게 양옆 16px을 남긴다 */
+  width: max-content;
+  max-width: calc(100vw - 32px);
 }
 
 .toast {

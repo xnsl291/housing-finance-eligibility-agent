@@ -164,3 +164,10 @@
     break-after: avoid;
   }
 }
+
+/* 좁은 화면: 따로 선 링크(공식 안내 페이지)도 누르는 자리 44px */
+@media screen and (max-width: 1023px) {
+  .link {
+    min-height: 44px;
+  }
+}

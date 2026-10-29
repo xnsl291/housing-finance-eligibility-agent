@@ -86,6 +86,9 @@ const PATHS = {
       <circle cx="12" cy="14" r="8" />
     </>
   ),
+  // 좁은 화면 머리 메뉴(시안 폭 900·390 '메뉴 버튼', C-MENU 닫기)
+  menu: <path d="M4 6h16M4 12h16M4 18h16" />,
+  x: <path d="M18 6 6 18M6 6l12 12" />,
   // S8 이어서 하기 배너, S7 다시 판정함 안내(시안 S8·S4-k)
   rotateCcw: (
     <>

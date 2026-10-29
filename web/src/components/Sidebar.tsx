@@ -7,7 +7,7 @@
  *
  * '내 기록 지우기'는 시안에 없다. 시안 뒤에 서버에 삭제 경로가 생겼고(PR #29) 개인정보 안내도
  * "'내 기록 지우기'로 서버에서 지울 수 있습니다"로 바뀌어, 안내가 말하는 버튼을 같은 자리에 둔다.
- * 되돌릴 수 없으므로 항상 확인 창(M2)을 거친다(설계서 C-RESET).
+ * 되돌릴 수 없으므로 항상 확인 창(M2)을 거친다(설계서 C-RESET). 확인 창은 Layout이 띄운다(아래 '확인 창은 Layout에').
  * 지울 세션이 하나도 없으면(이 탭에서 연 세션도 주소의 세션도 없음) 버튼을 숨기지 않고 잠근 채
  * "아직 지울 기록이 없습니다"를 보인다. 바로 위 안내 문구가 이 버튼을 가리키므로, 숨기면 안내가 없는
  * 버튼을 말하게 된다. 그때 부모는 onDeleteRecords를 넘기지 않는다.
@@ -20,16 +20,28 @@
  * 지우기가 실패하면 창을 닫지 않고 창 안에 다시 누르라는 문구를 보인다. 닫아 버리면 지워졌는지
  * 아닌지 사용자가 알 수 없다.
  *
+ * 확인 창은 Layout에 있다. 이 부품은 버튼만 그리고 누르면 알린다(onReset·onDeleteRecords). 화면 폭이 1,023/1,024px를
+ * 넘나들면 사이드바가 왼쪽 자리 ↔ 머리 메뉴 안으로 옮겨 다시 그려지는데(Layout.tsx), 창과 그 상태(열림·지우는 중·실패 문구)가
+ * 여기 있으면 같이 사라진다. 지우기가 실패해도 실패를 알릴 창이 없어진다.
+ *
  * 먹색 바탕 위 회색(side-muted)은 이 안에서만 쓴다. 흰 바탕에서는 대비가 모자란다(시안 C0 4절).
  */
-import { useId, useState } from "react";
+import { useId } from "react";
 import { Link } from "react-router-dom";
 
 import type { Program } from "../api/types";
-import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon } from "./Icon";
-import { DELETE_NOTE, NOTICE } from "./Notice";
+import { NOTICE } from "./Notice";
 import styles from "./Sidebar.module.css";
+import { NARROW, useMediaQuery } from "./useMediaQuery";
+
+/**
+ * 본문 글이 사이드바의 '개인정보 안내'를 가리킬 때 쓰는 자리 말(S0 개인정보 한 줄, S11 지우는 방법).
+ * 1,023px 이하에서는 사이드바가 왼쪽이 아니라 머리 영역 메뉴 안에 있어(Layout.tsx) '왼쪽'이 틀린 말이 된다
+ */
+export function usePrivacyPlace(): string {
+  return useMediaQuery(NARROW) ? "위쪽 '이 도구에 대해' 메뉴의 '개인정보 안내'" : "왼쪽 '개인정보 안내'";
+}
 
 interface SidebarProps {
   programs: Program[];
@@ -37,26 +49,16 @@ interface SidebarProps {
   apiBase: string;
   /** null은 아직 확인 전. 확인하기 전에 '연결됨'이라고 말하지 않는다 */
   connected: boolean | null;
-  /** 화면 값과 적은 문장을 지우고 처음으로. 서버 기록은 그대로 */
+  /** '전체 초기화'를 눌렀다. 확인 창을 띄울지는 부모가 정한다 */
   onReset: () => void;
-  /** 지울 것(적은 문장·세션)이 있으면 true. 그때만 초기화 확인 창을 띄운다 */
-  confirmReset?: boolean;
-  /** 서버의 세션과 기록을 지움(DELETE /v1/sessions/{id}). 지울 세션이 없으면 넘기지 않는다 — 버튼이 잠긴다 */
-  onDeleteRecords?: () => Promise<unknown>;
+  /** '내 기록 지우기'를 눌렀다(부모가 확인 창 M2를 띄운다). 지울 세션이 없으면 넘기지 않는다 — 버튼이 잠긴다 */
+  onDeleteRecords?: () => void;
 }
 
 const TENURE = { JEONSE: "전세", PURCHASE: "매매" } as const;
 
-export function Sidebar({ programs, apiBase, connected, onReset, confirmReset = false, onDeleteRecords }: SidebarProps) {
-  const [askingReset, setAskingReset] = useState(false);
-  const [asking, setAsking] = useState(false);
-  const [deleteFailed, setDeleteFailed] = useState(false);
+export function Sidebar({ programs, apiBase, connected, onReset, onDeleteRecords }: SidebarProps) {
   const noRecordsId = useId();
-
-  function closeDialog() {
-    setAsking(false);
-    setDeleteFailed(false);
-  }
 
   return (
     <aside className={styles.side} aria-label="이 도구에 대해">
@@ -128,11 +130,7 @@ export function Sidebar({ programs, apiBase, connected, onReset, confirmReset = 
             : "판정 서버에 연결되지 않음"}
       </p>
       <div className={styles.group}>
-        <button
-          type="button"
-          className={styles.outline}
-          onClick={() => (confirmReset ? setAskingReset(true) : onReset())}
-        >
+        <button type="button" className={styles.outline} onClick={onReset}>
           전체 초기화
         </button>
         <p className={styles.small}>{NOTICE.reset}</p>
@@ -151,7 +149,7 @@ export function Sidebar({ programs, apiBase, connected, onReset, confirmReset = 
           className={styles.outline}
           aria-disabled={!onDeleteRecords || undefined}
           aria-describedby={onDeleteRecords ? undefined : noRecordsId}
-          onClick={() => onDeleteRecords && setAsking(true)}
+          onClick={() => onDeleteRecords?.()}
         >
           내 기록 지우기
         </button>
@@ -161,44 +159,6 @@ export function Sidebar({ programs, apiBase, connected, onReset, confirmReset = 
           </p>
         )}
       </section>
-
-      <ConfirmDialog
-        open={askingReset}
-        title="처음으로 돌아갈까요?"
-        confirmLabel="처음으로"
-        cancelLabel="계속하기"
-        onConfirm={() => {
-          setAskingReset(false);
-          onReset();
-        }}
-        onCancel={() => setAskingReset(false)}
-      >
-        {NOTICE.reset} 적어 두신 문장도 지워집니다.
-      </ConfirmDialog>
-
-      <ConfirmDialog
-        open={asking}
-        title="내 기록을 지울까요?"
-        confirmLabel="지우기"
-        cancelLabel="취소"
-        onConfirm={async () => {
-          setDeleteFailed(false);
-          try {
-            await onDeleteRecords?.();
-          } catch {
-            setDeleteFailed(true);
-            return;
-          }
-          closeDialog();
-        }}
-        onCancel={closeDialog}
-      >
-        {DELETE_NOTE}
-        {/* 영역은 늘 두고 글만 바꾼다. 실패하면 바로 읽힌다 */}
-        <p role="alert" className={styles.fail}>
-          {deleteFailed ? "지우지 못했습니다. 잠시 뒤 다시 눌러 주세요" : ""}
-        </p>
-      </ConfirmDialog>
     </aside>
   );
 }

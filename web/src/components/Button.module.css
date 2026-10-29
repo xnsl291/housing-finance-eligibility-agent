@@ -84,3 +84,20 @@
     animation: none;
   }
 }
+
+/* 600px 미만(시안 폭 390): 주 버튼과 보조 버튼은 폭을 채운다(시안 '확인했습니다 — 다음'·'결과 인쇄'). 글 버튼은 그대로.
+   표 칸 안 버튼(S3·S7 목록의 '고치기')은 빼다 — 칸 폭을 채우면 다른 열이 눌린다.
+   잠긴 이유 글은 버튼 폭 안에서 줄을 바꾼다 — 넓은 화면처럼 오른쪽으로 넘치면 가로 스크롤이 생긴다 */
+@media screen and (max-width: 599px) {
+  .wrap:has(> .primary, > .secondary):not(td .wrap) {
+    display: flex;
+    align-self: stretch;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .reason {
+    width: auto;
+    white-space: normal;
+  }
+}

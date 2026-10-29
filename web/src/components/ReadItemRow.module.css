@@ -73,8 +73,21 @@
   margin-left: 0;
 }
 
-@media (max-width: 599px) {
+/* 600px 미만(시안 폭 390 'S2 읽은 항목'): 이름 칸을 줄여 이름·값·고치기를 한 줄에 둔다. 넘치면 줄을 바꾼다 */
+@media screen and (max-width: 599px) {
+  .row {
+    padding: 13px 14px;
+  }
+
+  .open {
+    padding: 12.5px 13.5px;
+  }
+
+  .top {
+    gap: 8px 12px;
+  }
+
   .label {
-    width: 100%;
+    width: 88px;
   }
 }

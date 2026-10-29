@@ -22,6 +22,7 @@ import { api, ApiError } from "../api/client";
 import { Button } from "../components/Button";
 import { Skeleton, SystemError } from "../components/Feedback";
 import { Icon } from "../components/Icon";
+import { usePrivacyPlace } from "../components/Sidebar";
 import { useAlive, useAppState } from "./AppState";
 import { describeFailure } from "./failure";
 import { sessionPath } from "./routes";
@@ -44,6 +45,7 @@ export function Start() {
   const { programs, rememberSession, lostConnection } = useAppState();
   const [failure, setFailure] = useState<{ id: number; error: unknown } | null>(null);
   const alive = useAlive();
+  const privacyPlace = usePrivacyPlace();
 
   // '항목을 직접 고르기'와 실패 뒤 '다시 시도'는 같은 일을 한다. 버튼마다 따로 잠기므로 둘을 잇달아 누르면
   // 세션이 둘 열린다. 화면 단위로 한 번에 하나만 열게 막는다(ref는 다시 그리기를 기다리지 않고 바로 바뀐다)
@@ -148,7 +150,7 @@ export function Start() {
         <p className={styles.privacy}>
           <Icon name="lock" size={14} />
           입력한 문장 전체는 저장하지 않지만, 읽어 낸 값과 그 근거가 된 문장 일부, 직접 넣거나 답한 값, 모른다고 한
-          항목은 서버에 저장되어 서버를 다시 켜도 남습니다. 자세한 내용과 지우는 방법은 왼쪽 '개인정보 안내'와{" "}
+          항목은 서버에 저장되어 서버를 다시 켜도 남습니다. 자세한 내용과 지우는 방법은 {privacyPlace}와{" "}
           <Link to="/privacy">개인정보·이용 안내</Link>에 있습니다.
         </p>
       </section>

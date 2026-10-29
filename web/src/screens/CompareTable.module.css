@@ -83,6 +83,90 @@
   color: var(--ink-3);
 }
 
+/* 600px 미만에서 표 대신 보이는 한 줄 카드(시안 폭 390 '한 줄 카드 묶음' — 간격 9px, 흰 카드). 카드 전체가 '자세히' 버튼.
+   기본은 숨긴다. 아래 '600px 미만' 규칙이 `screen and`라 인쇄에서는 늘 숨고 표가 찍힌다(CompareTable.tsx 머리말) */
+.cardList {
+  display: none;
+  flex-direction: column;
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 16px;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-card);
+  cursor: pointer;
+}
+
+.cardTop,
+.cardBottom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cardTop .name {
+  flex: 1;
+  min-width: 0;
+}
+
+.cardLimit {
+  flex: 1;
+  font-weight: 700;
+}
+
+.cardLabel {
+  margin-right: 6px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+.cardLeft {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.cardBottom svg {
+  color: var(--ink-4);
+}
+
+/* 600~1,023px: 표는 그대로 두고 칸 여백을 줄인다(시안 폭 900 '열 너비를 줄였습니다') */
+@media screen and (max-width: 1023px) {
+  .table th,
+  .table td {
+    padding: 10px 11px;
+  }
+}
+
+/* 600px 미만 화면: 다섯 열이 들어가지 않아 표 대신 카드(설계서 S9·11.4). 인쇄에는 걸리지 않는다 */
+@media screen and (max-width: 599px) {
+  .table {
+    display: none;
+  }
+
+  .cardList {
+    display: flex;
+  }
+}
+
 /* 종이에는 누를 곳이 없다. '자세히' 열은 통째로 뺀다(S12) */
 @media print {
   .more {

@@ -27,3 +27,21 @@
   line-height: 24px;
   color: var(--ink-2);
 }
+
+/* 600~1,023px(시안 폭 900): 제목 30px */
+@media screen and (max-width: 1023px) {
+  .title {
+    font-size: 30px;
+    line-height: 39px;
+    letter-spacing: -0.8px;
+  }
+}
+
+/* 600px 미만(시안 폭 390): 제목 23px. 34px이면 390px에서 짧은 제목도 두 줄로 꺾인다 */
+@media screen and (max-width: 599px) {
+  .title {
+    font-size: 23px;
+    line-height: 31px;
+    letter-spacing: -0.5px;
+  }
+}

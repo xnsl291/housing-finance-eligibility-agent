@@ -180,3 +180,49 @@
   color: var(--ink-2);
   text-decoration: underline;
 }
+
+@media screen and (max-width: 1023px) {
+  .title {
+    font-size: 32px;
+    line-height: 42px;
+    letter-spacing: -1px;
+  }
+}
+
+/* 600px 미만(시안 폭 390 'S0 첫 화면'): 한 단. 하는 일·하지 않는 일 두 칸과 상품 칸을 세로로, 시작 버튼은 폭을 채운다 */
+@media screen and (max-width: 599px) {
+  .title {
+    font-size: 23px;
+    line-height: 31px;
+    letter-spacing: -0.5px;
+  }
+
+  .lead {
+    font-size: 13.5px;
+    line-height: 22px;
+  }
+
+  .pair,
+  .programs {
+    grid-template-columns: 1fr;
+  }
+
+  .pair {
+    gap: 12px;
+  }
+
+  .program {
+    flex-direction: row;
+    align-items: center;
+    padding: 11px 13px;
+  }
+
+  .card {
+    padding: 18px;
+  }
+
+  .buttons {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

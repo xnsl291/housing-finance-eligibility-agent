@@ -4,6 +4,8 @@
  * 단계 표시는 눌러서 이동하는 탭이 아니다. 되돌아가는 길 제약(설계서 3.2)을 풀기 전에는
  * 누르게 만들면 안 되므로 버튼도 링크도 아니고, 탭으로 가지도 않는다(시안 C0 3절).
  * 단계는 따로 저장하지 않고 화면이 가진 값으로 계산해 넘긴다.
+ * 좁은 화면(600px 미만)에서는 네 칸 대신 'N / 4 단계 · 이름 + 막대'(시안 폭 390). 두 벌을 다 그리고 CSS로 하나만 보인다.
+ * 막대 쪽은 aria-hidden이 아니라 글이 있어 화면 읽기 프로그램이 읽을 수 있으므로, 보이지 않는 쪽은 display:none으로 뺀다.
  * 첫 화면(S0)은 아직 단계에 들어서기 전이라 단계 표시를 그리지 않는다(시안 S0). 그때는 step을 넘기지 않는다.
  *
  * 연결 상태는 이 머리와 사이드바 모두 작은 점 한 줄뿐이다(빨간 글씨를 두지 않음). 끊겼다는 큰 안내는 각 화면이
@@ -11,6 +13,8 @@
  * 실패 안내로 알린다. S2~S4는 화면별 PR에서 E1을 붙인다.
  * 값은 Layout이 정한다: 연결 확인(GET /health) 결과, 그리고 화면의 호출이 연결 안 됨으로 실패한 경우.
  */
+import type { ReactNode } from "react";
+
 import { Icon } from "./Icon";
 import { Notice } from "./Notice";
 import styles from "./AppHeader.module.css";
@@ -58,8 +62,11 @@ export function StepIndicator({ step }: { step: Step }) {
   );
 }
 
-/** connected: null은 아직 확인 전. 확인하기 전에 '연결됨'이라고 말하지 않는다 */
-export function AppHeader({ step, connected }: { step?: Step; connected: boolean | null }) {
+/**
+ * connected: null은 아직 확인 전. 확인하기 전에 '연결됨'이라고 말하지 않는다.
+ * menu: 좁은 화면(1,023px 이하)에서 제목 줄 오른쪽에 둘 머리 메뉴(HeaderMenu). 넓은 화면에서는 넘기지 않는다
+ */
+export function AppHeader({ step, connected, menu }: { step?: Step; connected: boolean | null; menu?: ReactNode }) {
   return (
     <header className={styles.header}>
       <div className={styles.titleRow}>
@@ -68,6 +75,7 @@ export function AppHeader({ step, connected }: { step?: Step; connected: boolean
           <span className={styles.dot} aria-hidden="true" />
           {connected === null ? "연결 확인 중" : connected ? "연결됨" : "연결 안 됨"}
         </span>
+        {menu}
       </div>
       <Notice kind="header" />
       {step !== undefined && <StepIndicator step={step} />}

@@ -169,3 +169,16 @@
   align-items: center;
   min-height: 52px;
 }
+
+/* 비어 있는 항목 칸: 600~1,023px은 2열, 600px 미만은 1열(설계서 11.4 한 단) */
+@media screen and (max-width: 1023px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media screen and (max-width: 599px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

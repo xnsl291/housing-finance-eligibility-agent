@@ -1,0 +1,86 @@
+/* 좁은 화면 머리 메뉴. 시안 폭 900(j9CQS) '메뉴 버튼'·'메뉴', 폭 390(Qc1aZ) '메뉴' */
+.button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  /* 누르는 자리 44px 이상(설계서 11.3에 값이 없어 WCAG 2.5.5 값을 씀). 시안 버튼은 약 32px이라 높이만 늘림 */
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  justify-content: flex-end;
+  background: color-mix(in srgb, var(--ink) 20%, transparent);
+}
+
+/* 사이드바와 같은 먹색. 오른쪽(메뉴 버튼 쪽)에서 나온다. 길면 메뉴 안에서만 굴린다 */
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: min(420px, 100%);
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--ink);
+  color: var(--line);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 8px 8px 18px;
+  border-bottom: 1px solid var(--ink-2);
+}
+
+.title {
+  flex: 1;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--surface);
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: var(--r-sm);
+  color: var(--surface);
+  cursor: pointer;
+}
+
+.close:focus-visible {
+  outline-color: var(--surface);
+}
+
+/* 메뉴 안에서는 사이드바가 고정 폭(280px)을 버리고 메뉴 폭을 채운다 */
+.panel > aside {
+  width: auto;
+}
+
+@media print {
+  .button,
+  .backdrop {
+    display: none;
+  }
+}

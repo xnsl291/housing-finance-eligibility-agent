@@ -2,7 +2,7 @@
  * 화면 테스트 도우미. 서버는 fetch를 흉내 내서 대신한다 — 화면이 실제로 부르는 주소와 방식
  * (`api/client.ts`)을 그대로 지나가게 하려고 api 함수를 바꿔치기하지 않는다.
  */
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
 import { App } from "../App";
@@ -125,4 +125,37 @@ export async function settle(release: (r: Response) => void, response: Response)
   release(response);
   await consumed;
   await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/**
+ * 화면 폭을 흉내 낸다. jsdom에는 matchMedia가 없어 화면은 넓은 화면으로 본다(useMediaQuery.ts). 좁은 화면 테스트는 이것으로
+ * `screen and (max-width: Npx)` 질의에 폭을 대어 답한다. 그 밖의 질의(움직임 줄이기 등)는 false.
+ * 돌려주는 setWidth(n)로 그리는 도중에 폭을 바꾼다 — 폭이 바뀌어 답이 달라진 질의의 change 듣기를 불러 화면이 다시 그려지게
+ * (구간 경계 1,023/1,024px·599/600px를 넘나드는 테스트용). 테스트 파일 afterEach에서 vi.unstubAllGlobals()로 뗀다
+ */
+export function screenWidth(width: number) {
+  let now = width;
+  const listeners = new Set<{ query: string; listener: () => void }>();
+  const matches = (query: string) => {
+    const max = /^screen and \(max-width: (\d+)px\)$/.exec(query);
+    return max !== null && now <= Number(max[1]);
+  };
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    get matches() {
+      return matches(query);
+    },
+    media: query,
+    addEventListener: (_: "change", listener: () => void) => listeners.add({ query, listener }),
+    removeEventListener: (_: "change", listener: () => void) => {
+      for (const l of listeners) if (l.query === query && l.listener === listener) listeners.delete(l);
+    },
+  }));
+  return function setWidth(next: number) {
+    const before = new Map([...listeners].map((l) => [l, matches(l.query)]));
+    now = next;
+    const changed = [...before].filter(([l, was]) => matches(l.query) !== was).map(([l]) => l);
+    act(() => {
+      for (const l of changed) l.listener();
+    });
+  };
 }

@@ -6,9 +6,12 @@ import userEvent from "@testing-library/user-event";
 
 import { STAR_NOTE, STAR_NOTE_WIDE } from "./CompareTable";
 import { ASSESS, assessment, card, open, program, server } from "./resultTesting";
+import { screenWidth } from "./testing";
+import compareCss from "./CompareTable.module.css?raw";
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   // jsdom에는 scrollIntoView가 없어 '자세히' 테스트가 붙인다. 테스트가 중간에 실패해도 다른 테스트로 새지 않게 여기서 뗀다
   delete (Element.prototype as Partial<Element>).scrollIntoView;
 });
@@ -124,5 +127,98 @@ describe("S9 상품 비교표", () => {
     // 강조는 카드 자신의 애니메이션이 끝나면 거둔다
     target.dispatchEvent(new Event("animationend", { bubbles: true }));
     expect(target).not.toHaveAttribute("data-flash");
+  });
+});
+
+describe("S9 — 600px 미만에서는 표 대신 상품마다 한 줄 카드(설계서 S9·11.4)", () => {
+  // 표와 카드를 둘 다 그리고 CSS가 화면 폭으로 하나만 보인다(CompareTable.tsx 머리말). jsdom은 @media를 계산하지 않아
+  // 어느 쪽이 보이는지는 CSS 규칙(아래 'CSS 규칙')과 브라우저로 확인하고, 여기서는 두 구조와 그 내용을 본다
+  const list = () => screen.getByRole("list", { name: /한눈에/, hidden: true });
+  const items = () => within(list()).getAllByRole("button", { hidden: true }).map((b) => b.textContent);
+
+  it.each([390, 900, 1440])("%ipx: 표와 카드를 둘 다 그린다. 카드 묶음은 넓은 화면·인쇄에서 숨는 클래스를 단다", async (width) => {
+    screenWidth(width);
+    server({ [ASSESS]: () => assessment(MATCH, MAYBE) });
+    await open();
+    expect(screen.getByRole("table", { name: /한눈에/, hidden: true })).toBeInTheDocument();
+    expect(list()).toHaveAccessibleName("상품 2개를 한눈에");
+    const box = list().parentElement!;
+    expect(box.className).toMatch(/cardList/);
+    expect(box).toContainElement(screen.getByText("상품 2개를 한눈에", { selector: "p" }));
+    // 감싼 구역에는 이름을 붙이지 않는다 — 표·목록과 같은 이름이 두 번 읽힌다
+    expect(screen.queryByRole("region", { name: /한눈에/, hidden: true })).not.toBeInTheDocument();
+  });
+
+  it("카드 묶음은 넓은 화면에서 display:none이라 화면 읽기 프로그램이 표와 카드를 두 번 읽지 않는다", async () => {
+    server({ [ASSESS]: () => assessment(MATCH, MAYBE) });
+    await open();
+    expect(getComputedStyle(list().parentElement!).display).toBe("none");
+    expect(screen.queryByRole("list", { name: /한눈에/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("table", { name: /한눈에/ })).toBeVisible();
+  });
+
+  it("칸 규칙은 표와 같다 — 판정 순, 확정 전 금액 '*'와 아래 설명, 불충족은 '—'이고 남은 확인을 적지 않음", async () => {
+    screenWidth(390);
+    server({ [ASSESS]: () => assessment(FAIL, MAYBE, MATCH) });
+    await open();
+    expect(items()).toEqual([
+      "상품 가사전 조건 부합예상 한도 1억 4,400만원남은 확인 0개",
+      "상품 나추가 확인 필요예상 한도 1억 2,000만원 * (달라질 수 있음 — 목록 아래 설명)남은 확인 2개",
+      "상품 다조건 불충족예상 한도 —",
+    ]);
+    expect(list()).not.toHaveTextContent("9,900만원");
+    expect(list()).toHaveAccessibleDescription(STAR_NOTE);
+  });
+
+  it("'예상 한도'는 눈에 보이는 이름표다 — 불충족 카드에 '—'만 덩그러니 남지 않게", async () => {
+    screenWidth(390);
+    server({ [ASSESS]: () => assessment(MATCH, FAIL) });
+    await open();
+    for (const label of within(list()).getAllByText(/^예상 한도/)) expect(label.closest(".sr-only")).toBeNull();
+  });
+
+  it("카드를 누르면 표의 '자세히'처럼 그 상품 카드로 가 제목에 초점을 옮긴다", async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    screenWidth(390);
+    server({ [ASSESS]: () => assessment(MATCH, MAYBE) });
+    await open();
+    await userEvent.click(within(list()).getByRole("button", { name: /^상품 나/, hidden: true }));
+    const target = card("상품 나");
+    expect(scroll.mock.contexts[0]).toBe(target);
+    expect(within(target).getByRole("heading", { level: 3 })).toHaveFocus();
+    expect(target).toHaveAttribute("data-flash");
+  });
+});
+
+describe("S9 CSS 규칙 — 어느 쪽을 보일지(jsdom이 @media를 계산하지 않아 규칙 글을 읽어 본다)", () => {
+  /** css에서 `@media <조건> { ... }` 본문. 중괄호 짝을 세어 자른다. 없으면 빈 글 */
+  function mediaBlock(condition: string): string {
+    const start = compareCss.indexOf(`@media ${condition} {`);
+    if (start < 0) return "";
+    let depth = 0;
+    for (let i = compareCss.indexOf("{", start); i < compareCss.length; i++) {
+      if (compareCss[i] === "{") depth++;
+      if (compareCss[i] === "}" && --depth === 0) return compareCss.slice(start, i + 1);
+    }
+    return "";
+  }
+  /** @media 밖의 규칙만 */
+  const outsideMedia = () => compareCss.replace(/@media[^{]*\{(?:[^{}]*\{[^}]*\})*[^{}]*\}/g, "");
+  const display = (css: string, cls: string, value: string) =>
+    new RegExp(String.raw`\.${cls}\s*\{[^}]*display:\s*${value}`).test(css);
+
+  it("기본(넓은 화면·인쇄): 카드 묶음은 숨고 표는 보인다", () => {
+    expect(display(outsideMedia(), "cardList", "none")).toBe(true);
+    expect(display(outsideMedia(), "table", "none")).toBe(false);
+  });
+
+  it("600px 미만 화면에서만 표를 숨기고 카드를 보인다 — 'screen and'라 인쇄에는 걸리지 않아 폰에서 인쇄해도 표가 찍힌다", () => {
+    const small = mediaBlock("screen and (max-width: 599px)");
+    expect(display(small, "table", "none")).toBe(true);
+    expect(display(small, "cardList", "flex")).toBe(true);
+    const print = mediaBlock("print");
+    expect(display(print, "table", "none")).toBe(false);
+    expect(display(print, "cardList", "flex")).toBe(false);
   });
 });
