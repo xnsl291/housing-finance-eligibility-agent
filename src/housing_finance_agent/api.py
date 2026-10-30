@@ -25,7 +25,12 @@ from pydantic import BaseModel, Field
 
 from housing_finance_agent.amount import Range
 from housing_finance_agent.assessment import assess
-from housing_finance_agent.extraction import ExtractionError, LlmClient, extract_profile
+from housing_finance_agent.extraction import (
+    ExtractedProfile,
+    ExtractionError,
+    LlmClient,
+    extract_profile,
+)
 from housing_finance_agent.fields import problem_of
 from housing_finance_agent.next_action import POLICY_VERSION, next_action
 from housing_finance_agent.rules import available_programs, field_catalog, load_program
@@ -64,6 +69,11 @@ def create_app(
     sessions: SessionStore | None = None,
     sweep_every: timedelta = SWEEP_EVERY,
 ) -> FastAPI:
+    """앱을 만들고 경로를 묶음별로 붙인다.
+
+    경로는 무상태 판정, 세션 입력, 세션 결과 세 묶음으로 나눠 아래 함수들이 붙인다.
+    여기는 묶음 모두에 걸치는 것(세션 저장소, 앱 수명, 오류 매핑)만 둔다.
+    """
     store = sessions if sessions is not None else SessionStore(_db_path())
 
     @asynccontextmanager
@@ -97,6 +107,15 @@ def create_app(
         """확인한 뒤 쓰기 전에 세션이 지워진 경우(session.py `_append`). 처음부터 없던
         세션과 같은 404로 낸다 — 화면에는 둘의 차이가 없다."""
         return JSONResponse({"detail": "없는 세션입니다"}, status_code=404)
+
+    _무상태_경로(app, llm, max_message_chars)
+    _세션_입력_경로(app, store, llm, max_message_chars)
+    _세션_결과_경로(app, store)
+    return app
+
+
+def _무상태_경로(app: FastAPI, llm: LlmClient, max_message_chars: int) -> None:
+    """세션 없이 부르는 경로. 상품·항목 목록, 문장 읽기, 판정."""
 
     @app.get("/health")
     def health() -> dict:
@@ -138,18 +157,7 @@ def create_app(
 
     @app.post("/v1/profiles/extract")
     def extract(request: ExtractRequest) -> dict:
-        if len(request.message) > max_message_chars:
-            raise HTTPException(
-                422, f"문장이 너무 깁니다: {len(request.message)}자 (상한 {max_message_chars}자)"
-            )
-        try:
-            result = extract_profile(llm, request.message)
-        except ExtractionError as error:
-            raise HTTPException(503, f"조건을 읽지 못했습니다: {error}") from error
-        except Exception as error:
-            # LLM 어댑터가 무엇을 던지든 화면은 문구를 받아야 한다.
-            raise HTTPException(503, f"LLM 호출에 실패했습니다: {error}") from error
-
+        result = _문장_읽기(llm, request.message, max_message_chars)
         return {
             "values": {name: _as_json(value) for name, value in result.values.items()},
             "sources": result.sources,
@@ -162,78 +170,21 @@ def create_app(
         profile = {name: _as_value(value) for name, value in request.profile.items()}
         return {"results": _판정들(profile, request.program_ids or available_programs())}
 
-    def _판정들(profile: dict, program_ids: list[str]) -> list[dict]:
-        """무상태 경로와 세션 경로가 **같은 판정을 쓰게** 한다.
 
-        둘이 각자 조립하면 응답이 조금씩 달라지고, 화면이 어느 경로로 왔는지에 따라
-        다르게 보인다.
-        """
-        results = []
-        for program_id in program_ids:
-            try:
-                program = load_program(program_id)
-            except FileNotFoundError as error:
-                raise HTTPException(404, f"없는 상품입니다: {program_id}") from error
+# ── 세션 ──────────────────────────────────────────────────────────────
+#
+# 위의 두 경로(`/v1/profiles/extract`, `/v1/eligibility/check`)는 무상태로 남긴다.
+# 순수한 함수 경계라 테스트하기 쉽고, 세션 없이 판정만 부르고 싶은 경우가 있다.
+# 아래는 그 위에 "기억하는 층"을 얹은 것이고 같은 `assess()`를 부른다.
+#
+# 값을 넣는 경로(입력)와 모인 값으로 답을 내는 경로(결과)를 나눠 붙인다. 입력 쪽만
+# LLM을 쓰고, 결과 쪽만 규칙 파일로 판정·질문을 만든다.
 
-            assessment = assess(program, profile)
-            results.append(
-                {
-                    "program_id": program_id,
-                    "program_name": program["program"]["program_name"],
-                    "status": assessment.decision.status,
-                    "passed_rules": assessment.decision.passed_rules,
-                    "failed_rules": assessment.decision.failed_rules,
-                    "missing_fields": assessment.decision.missing_fields,
-                    "imprecise_fields": assessment.decision.imprecise_fields,
-                    "next_actions": assessment.next_actions,
-                    "loan_limit": _limit_as_json(assessment.loan_limit),
-                    # 통과·불충족만 주면 "왜 이 조건은 안 보이나"에 답을 못 한다.
-                    "rule_outcomes": [
-                        {
-                            "rule_id": item.rule_id,
-                            "outcome": item.outcome,
-                            "field": item.field,
-                            "field_label": _field_label(program, item.field),
-                            "citation": item.citation,
-                            "failure_message": item.failure_message,
-                        }
-                        for item in assessment.decision.rule_outcomes
-                    ],
-                    # 아직 다루지 않는 조건을 숨기지 않는다.
-                    "unresolved": program.get("unresolved") or [],
-                    "rule_version": program["program"].get("version"),
-                    "source_url": program["program"]["source_url"],
-                    "source_checked_at": program["program"]["fetched_at"],
-                }
-            )
-        return results
 
-    # ── 세션 ──────────────────────────────────────────────────────────
-    #
-    # 위의 두 경로(`/v1/profiles/extract`, `/v1/eligibility/check`)는 무상태로 남긴다.
-    # 순수한 함수 경계라 테스트하기 쉽고, 세션 없이 판정만 부르고 싶은 경우가 있다.
-    # 아래는 그 위에 "기억하는 층"을 얹은 것이고 같은 `assess()`를 부른다.
-
-    def _세션_확인(session_id: str) -> None:
-        if not store.exists(session_id):
-            raise HTTPException(404, "없는 세션입니다")
-
-    def _상태_응답(session_id: str) -> dict:
-        state = store.state(session_id)
-        return {
-            "session_id": session_id,
-            # 값마다 어디서 왔는지 함께 낸다. 화면이 "직접 넣은 값"과 "문장에서 읽은
-            # 값"을 구분해 보여 줄 수 있어야 한다.
-            "values": {
-                name: {
-                    "value": _as_json(held.value),
-                    "source": held.source,
-                    "at": held.at,
-                    "phrase": held.phrase,
-                }
-                for name, held in state.items()
-            },
-        }
+def _세션_입력_경로(
+    app: FastAPI, store: SessionStore, llm: LlmClient, max_message_chars: int
+) -> None:
+    """세션을 열고, 값을 넣고, 보고, 지우는 경로."""
 
     @app.post("/v1/sessions")
     def start_session() -> dict:
@@ -242,17 +193,8 @@ def create_app(
     @app.post("/v1/sessions/{session_id}/messages")
     def add_message(session_id: str, request: MessageRequest) -> dict:
         """문장을 읽어 값으로 바꾼다. **문장 자체는 저장하지 않는다.**"""
-        _세션_확인(session_id)
-        if len(request.message) > max_message_chars:
-            raise HTTPException(
-                422, f"문장이 너무 깁니다: {len(request.message)}자 (상한 {max_message_chars}자)"
-            )
-        try:
-            result = extract_profile(llm, request.message)
-        except ExtractionError as error:
-            raise HTTPException(503, f"조건을 읽지 못했습니다: {error}") from error
-        except Exception as error:
-            raise HTTPException(503, f"LLM 호출에 실패했습니다: {error}") from error
+        _세션_확인(store, session_id)
+        result = _문장_읽기(llm, request.message, max_message_chars)
 
         # **LLM이 낸 값도 항목 정의로 검사한다.** 값이 들어오는 자리가 둘인데 아래
         # `set_fields`만 막혀 있었다. 2026-09-30 확인: LLM이 `move_in_date`를
@@ -276,7 +218,7 @@ def create_app(
             session_id,
             {"values": 읽은_값, "sources": result.sources, "unreadable": 못_쓴_값},
         )
-        응답 = _상태_응답(session_id)
+        응답 = _상태_응답(store, session_id)
         # 경고와 못 읽은 값은 이번 문장에 대한 것이라 상태(값 목록)에 넣지 않고 이 응답에
         # 실어 보낸다. 못 읽은 값은 기록(추출 이벤트)에는 가린 뒤 남는다 — `record_extraction`.
         응답["warnings"] = result.warnings
@@ -286,7 +228,7 @@ def create_app(
     @app.put("/v1/sessions/{session_id}/fields")
     def set_fields(session_id: str, request: FieldsRequest) -> dict:
         """사용자가 직접 넣거나 고친 값."""
-        _세션_확인(session_id)
+        _세션_확인(store, session_id)
         낯선 = sorted(name for name in request.values if name not in field_catalog())
         if 낯선:
             raise HTTPException(422, f"없는 항목입니다: {', '.join(낯선)}")
@@ -306,12 +248,12 @@ def create_app(
         if 틀린:
             raise HTTPException(422, f"값이 맞지 않습니다 — {'; '.join(틀린)}")
         store.record_fields(session_id, request.values)
-        return _상태_응답(session_id)
+        return _상태_응답(store, session_id)
 
     @app.get("/v1/sessions/{session_id}")
     def get_session(session_id: str) -> dict:
-        _세션_확인(session_id)
-        return _상태_응답(session_id)
+        _세션_확인(store, session_id)
+        return _상태_응답(store, session_id)
 
     @app.delete("/v1/sessions/{session_id}")
     def delete_session(session_id: str) -> dict:
@@ -320,14 +262,18 @@ def create_app(
         화면이 "서버에 저장된다"고 알리는데 지울 길이 없으면 사용자는 알고도 어쩔 수
         없다(화면 설계서 결함 D3). 지운 뒤 같은 id로 부르면 404다.
         """
-        _세션_확인(session_id)
+        _세션_확인(store, session_id)
         store.delete(session_id)
         return {"session_id": session_id, "deleted": True}
+
+
+def _세션_결과_경로(app: FastAPI, store: SessionStore) -> None:
+    """모인 값으로 판정하고, 다음 질문을 고르고, 기록을 보여 주는 경로."""
 
     @app.post("/v1/sessions/{session_id}/assessment")
     def assess_session(session_id: str, program_ids: list[str] | None = None) -> dict:
         """지금까지 모인 값으로 판정한다."""
-        _세션_확인(session_id)
+        _세션_확인(store, session_id)
         profile = {
             name: _as_value(value) for name, value in profile_of(store.state(session_id)).items()
         }
@@ -353,7 +299,7 @@ def create_app(
         "그만 묻고 결과 보기"는 서버 상태가 아니다. 화면이 이 경로 대신 판정 경로를
         부르면 된다.
         """
-        _세션_확인(session_id)
+        _세션_확인(store, session_id)
         profile = {
             name: _as_value(value) for name, value in profile_of(store.state(session_id)).items()
         }
@@ -387,7 +333,7 @@ def create_app(
     @app.post("/v1/sessions/{session_id}/declined")
     def decline(session_id: str, request: DeclineRequest) -> dict:
         """사용자가 이 항목은 모른다고 했다. 다음 질문에서 빠진다."""
-        _세션_확인(session_id)
+        _세션_확인(store, session_id)
         if request.field not in field_catalog():
             raise HTTPException(422, f"없는 항목입니다: {request.field}")
         store.record_declined(session_id, request.field)
@@ -396,7 +342,7 @@ def create_app(
     @app.get("/v1/sessions/{session_id}/trace")
     def get_trace(session_id: str) -> dict:
         """무슨 일이 있었는지 시간 순으로. **상태는 이것으로 다시 만들어진다.**"""
-        _세션_확인(session_id)
+        _세션_확인(store, session_id)
         return {
             "session_id": session_id,
             "events": [
@@ -405,7 +351,90 @@ def create_app(
             ],
         }
 
-    return app
+
+def _문장_읽기(llm: LlmClient, message: str, max_message_chars: int) -> ExtractedProfile:
+    """문장 길이를 막고 LLM으로 값을 읽는다. 무상태 경로와 세션 경로가 같은 오류를 내게 한다."""
+    if len(message) > max_message_chars:
+        raise HTTPException(
+            422, f"문장이 너무 깁니다: {len(message)}자 (상한 {max_message_chars}자)"
+        )
+    try:
+        return extract_profile(llm, message)
+    except ExtractionError as error:
+        raise HTTPException(503, f"조건을 읽지 못했습니다: {error}") from error
+    except Exception as error:
+        # LLM 어댑터가 무엇을 던지든 화면은 문구를 받아야 한다.
+        raise HTTPException(503, f"LLM 호출에 실패했습니다: {error}") from error
+
+
+def _판정들(profile: dict, program_ids: list[str]) -> list[dict]:
+    """무상태 경로와 세션 경로가 **같은 판정을 쓰게** 한다.
+
+    둘이 각자 조립하면 응답이 조금씩 달라지고, 화면이 어느 경로로 왔는지에 따라
+    다르게 보인다.
+    """
+    results = []
+    for program_id in program_ids:
+        try:
+            program = load_program(program_id)
+        except FileNotFoundError as error:
+            raise HTTPException(404, f"없는 상품입니다: {program_id}") from error
+
+        assessment = assess(program, profile)
+        results.append(
+            {
+                "program_id": program_id,
+                "program_name": program["program"]["program_name"],
+                "status": assessment.decision.status,
+                "passed_rules": assessment.decision.passed_rules,
+                "failed_rules": assessment.decision.failed_rules,
+                "missing_fields": assessment.decision.missing_fields,
+                "imprecise_fields": assessment.decision.imprecise_fields,
+                "next_actions": assessment.next_actions,
+                "loan_limit": _limit_as_json(assessment.loan_limit),
+                # 통과·불충족만 주면 "왜 이 조건은 안 보이나"에 답을 못 한다.
+                "rule_outcomes": [
+                    {
+                        "rule_id": item.rule_id,
+                        "outcome": item.outcome,
+                        "field": item.field,
+                        "field_label": _field_label(program, item.field),
+                        "citation": item.citation,
+                        "failure_message": item.failure_message,
+                    }
+                    for item in assessment.decision.rule_outcomes
+                ],
+                # 아직 다루지 않는 조건을 숨기지 않는다.
+                "unresolved": program.get("unresolved") or [],
+                "rule_version": program["program"].get("version"),
+                "source_url": program["program"]["source_url"],
+                "source_checked_at": program["program"]["fetched_at"],
+            }
+        )
+    return results
+
+
+def _세션_확인(store: SessionStore, session_id: str) -> None:
+    if not store.exists(session_id):
+        raise HTTPException(404, "없는 세션입니다")
+
+
+def _상태_응답(store: SessionStore, session_id: str) -> dict:
+    state = store.state(session_id)
+    return {
+        "session_id": session_id,
+        # 값마다 어디서 왔는지 함께 낸다. 화면이 "직접 넣은 값"과 "문장에서 읽은
+        # 값"을 구분해 보여 줄 수 있어야 한다.
+        "values": {
+            name: {
+                "value": _as_json(held.value),
+                "source": held.source,
+                "at": held.at,
+                "phrase": held.phrase,
+            }
+            for name, held in state.items()
+        },
+    }
 
 
 def _as_value(given: object) -> object:
